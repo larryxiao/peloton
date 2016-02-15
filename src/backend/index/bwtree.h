@@ -47,9 +47,6 @@ private:
 		//level of this node
 		unsigned short level;
 
-		//num of slots used
-		unsigned short slotused;
-
 		//node's key vector (all nodes have keys)
 		std::vector<KeyType> keys;
 
@@ -58,8 +55,8 @@ private:
 		unsigned short underflow_thresh;
 		unsigned short overflow_thresh;
 
-		inline Node(const unsigned short l, const unsigned short slotused = 0)
-				: level(l), slotused(slotused)
+		inline Node(const unsigned short l)
+				: level(l)
 		{}
 
 		// check if this node is a leaf
@@ -69,12 +66,12 @@ private:
 
 		//overflow checker
 		inline bool isoverflow() {
-			return (slotused > overflow_thresh);
+			return (keys.size() > overflow_thresh);
 		}
 
 		//underflow checker
 		inline bool isunderflow() {
-			return (slotused < underflow_thresh);
+			return (keys.size() < underflow_thresh);
 		}
 
 	};
@@ -222,12 +219,17 @@ private:
 		}
 		delete chain;
 	}
-	
+
 public:
 
 	//by default, start the pid generator at 0
-	inline BWTree() : pid_gen(0){
-	}
+	inline BWTree() : pid_gen(0)
+	{}
+
+
+	// Performs a binary search on a tree node to find the position of
+	// the key greater than or equal to the search key
+	inline int find_lower(const DeltaChain& chain,  const KeyType& key);
 
 };
 
