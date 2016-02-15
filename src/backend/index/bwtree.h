@@ -15,6 +15,7 @@
 #include <unordered_map>
 #include <memory>
 #include <vector>
+#include <bits/atomic_base.h>
 
 namespace peloton {
 namespace index {
@@ -26,14 +27,16 @@ class BWTree {
 
 public:
 	//key of mapping table
-	typedef size_t pid_t;
+	typedef unsigned short pid_t;
 
 	//Mapping table type
 	typedef std::unordered_map<pid_t, DeltaChain*> MappingTableType;
 
 private:
 
-	struct DeltaChain {};
+	struct DeltaChain {
+		pid_t pid;
+	};
 
 	MappingTableType mapping_table;
 
@@ -46,7 +49,7 @@ private:
 	struct node{
 
 		//page id of this node
-		pid_t pid;
+		std::atomic_ushort pid;
 
 		//level of this node
 		unsigned short level;
@@ -83,6 +86,18 @@ private:
 
 	};
 
+	struct children_vector {
+		std::vector<pid_t> children;
+		MappingTableType mapping_table;
+
+		inline children_vector(const MappingTableType &mapping_table) : mapping_table(mapping_table)
+		{}
+
+		inline void push_back(const DeltaChain* chain){
+			children.push_back(chain->pid);
+		}
+	};
+
 	struct inner_node : public node {
 
 		//vector of this node's children pids
@@ -111,7 +126,7 @@ private:
 	};
 
 public:
-	
+
 	//by default, start the pid generator at 0
 	inline BWTree() : pid_gen(0){
 	}
