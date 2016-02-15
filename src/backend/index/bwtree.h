@@ -85,7 +85,7 @@ private:
 		bool is_delta_record;
 
 		//next node in the chain
-		const DeltaChainType* next = nullptr;
+		DeltaChainType* next = nullptr;
 
 		inline DeltaChainType(bool is_delta_record)
 				:is_delta_record(is_delta_record)
@@ -150,13 +150,13 @@ private:
 		LeafNode *nextleaf;
 
 		//bwtree mapping table
-		const MappingTableType *mapping_table;
+		MappingTableType mapping_table;
 
 		//node's key's values vector (only leaves have values)
 		std::vector<ValueType> values;
 
 		//leaf nodes are always level 0
-		inline LeafNode(const MappingTableType *mapping_table)
+		inline LeafNode(MappingTableType& mapping_table)
 				: Node(0), DeltaChainType(false), prevleaf(nullptr),
 					nextleaf(nullptr), mapping_table(mapping_table)
 		{}
@@ -172,12 +172,57 @@ private:
 		//page id
 		pid_t pid;
 
+		//size of the delta chain
 		int len;
 
 		inline DeltaChain(DeltaChainType *head, const pid_t pid) : head(head), pid(pid), len(1)
 		{}
 	};
 
+	//allocte an inner node
+	inline pid_t allocate_inner_node(const unsigned short level) {
+		pid_t pid = static_cast<pid_t>(pid_gen++);
+		InnerNode *node = new InnerNode(level, mapping_table);
+		DeltaChain *chain = new DeltaChain(node, pid);
+		mapping_table[pid] = chain;
+		return pid;
+	}
+
+	//allocate a leaf node and assign a delta chain
+	inline pid_t allocate_leaf_node() {
+		pid_t pid = static_cast<pid_t >(pid_gen++);
+		LeafNode *node = new LeafNode(mapping_table);
+		DeltaChain *chain = new DeltaChain(node, pid);
+		mapping_table[pid] = chain;
+		return pid;
+	}
+
+	//deletes each element of the inner node chain and the chain itself
+	inline void delete_inner_node(const pid_t pid) {
+		DeltaChain *chain = mapping_table[pid];
+		auto temp = chain->head;
+		while(temp != nullptr) {
+			//save reference to the node to be deleted
+			auto delete_node = temp;
+			temp = temp->next;
+			delete delete_node;
+		}
+		delete chain;
+	}
+
+	//deletes each element of the leaf node chain and the chain itself
+	inline void delete_leaf_node(const pid_t pid) {
+		DeltaChain *chain = mapping_table[pid];
+		auto temp = chain->head;
+		while(temp != nullptr) {
+			//save reference for node to be deleted
+			auto delete_node = temp;
+			temp = temp->next;
+			delete delete_node;
+		}
+		delete chain;
+	}
+	
 public:
 
 	//by default, start the pid generator at 0
