@@ -34,22 +34,15 @@ public:
 
 private:
 
-	struct DeltaChain {
-		pid_t pid;
-	};
-
 	MappingTableType mapping_table;
 
 	//pid generator for nodes
-	pid_t pid_gen;
+	std::atomic_ushort pid_gen;
 
 	//root pid
 	pid_t root;
 
-	struct node{
-
-		//page id of this node
-		std::atomic_ushort pid;
+	struct Node{
 
 		//level of this node
 		unsigned short level;
@@ -65,8 +58,8 @@ private:
 		unsigned short underflow_thresh;
 		unsigned short overflow_thresh;
 
-		inline node(const unsigned short l, const pid_t pid, const unsigned short slotused = 0)
-				: level(l), pid(pid), slotused(slotused)
+		inline Node(const unsigned short l, const unsigned short slotused = 0)
+				: level(l), slotused(slotused)
 		{}
 
 		// check if this node is a leaf
@@ -86,43 +79,97 @@ private:
 
 	};
 
-	struct children_vector {
-		std::vector<pid_t> children;
-		MappingTableType mapping_table;
 
-		inline children_vector(const MappingTableType &mapping_table) : mapping_table(mapping_table)
+	//a generic delta chain entry
+	struct DeltaChainType {
+		//if this node is a delta record or bwtree node
+		bool is_delta_record;
+
+		//next node in the chain
+		const DeltaChainType* next = nullptr;
+
+		inline DeltaChainType(bool is_delta_record)
+				:is_delta_record(is_delta_record)
+		{}
+	};
+
+	//incremental delta records in the delta chain
+	struct DeltaRecord : public DeltaChainType {
+		KeyType key;
+
+		ValueType value;
+
+		//true, if insert record; false, if delete record
+		bool is_insert_record;
+
+		inline DeltaRecord(const pid_t pid, bool is_insert, const KeyType key,
+												ValueType value = nullptr)
+			: DeltaChainType(true), is_insert_record(is_insert), key(key), value(value)
+		{}
+	};
+
+	//wrapper for children vector for simplifying mapping table dereference
+	struct ChildrenVector {
+		std::vector<pid_t> children;
+		const MappingTableType *mapping_table;
+
+		inline ChildrenVector(const MappingTableType *mapping_table) : mapping_table(mapping_table)
 		{}
 
 		inline void push_back(const DeltaChain* chain){
 			children.push_back(chain->pid);
 		}
+
+		inline
 	};
 
-	struct inner_node : public node {
+	struct InnerNode : public Node, public DeltaChainType {
 
-		//vector of this node's children pids
-		std::vector<pid_t> children;
+		//wrapper for the children pid vector
+		ChildrenVector children;
 
-		inline inner_node(const unsigned short l, pid_t pid) : node(l, pid)
+		const MappingTableType *mapping_table;
+
+		//not a delta record, set delta chain type as false
+		inline InnerNode(const unsigned short l, const MappingTableType *mapping_table)
+				: Node(l), DeltaChainType(false), mapping_table(mapping_table),
+					children(mapping_table)
 		{}
 
 	};
 
-	struct leaf_node : public node {
+	struct LeafNode : public Node, public DeltaChainType {
 
 		//pointer to previous leaf node
-		leaf_node *prevleaf;
+		LeafNode *prevleaf;
 
 		//pointer to next leaf
-		leaf_node *nextleaf;
+		LeafNode *nextleaf;
+
+		//bwtree mapping table
+		const MappingTableType *mapping_table;
 
 		//node's key's values vector (only leaves have values)
 		std::vector<ValueType> values;
 
 		//leaf nodes are always level 0
-		inline leaf_node(const pid_t pid) : node(0, pid), prevleaf(nullptr), nextleaf(nullptr)
+		inline LeafNode(const MappingTableType *mapping_table)
+				: Node(0), DeltaChainType(false), prevleaf(nullptr),
+					nextleaf(nullptr), mapping_table(mapping_table)
 		{}
 
+	};
+
+	struct DeltaChain
+	{
+		DeltaChainType* head;
+
+		pid_t pid;
+
+		int len;
+
+		inline DeltaChain(DeltaChainType *head, const pid_t pid) : head(head), pid(pid), len(1)
+		{}
 	};
 
 public:
