@@ -79,7 +79,6 @@ private:
 
 	};
 
-
 	//a generic delta chain entry
 	struct DeltaChainType {
 		//if this node is a delta record or bwtree node
@@ -111,16 +110,20 @@ private:
 	//wrapper for children vector for simplifying mapping table dereference
 	struct ChildrenVector {
 		std::vector<pid_t> children;
-		const MappingTableType *mapping_table;
+		MappingTableType mapping_table;
 
-		inline ChildrenVector(const MappingTableType *mapping_table) : mapping_table(mapping_table)
+
+		inline ChildrenVector(MappingTableType& mapping_table) : mapping_table(mapping_table)
 		{}
 
 		inline void push_back(const DeltaChain* chain){
 			children.push_back(chain->pid);
 		}
 
-		inline
+		//overload [] operator to directly return mapping table pointer
+		inline DeltaChain*& operator[](int i){
+			return mapping_table[children[i]];
+		}
 	};
 
 	struct InnerNode : public Node, public DeltaChainType {
@@ -128,10 +131,10 @@ private:
 		//wrapper for the children pid vector
 		ChildrenVector children;
 
-		const MappingTableType *mapping_table;
+		MappingTableType mapping_table;
 
 		//not a delta record, set delta chain type as false
-		inline InnerNode(const unsigned short l, const MappingTableType *mapping_table)
+		inline InnerNode(const unsigned short l, MappingTableType& mapping_table)
 				: Node(l), DeltaChainType(false), mapping_table(mapping_table),
 					children(mapping_table)
 		{}
@@ -160,10 +163,13 @@ private:
 
 	};
 
+	//Lock free delta chain that wraps each bwtree node
 	struct DeltaChain
 	{
+		//head of the chain
 		DeltaChainType* head;
 
+		//page id
 		pid_t pid;
 
 		int len;
