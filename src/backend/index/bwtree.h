@@ -210,6 +210,36 @@ private:
 		inline DeltaChain(DeltaChainType *head, Node *node, const LogicalPtr& ptr) :
 				head(head), tree_node(node), ptr(ptr), len(1)
 		{}
+
+		inline DeltaChainIterator begin() const {
+			return DeltaChainIterator(head);
+		}
+
+		inline DeltaChainIterator end() const {
+			if(tree_node->isLeaf())
+				return DeltaChainIterator(reinterpret_cast<LeafNode*>(tree_node);
+			return DeltaChainIterator(reinterpret_cast<InnerNode*>(tree_node));
+		}
+	};
+
+	class DeltaChainIterator {
+	private:
+		DeltaChainType *curr;
+
+	public:
+		inline DeltaChainIterator(DeltaChainType *start) : curr(start)
+		{}
+
+		//reference as a delta chain record
+		inline DeltaRecord*& operator *() {
+			return reinterpret_cast<DeltaRecord*>(curr);
+		}
+
+		//iterator increment
+		inline DeltaChainIterator& operator ++() {
+			curr = curr->next;
+			return *this;
+		}
 	};
 
 	//allocate an inner node, return its logical ptr
@@ -279,18 +309,6 @@ private:
 		delete chain;
 	}
 
-	class DeltaChainIterator {
-	private:
-		DeltaChain *chain;
-
-	public:
-		inline DeltaChainIterator(DeltaChain *chain) : chain(chain)
-		{}
-
-		inline 
-	};
-
-
 	class LeafIterator {
 	private:
 		//logical pointer to the current node we are at
@@ -343,6 +361,22 @@ private:
 		return LeafIterator(tail_leaf_ptr_);
 	}
 
+	// Compares two keys and returns true if a <= b
+	inline bool key_compare_lte(const KeyType &a, const KeyType &b) {
+		return !less_comparator_(b,a);
+	}
+
+	// Compares two keys and returns true if a < b
+	inline bool key_compare_lt(const KeyType &a, const KeyType &b) {
+		return less_comparator_(a,b);
+	}
+
+	// Compares two keys and returns true if a = b
+	inline bool key_compare_eq(const KeyType &a, const KeyType &b){
+		return !less_comparator_(a,b) && !less_comparator_(b,a);
+	}
+
+
 
 public:
 
@@ -354,18 +388,6 @@ public:
 										tail_leaf_ptr_(root_)
 	{}
 
-
-
-	// Compares two keys and returns true if a <= b
-	inline bool key_compare_lte(const KeyType &a, const KeyType &b) {
-		return !less_comparator_(b,a);
-	}
-
-	// Compares two keys and returns true if a < b
-	inline bool key_compare_lt(const KeyType &a, const KeyType &b) {
-		return less_comparator_(a,b);
-	}
-
 	//Available modes: Greater than equal to, Greater tham
 	enum node_search_mode {
 		GTE, GT
@@ -373,8 +395,10 @@ public:
 
 	// Performs a binary search on a tree node to find the position of
 	// the key nearest to the search key, depending on the mode
-	inline int node_key_search(const DeltaChain& chain,  const KeyType& key,
+	inline int node_key_search(const DeltaChain*& chain,  const KeyType& key,
 														 const node_search_mode& mode);
+
+	LeafIterator tree_search(const KeyType& key, const node_search_mode& mode);
 
 };
 

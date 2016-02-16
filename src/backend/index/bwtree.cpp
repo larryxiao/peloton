@@ -16,12 +16,11 @@ namespace peloton {
 namespace index {
 
 	template <typename KeyType, typename ValueType, class KeyComparator>
-	int BWTree::node_key_search(const DeltaChain &chain, const KeyType &key, const node_search_mode &mode) {
-		// first search the delta records
-		while()
+	int BWTree::node_key_search(const DeltaChain*& chain, const KeyType &key, const node_search_mode &mode) {
+
 		// Assuming no delta records, the delta chain just contains
 		// a Node type (i.e. either inner or leaf node)
-		Node *node = reinterpret_cast<Node *>(chain.head);
+		Node *node = reinterpret_cast<Node *>(chain->head);
 
 		// empty node? return index of 0th element
 		if(node->keys.size() == 0) return 0;
@@ -55,6 +54,18 @@ namespace index {
 			}
 		}
 		return min;
+	}
+
+	template <typename KeyType, typename ValueType, class KeyComparator>
+	LeafIterator BWTree::tree_search(const KeyType &key, const node_search_mode &mode) {
+
+		// first search the delta records
+		for(auto it=chain->begin(); chain->end() != it; it++){
+			//check for key match in delta record
+			if(key_compare_eq((*it)->key, key)){
+				//insert record?
+			}
+		}
 	}
 }  // End index namespace
 }  // End peloton namespace
