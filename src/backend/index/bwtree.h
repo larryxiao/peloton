@@ -98,8 +98,7 @@ private:
 		//true, if insert record; false, if delete record
 		bool is_insert_record;
 
-		inline DeltaRecord(const pid_t pid, bool is_insert, const KeyType key,
-												ValueType value = nullptr)
+		inline DeltaRecord(bool is_insert, const KeyType key, ValueType value = nullptr)
 			: DeltaChainType(true), is_insert_record(is_insert), key(key), value(value)
 		{}
 	};
