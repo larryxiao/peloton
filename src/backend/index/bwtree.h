@@ -34,13 +34,16 @@ public:
 
 private:
 
-	MappingTableType mapping_table;
+	MappingTableType mapping_table_;
 
 	//pid generator for nodes
-	std::atomic_ushort pid_gen;
+	std::atomic_ushort pid_gen_;
 
 	//root pid
-	pid_t root;
+	pid_t root_;
+
+	//comparator, assuming the default comparator is lt
+	KeyComparator less_comparator_;
 
 	struct Node{
 
@@ -177,25 +180,25 @@ private:
 
 	//allocte an inner node
 	inline pid_t allocate_inner_node(const unsigned short level) {
-		pid_t pid = static_cast<pid_t>(pid_gen++);
-		InnerNode *node = new InnerNode(level, mapping_table);
+		pid_t pid = static_cast<pid_t>(pid_gen_++);
+		InnerNode *node = new InnerNode(level, mapping_table_);
 		DeltaChain *chain = new DeltaChain(node, pid);
-		mapping_table[pid] = chain;
+		mapping_table_[pid] = chain;
 		return pid;
 	}
 
 	//allocate a leaf node and assign a delta chain
 	inline pid_t allocate_leaf_node() {
-		pid_t pid = static_cast<pid_t >(pid_gen++);
-		LeafNode *node = new LeafNode(mapping_table);
+		pid_t pid = static_cast<pid_t >(pid_gen_++);
+		LeafNode *node = new LeafNode(mapping_table_);
 		DeltaChain *chain = new DeltaChain(node, pid);
-		mapping_table[pid] = chain;
+		mapping_table_[pid] = chain;
 		return pid;
 	}
 
 	//deletes each element of the inner node chain and the chain itself
 	inline void delete_inner_node(const pid_t pid) {
-		DeltaChain *chain = mapping_table[pid];
+		DeltaChain *chain = mapping_table_[pid];
 		auto temp = chain->head;
 		while(temp != nullptr) {
 			//save reference to the node to be deleted
@@ -208,7 +211,7 @@ private:
 
 	//deletes each element of the leaf node chain and the chain itself
 	inline void delete_leaf_node(const pid_t pid) {
-		DeltaChain *chain = mapping_table[pid];
+		DeltaChain *chain = mapping_table_[pid];
 		auto temp = chain->head;
 		while(temp != nullptr) {
 			//save reference for node to be deleted
@@ -222,13 +225,28 @@ private:
 public:
 
 	//by default, start the pid generator at 0
-	inline BWTree() : pid_gen(0)
+	inline BWTree() : pid_gen_(0)
 	{}
 
+	// Compares two keys and returns true if a <= b
+	inline bool key_compare_lte(const KeyType &a, const KeyType &b) {
+		return !less_comparator_(b,a);
+	}
+
+	// Compares two keys and returns true if a < b
+	inline bool key_compare_lt(const KeyType &a, const KeyType &b) {
+		return less_comparator_(a,b);
+	}
+
+	//Available modes: Greater than equal to, Greater tham
+	enum node_search_mode {
+		GTE, GT
+	};
 
 	// Performs a binary search on a tree node to find the position of
-	// the key greater than or equal to the search key
-	inline int find_lower(const DeltaChain& chain,  const KeyType& key);
+	// the key nearest to the search key, depending on the mode
+	inline int node_key_search(const DeltaChain& chain,  const KeyType& key,
+														 const node_search_mode& mode);
 
 };
 
