@@ -55,6 +55,13 @@ private:
 	//comparator, assuming the default comparator is lt
 	KeyComparator less_comparator_;
 
+	//Logical pointer to head leaf page
+	pid_t head_leaf_page_;
+
+	//Logical pointer to the tail leaf page
+	pid_t tail_leaf_page_;
+
+
 	struct Node{
 
 		//level of this node
@@ -178,13 +185,17 @@ private:
 		//head of the chain
 		DeltaChainType* head;
 
+		//BWtree Node reference at the end of the chain
+		Node* tree_node;
+
 		//page id
 		pid_t pid;
 
 		//size of the delta chain
 		int len;
 
-		inline DeltaChain(DeltaChainType *head, const pid_t pid) : head(head), pid(pid), len(1)
+		inline DeltaChain(DeltaChainType *head, Node *node, const pid_t pid) :
+				head(head), tree_node(node), pid(pid), len(1)
 		{}
 	};
 
@@ -192,7 +203,7 @@ private:
 	inline pid_t allocate_inner_node(const unsigned short level) {
 		pid_t pid = static_cast<pid_t>(pid_gen_++);
 		InnerNode *node = new InnerNode(level, mapping_table_);
-		DeltaChain *chain = new DeltaChain(node, pid);
+		DeltaChain *chain = new DeltaChain(node, node, pid);
 		mapping_table_[pid] = chain;
 		return pid;
 	}
@@ -201,7 +212,7 @@ private:
 	inline pid_t allocate_leaf_node() {
 		pid_t pid = static_cast<pid_t >(pid_gen_++);
 		LeafNode *node = new LeafNode(mapping_table_);
-		DeltaChain *chain = new DeltaChain(node, pid);
+		DeltaChain *chain = new DeltaChain(node, node, pid);
 		mapping_table_[pid] = chain;
 		return pid;
 	}
@@ -232,6 +243,7 @@ private:
 		delete chain;
 	}
 
+
 public:
 
 	//by default, start the pid generator at 1, 0 is NULL page
@@ -240,8 +252,11 @@ public:
 
 	class LeafIterator {
 	private:
-		//current node we are at
-		typename LeafNode *currnode;
+		//logical pointer to the current node we are at
+		pid_t currnode;
+
+		//mapping table for logical ptr conversion
+		MappingTableType mapping_table;
 
 		//index of currnode's key vector we are at
 		unsigned int currslot;
@@ -250,12 +265,46 @@ public:
 		inline LeafIterator() : currnode(nullptr), currslot(0)
 		{}
 
-		inline LeafIterator(typename LeafNode* node, unsigned int slot)
-				: currnode(node), currslot(slot)
+		inline LeafIterator(pid_t node, unsigned int slot,
+												MappingTableType& mapping_table)
+				: currnode(node), currslot(slot),
+					mapping_table(mapping_table)
 		{}
+
+		//constructor used for end() to assign to last slot
+		inline LeafIterator(pid_t node, MappingTableType& mapping_table) :
+				currnode(node), mapping_table(mapping_table)
+		{
+			//set slot as last position
+			LeafNode *leafnode =
+					reinterpret_cast<LeafNode*>(mapping_table[node]->tree_node);
+			currslot = leafnode->keys.size();
+		}
+
+		inline ValueType& operator *() {
+			//get physical pointer of the tree node and dereference
+			LeafNode *node =
+					reinterpret_cast<LeafNode*>(mapping_table[currnode]->tree_node);
+			return node->values[currslot];
+		}
+
+		inline const KeyType & key() const {
+			//get physical pointer of the tree node and dereference
+			LeafNode *node =
+					reinterpret_cast<LeafNode*>(mapping_table[currnode]->tree_node);
+			return node->keys[currslot];
+		}
 
 	};
 
+	inline LeafIterator begin() {
+		return LeafIterator(head_leaf_page_, 0, mapping_table_);
+	}
+
+	inline LeafIterator end() {
+		return LeafIterator(tail_leaf_page_, mapping_table_);
+	}
+		
 	// Compares two keys and returns true if a <= b
 	inline bool key_compare_lte(const KeyType &a, const KeyType &b) {
 		return !less_comparator_(b,a);
