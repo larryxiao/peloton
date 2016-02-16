@@ -17,6 +17,9 @@
 #include <vector>
 #include <bits/atomic_base.h>
 
+//Null page id
+#define NULL_PID 0
+
 namespace peloton {
 namespace index {
 
@@ -26,6 +29,13 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 class BWTree {
 
 public:
+// typedefs of all the template parameters for visibility
+//	typedef KeyType KeyType;
+//
+//	typedef ValueType ValueType;
+//
+//	typedef KeyComparator KeyComparator;
+
 	//key of mapping table
 	typedef unsigned short pid_t;
 
@@ -142,11 +152,11 @@ private:
 
 	struct LeafNode : public Node, public DeltaChainType {
 
-		//pointer to previous leaf node
-		LeafNode *prevleaf;
+		//logical pointer to previous leaf node
+		pid_t prevleaf;
 
-		//pointer to next leaf
-		LeafNode *nextleaf;
+		//logical pointer to next leaf
+		pid_t nextleaf;
 
 		//bwtree mapping table
 		MappingTableType mapping_table;
@@ -156,8 +166,8 @@ private:
 
 		//leaf nodes are always level 0
 		inline LeafNode(MappingTableType& mapping_table)
-				: Node(0), DeltaChainType(false), prevleaf(nullptr),
-					nextleaf(nullptr), mapping_table(mapping_table)
+				: Node(0), DeltaChainType(false), prevleaf(NULL_PID),
+					nextleaf(NULL_PID), mapping_table(mapping_table)
 		{}
 
 	};
@@ -224,9 +234,27 @@ private:
 
 public:
 
-	//by default, start the pid generator at 0
-	inline BWTree() : pid_gen_(0)
+	//by default, start the pid generator at 1, 0 is NULL page
+	inline BWTree() : pid_gen_(NULL_PID+1)
 	{}
+
+	class LeafIterator {
+	private:
+		//current node we are at
+		typename LeafNode *currnode;
+
+		//index of currnode's key vector we are at
+		unsigned int currslot;
+
+	public:
+		inline LeafIterator() : currnode(nullptr), currslot(0)
+		{}
+
+		inline LeafIterator(typename LeafNode* node, unsigned int slot)
+				: currnode(node), currslot(slot)
+		{}
+
+	};
 
 	// Compares two keys and returns true if a <= b
 	inline bool key_compare_lte(const KeyType &a, const KeyType &b) {
