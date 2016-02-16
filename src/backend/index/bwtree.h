@@ -29,12 +29,6 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 class BWTree {
 
 public:
-// typedefs of all the template parameters for visibility
-//	typedef KeyType KeyType;
-//
-//	typedef ValueType ValueType;
-//
-//	typedef KeyComparator KeyComparator;
 
 	//key of mapping table
 	typedef unsigned short pid_t;
@@ -49,18 +43,62 @@ private:
 	//pid generator for nodes
 	std::atomic_ushort pid_gen_;
 
-	//root pid
-	pid_t root_;
+	//Logical pointer wrapper for pid
+	struct LogicalPtr{
+		pid_t pid;
+		MappingTableType mapping_table;
+
+		inline LogicalPtr(const pid_t& pid, MappingTableType& mapping_table)
+				: pid(pid), mapping_table(mapping_table)
+		{}
+
+		//used for Null logical ptr intialization
+		inline LogicalPtr(const pid_t& pid) : pid(pid)
+		{}
+
+		//null logical ptr checker
+		inline bool is_null(){
+			return (pid == NULL_PID);
+		}
+
+		//assigns a null ptr
+		inline void set_pid(const pid_t& new_pid){
+			pid = new_pid;
+		}
+
+		//overload * operator to return physical pointer
+		inline DeltaChain*& operator *() {
+			return mapping_table[pid];
+		}
+	};
+
+	struct LogicalPtrFactory {
+		MappingTableType mapping_table;
+
+		inline LogicalPtrFactory(MappingTableType& mapping_table) :
+				MappingTableType(mapping_table)
+		{}
+
+		inline LogicalPtr get_logical_ptr(const pid_t& pid) {
+			return LogicalPtr(pid, mapping_table);
+		}
+
+	};
+
+	LogicalPtrFactory lpfactory_;
+
+
+	//logical pointer to root
+	LogicalPtr root_;
 
 	//comparator, assuming the default comparator is lt
 	KeyComparator less_comparator_;
 
 	//Logical pointer to head leaf page
-	pid_t head_leaf_page_;
+	LogicalPtr head_leaf_ptr_;
 
 	//Logical pointer to the tail leaf page
-	pid_t tail_leaf_page_;
-
+	LogicalPtr tail_leaf_ptr_;
 
 	struct Node{
 
@@ -123,36 +161,14 @@ private:
 		{}
 	};
 
-	//wrapper for children vector for simplifying mapping table dereference
-	struct ChildrenVector {
-		std::vector<pid_t> children;
-		MappingTableType mapping_table;
-
-
-		inline ChildrenVector(MappingTableType& mapping_table) : mapping_table(mapping_table)
-		{}
-
-		inline void push_back(const DeltaChain* chain){
-			children.push_back(chain->pid);
-		}
-
-		//overload [] operator to directly return mapping table pointer
-		inline DeltaChain*& operator[](int i){
-			return mapping_table[children[i]];
-		}
-	};
-
 	struct InnerNode : public Node, public DeltaChainType {
 
 		//wrapper for the children pid vector
-		ChildrenVector children;
-
-		MappingTableType mapping_table;
+		std::vector<LogicalPtr> children;
 
 		//not a delta record, set delta chain type as false
-		inline InnerNode(const unsigned short l, MappingTableType& mapping_table)
-				: Node(l), DeltaChainType(false), mapping_table(mapping_table),
-					children(mapping_table)
+		inline InnerNode(const unsigned short l)
+				: Node(l), DeltaChainType(false)
 		{}
 
 	};
@@ -160,21 +176,18 @@ private:
 	struct LeafNode : public Node, public DeltaChainType {
 
 		//logical pointer to previous leaf node
-		pid_t prevleaf;
+		LogicalPtr prevleaf;
 
 		//logical pointer to next leaf
-		pid_t nextleaf;
-
-		//bwtree mapping table
-		MappingTableType mapping_table;
+		LogicalPtr nextleaf;
 
 		//node's key's values vector (only leaves have values)
 		std::vector<ValueType> values;
 
 		//leaf nodes are always level 0
-		inline LeafNode(MappingTableType& mapping_table)
-				: Node(0), DeltaChainType(false), prevleaf(NULL_PID),
-					nextleaf(NULL_PID), mapping_table(mapping_table)
+		inline LeafNode() : Node(0), DeltaChainType(false),
+												prevleaf(LogicalPtr(NULL_PID)),
+												nextleaf(LogicalPtr(NULL_PID))
 		{}
 
 	};
@@ -189,36 +202,59 @@ private:
 		Node* tree_node;
 
 		//page id
-		pid_t pid;
+		LogicalPtr ptr;
 
 		//size of the delta chain
 		int len;
 
-		inline DeltaChain(DeltaChainType *head, Node *node, const pid_t pid) :
-				head(head), tree_node(node), pid(pid), len(1)
+		inline DeltaChain(DeltaChainType *head, Node *node, const LogicalPtr& ptr) :
+				head(head), tree_node(node), ptr(ptr), len(1)
 		{}
 	};
 
-	//allocte an inner node
-	inline pid_t allocate_inner_node(const unsigned short level) {
+	//allocate an inner node, return its logical ptr
+	inline LogicalPtr allocate_inner_node(const unsigned short level) {
 		pid_t pid = static_cast<pid_t>(pid_gen_++);
-		InnerNode *node = new InnerNode(level, mapping_table_);
-		DeltaChain *chain = new DeltaChain(node, node, pid);
-		mapping_table_[pid] = chain;
-		return pid;
+
+		//construct inner node
+		InnerNode *node = new InnerNode(level);
+
+		//create a logical pointer to pid
+		auto ptr = lpfactory_.get_logical_ptr(pid);
+
+		//create the delta chain pointer
+		DeltaChain *chain =
+				new DeltaChain(node, node, ptr);
+
+		//link the logical pointer to the physical pointer
+		*ptr = chain;
+
+		return ptr;
 	}
 
-	//allocate a leaf node and assign a delta chain
-	inline pid_t allocate_leaf_node() {
+	//allocate a leaf node, return its logical ptr
+	inline LogicalPtr allocate_leaf_node() {
 		pid_t pid = static_cast<pid_t >(pid_gen_++);
-		LeafNode *node = new LeafNode(mapping_table_);
-		DeltaChain *chain = new DeltaChain(node, node, pid);
-		mapping_table_[pid] = chain;
-		return pid;
+
+		//construct the leaf node
+		LeafNode *node = new LeafNode();
+
+		//create a logical pointer
+		auto ptr = lpfactory_.get_logical_ptr(pid);
+
+		//construct the delta chain
+		DeltaChain *chain = new DeltaChain(node, node, ptr);
+
+
+		//map the logical pinter to its physical pointer
+		*ptr = chain;
+
+		//return the logical pointer
+		return ptr;
 	}
 
 	//deletes each element of the inner node chain and the chain itself
-	inline void delete_inner_node(const pid_t pid) {
+	inline void delete_inner_node(const LogicalPtr& pid) {
 		DeltaChain *chain = mapping_table_[pid];
 		auto temp = chain->head;
 		while(temp != nullptr) {
@@ -243,68 +279,83 @@ private:
 		delete chain;
 	}
 
+	class DeltaChainIterator {
+	private:
+		DeltaChain *chain;
 
-public:
+	public:
+		inline DeltaChainIterator(DeltaChain *chain) : chain(chain)
+		{}
 
-	//by default, start the pid generator at 1, 0 is NULL page
-	inline BWTree() : pid_gen_(NULL_PID+1)
-	{}
+		inline 
+	};
+
 
 	class LeafIterator {
 	private:
 		//logical pointer to the current node we are at
-		pid_t currnode;
-
-		//mapping table for logical ptr conversion
-		MappingTableType mapping_table;
+		LogicalPtr currnode;
 
 		//index of currnode's key vector we are at
 		unsigned int currslot;
 
 	public:
-		inline LeafIterator() : currnode(nullptr), currslot(0)
+		inline LeafIterator() : currnode(LogicalPtr(NULL_PID)), currslot(0)
 		{}
 
-		inline LeafIterator(pid_t node, unsigned int slot,
-												MappingTableType& mapping_table)
-				: currnode(node), currslot(slot),
-					mapping_table(mapping_table)
+		inline LeafIterator(LogicalPtr node, unsigned int slot)
+				: currnode(node), currslot(slot)
 		{}
 
 		//constructor used for end() to assign to last slot
-		inline LeafIterator(pid_t node, MappingTableType& mapping_table) :
-				currnode(node), mapping_table(mapping_table)
+		inline LeafIterator(LogicalPtr node) :
+				currnode(node)
 		{
 			//set slot as last position
 			LeafNode *leafnode =
-					reinterpret_cast<LeafNode*>(mapping_table[node]->tree_node);
+					reinterpret_cast<LeafNode*>((*node)->tree_node);
 			currslot = leafnode->keys.size();
 		}
 
 		inline ValueType& operator *() {
-			//get physical pointer of the tree node and dereference
+			// get physical pointer of the tree node from the delta
+			// chain and dereference
 			LeafNode *node =
-					reinterpret_cast<LeafNode*>(mapping_table[currnode]->tree_node);
+					reinterpret_cast<LeafNode*>((*currnode)->tree_node);
 			return node->values[currslot];
 		}
 
 		inline const KeyType & key() const {
-			//get physical pointer of the tree node and dereference
+			// get physical pointer of the tree node from the delta
+			// chain and dereference
 			LeafNode *node =
-					reinterpret_cast<LeafNode*>(mapping_table[currnode]->tree_node);
+					reinterpret_cast<LeafNode*>((*currnode)->tree_node);
 			return node->keys[currslot];
 		}
 
 	};
 
 	inline LeafIterator begin() {
-		return LeafIterator(head_leaf_page_, 0, mapping_table_);
+		return LeafIterator(head_leaf_ptr_, 0);
 	}
 
 	inline LeafIterator end() {
-		return LeafIterator(tail_leaf_page_, mapping_table_);
+		return LeafIterator(tail_leaf_ptr_);
 	}
-		
+
+
+public:
+
+	//by default, start the pid generator at 1, 0 is NULL page
+	inline BWTree() : pid_gen_(NULL_PID+1),
+										lpfactory_(LogicalPtrFactory(mapping_table_)),
+										root_(LogicalPtr(NULL_PID)),
+										head_leaf_ptr_(root_),
+										tail_leaf_ptr_(root_)
+	{}
+
+
+
 	// Compares two keys and returns true if a <= b
 	inline bool key_compare_lte(const KeyType &a, const KeyType &b) {
 		return !less_comparator_(b,a);

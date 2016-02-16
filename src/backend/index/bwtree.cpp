@@ -17,6 +17,8 @@ namespace index {
 
 	template <typename KeyType, typename ValueType, class KeyComparator>
 	int BWTree::node_key_search(const DeltaChain &chain, const KeyType &key, const node_search_mode &mode) {
+		// first search the delta records
+		while()
 		// Assuming no delta records, the delta chain just contains
 		// a Node type (i.e. either inner or leaf node)
 		Node *node = reinterpret_cast<Node *>(chain.head);
