@@ -37,6 +37,7 @@ private:
 		deltaDelete,
 		deltaSplitInner,
 		deltaSplitLeaf,
+		deltaSplit,
 		separator,
 	};
 
@@ -47,16 +48,50 @@ private:
 		NodeType type;
 
 	public:
-		//logical ptr to the next node
-		pid_t next;
+		//ptr to the next node in delta chain
+		Node* next;
+	};
+
+	struct DeltaChain {
+		//head node of this list
+		std::atomic<Node *> head;
+
+		//pid of this chain
+		pid_t pid;
+
+		//length of this chain
+		std::atomic<unsigned> chain_length;
+
+		inline DeltaChain(Node *node, const pid_t& pid) :
+				pid(pid), chain_length(1)
+		{
+			insert(node);
+		}
+
+		inline void insert(Node *new_node) {
+			new_node->next = head.load(std::memory_order_relaxed);
+			// CAS on updating head
+			while(!std::atomic_compare_exchange_weak_explicit(
+					&head,
+					&new_node->next,
+					new_node,
+					std::memory_order_release,
+					std::memory_order_relaxed)
+					);
+		}
+
+		inline Node* get_head() {
+			return head.load(std::memory_order_relaxed);
+		}
+
 	};
 
 	// TODO: performance issues?
 	struct LockFreeTable {
-		// NOTE: STL containers can support sing writer and concurrent readers
-		std::unordered_map<pid_t, std::atomic<Node*>> table;
+		// NOTE: STL containers can support single writer and concurrent readers
+		std::unordered_map<pid_t, std::atomic<DeltaChain*>> table;
 
-		// used to manage conccurent inserts on different keys
+		// used to manage concurrent inserts on different keys
 		std::atomic<bool> flag;
 
 		// flag is intially available
@@ -64,54 +99,50 @@ private:
 		{}
 
 		// lookup and return physical pointer corresponding to pid
-		inline Node* get_phy_ptr(const pid_t& pid) {
+		inline DeltaChain* get_phy_ptr(const pid_t& pid) {
 			// return the node pointer
 			return table[pid].load(std::memory_order_relaxed);
 		}
 
 		// Used for first time insertion of this pid into the map
-		inline void insert_new_pid(const pid_t& pid, Node* node) {
+		inline void insert_new_pid(const pid_t& pid, DeltaChain* chain) {
 			bool expected = true;
-			while(true) {
-				if(std::atomic_compare_exchange_weak_explicit(
-						&flag, &expected, false, std::memory_order_release,
-						std::memory_order_relaxed)){
-					std::atomic<Node *> atomic_ptr;
+			while(!(std::atomic_compare_exchange_weak_explicit(
+					&flag, &expected, false, std::memory_order_release,
+					std::memory_order_relaxed)));
 
-					// only thread here, relaxed access
-					atomic_ptr.store(node, std::memory_order_relaxed);
+			std::atomic<DeltaChain *> atomic_ptr;
 
-					// insert into the map
-					table[pid] = node;
+			// only thread here, relaxed access
+			atomic_ptr.store(chain, std::memory_order_relaxed);
 
-					// set the flag as true
-					flag.store(true, std::memory_order_release);
-					return;
-				}
-			}
+			// insert into the map
+			table[pid] = chain;
+
+			// set the flag as true
+			flag.store(true, std::memory_order_release);
+			return;
 		}
 
 		//update the pid's pointer mapping
-		inline void update_pid_val(const pid_t& pid, Node* update) {
+		inline void update_pid_val(const pid_t& pid, DeltaChain* update) {
+			//expected value
+			DeltaChain *expected;
+
 			// atomically load the current value of node ptr
-			std::atomic<Node *> value;
-			std::atomic<Node *> new_value;
+			std::atomic<DeltaChain *> value;
+			std::atomic<DeltaChain *> new_value;
 
 			// store the update value
 			new_value.store(update, std::memory_order_relaxed);
-
-			while(true) {
+			do {
 				// store the expected value and create a pointer
-				Node *expected = table[pid].load(std::memory_order_relaxed);
-
-				// return after successful update of the map with the new value
-				if(std::atomic_compare_exchange_weak_explicit(
-						&table[pid], &expected, new_value,
-						std::memory_order_relaxed, std::memory_order_release
-				)) {
-					return;
-				}
+				expected = table[pid].load(std::memory_order_relaxed);
 			}
+			while(std::atomic_compare_exchange_weak_explicit(
+					&table[pid], &expected, new_value,
+					std::memory_order_relaxed, std::memory_order_release
+			));
 		}
 	};
 
@@ -151,18 +182,16 @@ private:
 		pid_t nextleaf;
 
 		//leaf nodes are always level 0
-		static inline Node* create(const pid_t prevleaf, const pid_t nextleaf)
+		inline LeafNode(const pid_t prevleaf, const pid_t nextleaf)
 		{
-			LeafNode *node = new LeafNode();
 			// doubly linked list of leaves
-			node->prevleaf  = prevleaf;
-			node->nextleaf = nextleaf;
+			this->prevleaf  = prevleaf;
+			this->nextleaf = nextleaf;
 
-			node->type = NodeType::leaf;
+			type = NodeType::leaf;
 
 			// leaf node is always at the end of a delta chain
-			node->next = NULL_PID;
-			return node;
+			next = nullptr;
 		}
 
 	};
@@ -174,14 +203,11 @@ private:
 		// node's key's children vector
 		std::vector<pid_t> children;
 
-		static inline Node* create() {
-			InnerNode* node = new InnerNode();
-			node->type = NodeType::inner;
+		inline InnerNode() {
+			type = NodeType::inner;
 
 			// inner node is always at the end of a delta chain
-			node->next = NULL_PID;
-
-			return node;
+			next = nullptr;
 		}
 	};
 
@@ -198,13 +224,85 @@ private:
 		//insert value
 		ValueType value;
 
-		static inline Node* create(const KeyType &key, const ValueType &value, Node *origin) {
-			DeltaInsert *node = new DeltaInsert();
-			node->key = key;
-			node->value = value;
-			node->origin = origin;
-			return node;
+		inline DeltaInsert(const KeyType &key, const ValueType &value, Node *origin) {
+			this->key = key;
+			this->value = value;
+			this->origin = origin;
+			type = NodeType::deltaInsert;
 		}
+	};
+
+	struct DeltaDelete : public DeltaRecord {
+		//delete key
+		KeyType key;
+
+		inline DeltaDelete(const KeyType &key, Node *origin) {
+			this->key = key;
+			this->origin = origin;
+			type = NodeType::deltaDelete;
+		}
+	};
+
+	struct DeltaSplit : public DeltaRecord {
+		// split key for this record
+		KeyType splitKey;
+
+		// logical pointer to the new child record
+		pid_t new_child;
+
+		inline DeltaSplit(const KeyType &key, const pid_t new_child, Node *origin) {
+			splitKey = key;
+			// set the new child for split
+			this->new_child = new_child;
+			type = NodeType::deltaSplit;
+			// set the origin node
+			this->origin = origin;
+		}
+	};
+
+	struct Separator : public DeltaRecord {
+		// low and high to specify key range
+		KeyType low;
+		KeyType high;
+
+		// child logical pointer
+		pid_t child;
+
+		// shortcut pointer to the new node
+		pid_t new_node;
+
+		inline Separator(const KeyType& low, const KeyType& high,
+										 const pid_t child, const pid_t new_node,
+										 Node *origin) {
+			//low and high key ranges
+			this->low = low;
+			this->high = high;
+
+			this->child = child;
+			this->new_node = new_node;
+
+			//pointer to the original node
+			this->origin = origin;
+
+			type = NodeType::separator;
+
+		}
+	};
+
+	//used for range scans
+	class RangeVector {
+		//logical pointer to the current node
+		pid_t currnode;
+
+		//cursor position within currnode
+		int currpos;
+
+		//stores the records from the range scan
+		std::vector<std::pair<KeyType,ValueType>> range_result;
+
+		inline RangeVector(const pid_t currnode, int currpos) :
+				currnode(currnode), currpos(currpos)
+		{}
 	};
 
 	// Compares two keys and returns true if a <= b
@@ -230,7 +328,15 @@ public:
 	inline BWTree() {
 		pid_gen_ = NULL_PID+1;
 		root_ = static_cast<pid_t>(pid_gen_++);
-		mapping_table_.insert_new_pid(root_, LeafNode::create(NULL_PID, NULL_PID));
+
+		//create the root delta chain
+		auto chain  = new DeltaChain(
+				new LeafNode(NULL_PID, NULL_PID), root_);
+
+		//insert the chain into the mapping table
+		mapping_table_.insert_new_pid(root_, chain);
+
+		//update the leaf pointers
 		head_leaf_ptr_ = root_;
 		tail_leaf_ptr_ = root_;
 	}
@@ -244,8 +350,6 @@ public:
 	// the key nearest to the search key, depending on the mode
 	inline int node_key_search(const DeltaChain*& chain,  const KeyType& key,
 														 const node_search_mode& mode);
-
-	LeafIterator tree_search(const KeyType& key, const node_search_mode& mode);
 
 };
 
