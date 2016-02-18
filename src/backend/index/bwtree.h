@@ -15,6 +15,7 @@
 #include <unordered_map>
 #include <memory>
 #include <vector>
+#include <atomic>
 #include <bits/atomic_base.h>
 
 //Null page id
@@ -28,124 +29,139 @@ namespace index {
 template <typename KeyType, typename ValueType, class KeyComparator>
 class BWTree {
 
-public:
+private:
+	enum NodeType : std::int8_t {
+		leaf,
+		inner,
+		deltaInsert,
+		deltaDelete,
+		deltaSplitInner,
+		deltaSplitLeaf,
+		separator,
+	};
+
+	struct Node{
+
+	protected:
+		//type of this node
+		NodeType type;
+
+	public:
+		//logical ptr to the next node
+		pid_t next;
+	};
+
+	struct LockFreeTable {
+		//NOTE: STL containers can support sing writer and concurrent readers
+		std::unordered_map<pid_t, std::atomic<Node*>> table;
+
+		//used to manage conccurent inserts on different keys
+		std::atomic<bool> flag;
+
+		//flag is intially available
+		inline LockFreeTable() : flag(true)
+		{}
+
+		//lookup and return physical pointer corresponding to pid
+		inline Node* get_phy_ptr(const pid_t& pid) {
+			//return the node pointer
+			return table[pid].load(std::memory_order_relaxed);
+		}
+
+		//Used for first time insertion of this pid into the map
+		inline void insert_new_pid(const pid_t& pid, Node* node) {
+			bool expected = true;
+			while(true) {
+				if(std::atomic_compare_exchange_weak_explicit(
+						&flag, &expected, false, std::memory_order_release,
+						std::memory_order_relaxed)){
+					std::atomic<Node *> atomic_ptr;
+
+					//only thread here, relaxed access
+					atomic_ptr.store(node, std::memory_order_relaxed);
+
+					//insert into the map
+					table[pid] = node;
+
+					//set the flag as true
+					flag.store(true, std::memory_order_release);
+					return;
+				}
+			}
+		}
+
+		//update the pid's pointer mapping
+		inline void update_pid_val(const pid_t& pid, Node* update) {
+			//atomically load the current value of node ptr
+			std::atomic<Node *> value;
+			std::atomic<Node *> new_value;
+
+			//store the update value
+			new_value.store(update, std::memory_order_relaxed);
+
+			while(true) {
+				//store the expected value and create a pointer
+				Node *expected = table[pid].load(std::memory_order_relaxed);
+
+				//return after successful update of the map with the new value
+				if(std::atomic_compare_exchange_weak_explicit(
+						&table[pid], &expected, new_value,
+						std::memory_order_relaxed, std::memory_order_release
+				)) {
+					return;
+				}
+			}
+		}
+	};
 
 	//key of mapping table
 	typedef unsigned short pid_t;
 
-	//Mapping table type
-	typedef std::unordered_map<pid_t, DeltaChain*> MappingTableType;
-
-private:
-
-	MappingTableType mapping_table_;
+	//lock free mapping table
+	LockFreeTable mapping_table_;
 
 	//pid generator for nodes
 	std::atomic_ushort pid_gen_;
 
-	//Logical pointer wrapper for pid
-	struct LogicalPtr{
-		pid_t pid;
-		MappingTableType mapping_table;
-
-		inline LogicalPtr(const pid_t& pid, MappingTableType& mapping_table)
-				: pid(pid), mapping_table(mapping_table)
-		{}
-
-		//used for Null logical ptr intialization
-		inline LogicalPtr(const pid_t& pid) : pid(pid)
-		{}
-
-		//null logical ptr checker
-		inline bool is_null(){
-			return (pid == NULL_PID);
-		}
-
-		//assigns a null ptr
-		inline void set_pid(const pid_t& new_pid){
-			pid = new_pid;
-		}
-
-		//overload * operator to return physical pointer
-		inline DeltaChain*& operator *() {
-			return mapping_table[pid];
-		}
-	};
-
-	struct LogicalPtrFactory {
-		MappingTableType mapping_table;
-
-		inline LogicalPtrFactory(MappingTableType& mapping_table) :
-				MappingTableType(mapping_table)
-		{}
-
-		inline LogicalPtr get_logical_ptr(const pid_t& pid) {
-			return LogicalPtr(pid, mapping_table);
-		}
-
-	};
-
-	LogicalPtrFactory lpfactory_;
-
-
 	//logical pointer to root
-	LogicalPtr root_;
+	pid_t root_;
 
 	//comparator, assuming the default comparator is lt
 	KeyComparator less_comparator_;
 
 	//Logical pointer to head leaf page
-	LogicalPtr head_leaf_ptr_;
+	pid_t head_leaf_ptr_;
 
 	//Logical pointer to the tail leaf page
-	LogicalPtr tail_leaf_ptr_;
+	pid_t tail_leaf_ptr_;
 
-	struct Node{
 
-		//level of this node
-		unsigned short level;
-
+	struct LeafNode : Node {
 		//node's key vector (all nodes have keys)
 		std::vector<KeyType> keys;
 
-		//TODO: parameters to be configured
-		unsigned short node_size;
-		unsigned short underflow_thresh;
-		unsigned short overflow_thresh;
+		//node's key's values vector (only leaves have values)
+		std::vector<ValueType> values;
 
-		inline Node(const unsigned short l)
-				: level(l)
-		{}
+		//logical pointer to previous leaf node
+		pid_t prevleaf;
 
-		// check if this node is a leaf
-		inline bool isLeaf(){
-			return (level == 0);
-		}
+		//logical pointer to next leaf
+		pid_t nextleaf;
 
-		//overflow checker
-		inline bool isoverflow() {
-			return (keys.size() > overflow_thresh);
-		}
+		//leaf nodes are always level 0
+		static inline pid_t create(const pid_t& prev, const pid_t& next)
+		{
+			LeafNode *node = new LeafNode();
+			node->prevleaf  = prev;
+			node->nextleaf = next;
+			node->type = NodeType::leaf;
 
-		//underflow checker
-		inline bool isunderflow() {
-			return (keys.size() < underflow_thresh);
 		}
 
 	};
 
-	//a generic delta chain entry
-	struct DeltaChainType {
-		//if this node is a delta record or bwtree node
-		bool is_delta_record;
-
-		//next node in the chain
-		DeltaChainType* next = nullptr;
-
-		inline DeltaChainType(bool is_delta_record)
-				:is_delta_record(is_delta_record)
-		{}
-	};
+	struct Inner
 
 	//incremental delta records in the delta chain
 	struct DeltaRecord : public DeltaChainType {
@@ -169,25 +185,6 @@ private:
 		//not a delta record, set delta chain type as false
 		inline InnerNode(const unsigned short l)
 				: Node(l), DeltaChainType(false)
-		{}
-
-	};
-
-	struct LeafNode : public Node, public DeltaChainType {
-
-		//logical pointer to previous leaf node
-		LogicalPtr prevleaf;
-
-		//logical pointer to next leaf
-		LogicalPtr nextleaf;
-
-		//node's key's values vector (only leaves have values)
-		std::vector<ValueType> values;
-
-		//leaf nodes are always level 0
-		inline LeafNode() : Node(0), DeltaChainType(false),
-												prevleaf(LogicalPtr(NULL_PID)),
-												nextleaf(LogicalPtr(NULL_PID))
 		{}
 
 	};
@@ -263,7 +260,7 @@ private:
 	}
 
 	//allocate a leaf node, return its logical ptr
-	inline LogicalPtr allocate_leaf_node() {
+	inline pid_t allocate_leaf_node() {
 		pid_t pid = static_cast<pid_t >(pid_gen_++);
 
 		//construct the leaf node
