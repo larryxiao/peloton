@@ -54,6 +54,11 @@ private:
 		//used to track length of the chain till this node
 		int chain_length;
 
+		inline void set_next(Node *next_node) {
+			next = next_node;
+			chain_length = next_node->chain_length + 1;
+		}
+
 	};
 
 	// TODO: performance issues?
@@ -95,37 +100,22 @@ private:
 		}
 
 		//tries to sinstall the updated phy ptr
-		inline bool install_node(const pid_t& pid, Node* update) {
-			//expected value
-			Node *expected;
+		inline bool install_node(const pid_t& pid, Node* expected, Node* update) {
 
 			// atomically load the current value of node ptr
-			std::atomic<Node *> value;
 			std::atomic<Node *> new_value;
 
 			// store the update value
 			new_value.store(update, std::memory_order_relaxed);
 
-			// store the expected value and create a pointer
-			expected = table[pid].load(std::memory_order_relaxed);
-
 			// try to atomically update the new node
 			if(std::atomic_compare_exchange_weak_explicit(
 					&table[pid], &expected, new_value,
 					std::memory_order_relaxed, std::memory_order_release
-			)) {
-				// re-assign the head of the chain
-				update->next = expected;
-
-				// update the chain length
-				update->chain_length = expected->chain_length + 1;
-
-				return true;
-			}
+			)) return true;
 
 			// CAS failed, return
 			return false;
-
 		}
 	};
 
