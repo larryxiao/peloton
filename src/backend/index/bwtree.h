@@ -50,46 +50,16 @@ private:
 	public:
 		//ptr to the next node in delta chain
 		Node* next;
-	};
 
-	struct DeltaChain {
-		//head node of this list
-		std::atomic<Node *> head;
-
-		//pid of this chain
-		pid_t pid;
-
-		//length of this chain
-		std::atomic<unsigned> chain_length;
-
-		inline DeltaChain(Node *node, const pid_t& pid) :
-				pid(pid), chain_length(1)
-		{
-			insert(node);
-		}
-
-		inline void insert(Node *new_node) {
-			new_node->next = head.load(std::memory_order_relaxed);
-			// CAS on updating head
-			while(!std::atomic_compare_exchange_weak_explicit(
-					&head,
-					&new_node->next,
-					new_node,
-					std::memory_order_release,
-					std::memory_order_relaxed)
-					);
-		}
-
-		inline Node* get_head() {
-			return head.load(std::memory_order_relaxed);
-		}
+		//used to track length of the chain till this node
+		int chain_length;
 
 	};
 
 	// TODO: performance issues?
 	struct LockFreeTable {
 		// NOTE: STL containers can support single writer and concurrent readers
-		std::unordered_map<pid_t, std::atomic<DeltaChain*>> table;
+		std::unordered_map<pid_t, std::atomic<Node*>> table;
 
 		// used to manage concurrent inserts on different keys
 		std::atomic<bool> flag;
@@ -99,50 +69,63 @@ private:
 		{}
 
 		// lookup and return physical pointer corresponding to pid
-		inline DeltaChain* get_phy_ptr(const pid_t& pid) {
+		inline Node* get_phy_ptr(const pid_t& pid) {
 			// return the node pointer
 			return table[pid].load(std::memory_order_relaxed);
 		}
 
 		// Used for first time insertion of this pid into the map
-		inline void insert_new_pid(const pid_t& pid, DeltaChain* chain) {
+		inline void insert_new_pid(const pid_t& pid, Node* node) {
 			bool expected = true;
 			while(!(std::atomic_compare_exchange_weak_explicit(
 					&flag, &expected, false, std::memory_order_release,
 					std::memory_order_relaxed)));
 
-			std::atomic<DeltaChain *> atomic_ptr;
+			std::atomic<Node *> atomic_ptr;
 
 			// only thread here, relaxed access
-			atomic_ptr.store(chain, std::memory_order_relaxed);
+			atomic_ptr.store(node, std::memory_order_relaxed);
 
 			// insert into the map
-			table[pid] = chain;
+			table[pid] = node;
 
 			// set the flag as true
 			flag.store(true, std::memory_order_release);
 			return;
 		}
 
-		//update the pid's pointer mapping
-		inline void update_pid_val(const pid_t& pid, DeltaChain* update) {
+		//tries to sinstall the updated phy ptr
+		inline bool install_node(const pid_t& pid, Node* update) {
 			//expected value
-			DeltaChain *expected;
+			Node *expected;
 
 			// atomically load the current value of node ptr
-			std::atomic<DeltaChain *> value;
-			std::atomic<DeltaChain *> new_value;
+			std::atomic<Node *> value;
+			std::atomic<Node *> new_value;
 
 			// store the update value
 			new_value.store(update, std::memory_order_relaxed);
-			do {
-				// store the expected value and create a pointer
-				expected = table[pid].load(std::memory_order_relaxed);
-			}
-			while(std::atomic_compare_exchange_weak_explicit(
+
+			// store the expected value and create a pointer
+			expected = table[pid].load(std::memory_order_relaxed);
+
+			// try to atomically update the new node
+			if(std::atomic_compare_exchange_weak_explicit(
 					&table[pid], &expected, new_value,
 					std::memory_order_relaxed, std::memory_order_release
-			));
+			)) {
+				// re-assign the head of the chain
+				update->next = expected;
+
+				// update the chain length
+				update->chain_length = expected->chain_length + 1;
+
+				return true;
+			}
+
+			// CAS failed, return
+			return false;
+
 		}
 	};
 
@@ -190,6 +173,9 @@ private:
 
 			type = NodeType::leaf;
 
+			//intialize chain length
+			this->chain_length = 1;
+
 			// leaf node is always at the end of a delta chain
 			next = nullptr;
 		}
@@ -208,6 +194,9 @@ private:
 
 			// inner node is always at the end of a delta chain
 			next = nullptr;
+
+			// intialize chain length
+			this->chain_length = 1;
 		}
 	};
 
@@ -300,7 +289,8 @@ private:
 		//stores the records from the range scan
 		std::vector<std::pair<KeyType,ValueType>> range_result;
 
-		inline RangeVector(const pid_t currnode, int currpos) :
+		inline RangeVector
+				(const pid_t currnode, int currpos) :
 				currnode(currnode), currpos(currpos)
 		{}
 	};
@@ -329,12 +319,8 @@ public:
 		pid_gen_ = NULL_PID+1;
 		root_ = static_cast<pid_t>(pid_gen_++);
 
-		//create the root delta chain
-		auto chain  = new DeltaChain(
-				new LeafNode(NULL_PID, NULL_PID), root_);
-
 		//insert the chain into the mapping table
-		mapping_table_.insert_new_pid(root_, chain);
+		mapping_table_.insert_new_pid(root_, new LeafNode(NULL_PID, NULL_PID));
 
 		//update the leaf pointers
 		head_leaf_ptr_ = root_;
@@ -348,7 +334,7 @@ public:
 
 	// Performs a binary search on a tree node to find the position of
 	// the key nearest to the search key, depending on the mode
-	inline int node_key_search(const DeltaChain*& chain,  const KeyType& key,
+	inline int node_key_search(const Node*& node,  const KeyType& key,
 														 const node_search_mode& mode);
 
 };
