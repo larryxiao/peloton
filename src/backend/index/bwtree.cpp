@@ -56,11 +56,18 @@ namespace index {
 		return min;
 	}
 
+	Node* getHeadNodePointerForPID(const pid_t pPID) {
+		//check if null?
+		return table[pPID];
+	}
+
+
+	template <typename KeyType, typename ValueType, class KeyComparator>
 	bool BWTree::splitPage(pid_t pPID,pid_t pParentPID){
 
 		pid_t qPID;
 
-		auto headNodeP = getHeadNodePointerForPID(pPID); //TODO
+		auto headNodeP = getHeadNodePointerForPID(pPID); //get the head node of the deltachain
 		auto headNodeParentP = getHeadNodePointerForPID(pParentPID);
 
 		KeyType Kp = getSeperatorKeyForSplit(pPID); //TODO

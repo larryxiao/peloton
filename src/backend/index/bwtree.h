@@ -87,7 +87,7 @@ namespace peloton {
 
 				// Used for first time insertion of this pid into the map
 				inline void insert_new_pid(const pid_t& pid, Node* node) {
-					std::atomic<struct Node *> atomic_node;
+					std::atomic<Node *> atomic_node;
 
 					// only thread here, relaxed access
 					atomic_node.store(node, std::memory_order_relaxed);
@@ -102,7 +102,7 @@ namespace peloton {
 				inline bool install_node(const pid_t& pid, Node* expected, Node* update) {
 
 					// atomically load the current value of node ptr
-					std::atomic<struct Node *> new_value;
+					std::atomic<Node *> new_value;
 
 					// store the update value
 					new_value.store(update, std::memory_order_relaxed);
@@ -604,8 +604,6 @@ namespace peloton {
 			// function pointer
 			TreeOpResult do_tree_operation(const KeyType& key, const LeafOperation *leaf_operation,
 										   const OperationType& type);
-
-			bool splitPage(pid_t pPID, pid_t p_parentPID);
 
 		public:
 
