@@ -16,18 +16,17 @@ namespace peloton {
 namespace index {
 
 	template <typename KeyType, typename ValueType, class KeyComparator>
-	int BWTree::node_key_search(const DeltaChain*& chain, const KeyType &key, const node_search_mode &mode) {
+	int BWTree::node_key_search(const pid_t node_pid, const KeyType &key, const node_search_mode &mode) {
 
-		// Assuming no delta records, the delta chain just contains
-		// a Node type (i.e. either inner or leaf node)
-		Node *node = reinterpret_cast<Node *>(chain->head);
+		// Lookup logical ptr from mapping table
+		// and cast as tree node
+		TreeNode *node = static_cast<TreeNode *>(mapping_table_.get_phy_ptr(node_pid));
 
 		// empty node? return index of 0th element
-		if(node->keys.size() == 0) return 0;
+		if(node->keys.size() == 0) return -1;
 
 		// set the binary search range
 		int min = 0, max = node->keys.size() - 1;
-
 
 		//used to store comparison result after switch case
 		bool compare_result;
@@ -55,18 +54,6 @@ namespace index {
 			}
 		}
 		return min;
-	}
-
-	template <typename KeyType, typename ValueType, class KeyComparator>
-	LeafIterator BWTree::tree_search(const KeyType &key, const node_search_mode &mode) {
-
-		// first search the delta records
-		for(auto it=chain->begin(); chain->end() != it; it++){
-			//check for key match in delta record
-			if(key_compare_eq((*it)->key, key)){
-				//insert record?
-			}
-		}
 	}
 
 	bool BWTree::splitPage(pid_t pPID,pid_t pParentPID){
