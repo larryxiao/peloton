@@ -300,6 +300,8 @@ private:
 		return !less_comparator_(a,b) && !less_comparator_(b,a);
 	}
 
+	bool splitPage(pid_t pPID, pid_t p_parentPID);
+
 
 
 public:

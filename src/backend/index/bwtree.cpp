@@ -28,6 +28,7 @@ namespace index {
 		// set the binary search range
 		int min = 0, max = node->keys.size() - 1;
 
+
 		//used to store comparison result after switch case
 		bool compare_result;
 
@@ -66,6 +67,59 @@ namespace index {
 				//insert record?
 			}
 		}
+	}
+
+	bool BWTree::splitPage(pid_t pPID,pid_t pParentPID){
+
+		pid_t qPID;
+
+		auto headNodeP = getHeadNodePointerForPID(pPID); //TODO
+		auto headNodeParentP = getHeadNodePointerForPID(pParentPID);
+
+		KeyType Kp = getSeperatorKeyForSplit(pPID); //TODO
+		KeyType Kq = getHighKeyForP(pParentPID, Kp); //TODO
+
+		if(pPID.isLeaf()) //TODO
+		{
+			qPID=allocateLeaf(); //TODO
+			//insert all the key-values in Q for > Kp , delta chain needs to be traversed
+		}
+		else
+		{
+			qPID=allocateInner(); //TODO
+			//insert all the keys in Q for <= Kp , delta chain needs to be traversed
+		}
+
+		auto splitDel = createSplitDeltaNodePointer(qPID, Kp); //sibling pointer to Q //TODO
+
+		if(!mapping[pPID].compare_exchange_weak(headNodeP, splitNode)) //TODO - mapping table structure, CAS
+		{
+			//CAS failed
+			//TODO: Free allocated nodes?
+			return false;
+		}
+
+		//need to handle any specific delta record nodes?1
+
+//		if(!(std::atomic_compare_exchange_weak_explicit(
+//				headNodeP, *headNodeP, splitDel, false, std::memory_order_release,
+//				std::memory_order_relaxed)))
+//			return false; //no need to clear the new node?
+
+		//what if P disppears or the parent disappears, or R disappears
+		setSibling(pPID, nullptr); //set the sibling pointer to null
+
+		//CAS update with number of nodes(after split) on P
+		auto sepDel = createSeperatorDeltaPointer(pParentPID, Kp, Kq, qPID); //it sets pointer to Q if range matches //TODO
+
+		if(!mapping[pParentPID].compare_exchange_weak(headNodeParentP,sepDel))
+		{
+			//CAS failed
+			//TODO: Free allocated nodes?
+			return false;
+		}
+
+		return true;
 	}
 }  // End index namespace
 }  // End peloton namespace
