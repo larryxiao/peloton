@@ -42,6 +42,7 @@ bool BTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::InsertEn
     container.insert(std::pair<KeyType, ValueType>(index_key, location));
 
     index_lock.Unlock();
+    continue;
   }
 
   return true;
