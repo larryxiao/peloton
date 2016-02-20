@@ -56,5 +56,73 @@ namespace index {
 		}
 		return min;
 	}
+
+	template <typename KeyType, typename ValueType, class KeyComparator,
+			class KeyEqualityChecker>
+	TreeOpResult BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+	do_tree_operation(const pid_t node_pid, const KeyType &key,
+										const LeafOperation *leaf_operation,
+										const OperationType &type) {
+		Node *node = mapping_table_.get_phy_ptr(node_pid);
+
+		if (node->get_type() == NodeType::removeNode) {
+			// we have a remove node delta, end search and try again
+			return get_failed_result();
+		}
+
+		if (node->chain_length > consolidate_threshold_inner_) {
+			consolidate(node);
+		}
+
+		// flag to indicate if iteration should be continued
+		bool continue_itr = true;
+
+		// store result from recursion, if any
+		TreeOpResult *result = nullptr;
+
+		//iterate through the delta chain, based on case
+		while (continue_itr && node != nullptr) {
+			// Note: explicitly set continue_itr state only if it goes to false
+
+			// switch on the type
+			switch(node->get_type()) {
+				case indexDelta: {
+					// cast the node
+					auto delta_node = static_cast<IndexDelta *>(node);
+					// Kp <= key, key < Kq?
+					if(key_compare_lte(delta_node->low, key) && key_compare_lt(key, delta_node->high)) {
+						// recurse into shortcut pointer
+						*result = do_tree_operation(delta_node->new_node, key, leaf_operation, type);
+						// don't iterate anymore
+						continue_itr = false;
+					}
+					// else, continue
+				}
+
+				case deleteIndex: {
+					auto delta_node = static_cast<DeleteIndex *>(node);
+					// Kp <= key, key < Kq?
+					if(key_compare_lte(delta_node->low, key) && key_compare_lt(key, delta_node->high)) {
+						// recurse into shortcut pointer
+						*result = do_tree_operation(delta_node->merge_node, key, leaf_operation, type);
+						// don't iterate anymore
+						continue_itr = false;
+					}
+					// else, continue
+				}
+
+				case deltaSplitInner: {
+					auto delta_node = static_cast<DeltaSplitInner *>(node);
+					// splitkey <= Key?
+					if(key_compare_lte(delta_node->splitKey, key)){
+						// recurse into new nodenew  
+						*result = do_tree_operation(delta_node->new_node, key, leaf_operation, type);
+
+					}
+				}
+			}
+		}
+
+	}
 }  // End index namespace
 }  // End peloton namespace

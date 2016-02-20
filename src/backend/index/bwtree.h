@@ -73,6 +73,10 @@ private:
 			return (level == 0);
 		}
 
+		inline NodeType get_type() {
+			return type;
+		}
+
 	};
 
 	// TODO: performance issues?
@@ -542,9 +546,18 @@ private:
 		ValueType value;
 
 		// validity of the value
-		bool is_invalid_value;
+		bool is_valid_value;
+
+		inline TreeOpResult(const bool status = false) : is_valid_value(false)
+		{}
+
+		inline TreeOpResult(const ValueType value) : status(true), value(value)
+		{}
 	};
 
+	inline TreeOpResult get_failed_result() {
+		return TreeOpResult();
+	}
 	// TODO: used for range scans
 	class RangeVector {
 		//logical pointer to the current node
@@ -604,10 +617,14 @@ private:
 	};
 
 
-	// Does a tree operation, with leaf node operation passed as a
-	// function pointer
-	TreeOpResult do_tree_operation(const KeyType& key, const LeafOperation *leaf_operation,
+	// Does a tree operation on inner node (node_pid) with leaf node
+	// operation passed as a function pointer
+	TreeOpResult do_tree_operation(const pid_t node_pid, const KeyType& key,
+																 const LeafOperation *leaf_operation,
 																 const OperationType& type);
+
+	// consolidation skeleton, starting from the given physical pointer
+	void consolidate(const Node * node) {}
 
 public:
 
