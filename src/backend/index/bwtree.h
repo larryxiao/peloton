@@ -30,15 +30,22 @@ template <typename KeyType, typename ValueType, class KeyComparator>
 class BWTree {
 
 private:
+	// logical pointer type
+	typedef unsigned int pid_t;
+
+	//Delta and standard node types
 	enum NodeType : std::int8_t {
 		leaf,
 		inner,
+		indexDelta,
+		deleteIndex,
+		deltaSplitInner,
+		mergeInner,
 		deltaInsert,
 		deltaDelete,
-		deltaSplitInner,
 		deltaSplitLeaf,
-		deltaSplit,
-		separator,
+		mergeLeaf,
+		removeNode,
 	};
 
 	struct Node{
@@ -54,52 +61,44 @@ private:
 		//used to track length of the chain till this node
 		int chain_length;
 
-		inline void set_next(Node *next_node) {
-			next = next_node;
-			chain_length = next_node->chain_length + 1;
+		//used for split/merge case detection
+		int record_count;
+
+		int level;
+
+		virtual void set_next(Node *next_node) {}
+
+		inline bool is_leaf() {
+			return (level == 0);
 		}
 
 	};
 
 	// TODO: performance issues?
 	struct LockFreeTable {
-		// NOTE: STL containers can support single writer and concurrent readers
-		std::unordered_map<pid_t, std::atomic<Node*>> table;
-
-		// used to manage concurrent inserts on different keys
-		std::atomic<bool> flag;
-
-		// flag is intially available
-		inline LockFreeTable() : flag(true)
-		{}
+		// static table block
+		std::vector<std::atomic<Node*>> table{4194304};
 
 		// lookup and return physical pointer corresponding to pid
 		inline Node* get_phy_ptr(const pid_t& pid) {
 			// return the node pointer
-			return table[pid].load(std::memory_order_relaxed);
+			return table[pid].load(std::memory_order_acquire);
 		}
 
 		// Used for first time insertion of this pid into the map
 		inline void insert_new_pid(const pid_t& pid, Node* node) {
-			bool expected = true;
-			while(!(std::atomic_compare_exchange_weak_explicit(
-					&flag, &expected, false, std::memory_order_release,
-					std::memory_order_relaxed)));
-
-			std::atomic<Node *> atomic_ptr;
+			std::atomic<Node *> atomic_node;
 
 			// only thread here, relaxed access
-			atomic_ptr.store(node, std::memory_order_relaxed);
+			atomic_node.store(node, std::memory_order_relaxed);
 
 			// insert into the map
-			table[pid] = node;
+			table.assign(pid, atomic_node);
 
-			// set the flag as true
-			flag.store(true, std::memory_order_release);
 			return;
 		}
 
-		//tries to sinstall the updated phy ptr
+		//tries to install the updated phy ptr
 		inline bool install_node(const pid_t& pid, Node* expected, Node* update) {
 
 			// atomically load the current value of node ptr
@@ -119,9 +118,6 @@ private:
 		}
 	};
 
-	// key of mapping table
-	typedef unsigned short pid_t;
-
 	// lock free mapping table
 	LockFreeTable mapping_table_;
 
@@ -140,106 +136,93 @@ private:
 	// Logical pointer to the tail leaf page
 	pid_t tail_leaf_ptr_;
 
+	// leaf consolidation threshold
+	int consolidate_threshold_leaf_;
 
-	struct LeafNode : public Node {
-		// node's key vector (all nodes have keys)
+	// inner node consolidation threshold
+	int consolidate_threshold_inner_;
+
+	// threshold for triggering split
+	int split_threshold_;
+
+	// threshold for triggering merge
+	int merge_threshold_;
+
+	// A tree node has a vector of keys and a side link
+	struct TreeNode : public Node {
+		// node's key vector
 		std::vector<KeyType> keys;
 
+		// logical pointer to next leaf on the right
+		pid_t sidelink;
+
+	};
+
+	// leaf node of the bw-tree
+	struct LeafNode : public TreeNode {
 		// node's key's values vector (only leaves have values)
 		std::vector<ValueType> values;
 
-		// logical pointer to previous leaf node
-		pid_t prevleaf;
-
-		//logical pointer to next leaf
-		pid_t nextleaf;
-
 		//leaf nodes are always level 0
-		inline LeafNode(const pid_t prevleaf, const pid_t nextleaf)
+		inline LeafNode(const pid_t nextleaf)
 		{
 			// doubly linked list of leaves
-			this->prevleaf  = prevleaf;
-			this->nextleaf = nextleaf;
+			this->sidelink = nextleaf;
 
 			type = NodeType::leaf;
 
-			//intialize chain length
+			//initialize chain length
 			this->chain_length = 1;
+
+			// no records yet
+			this->record_count = 0;
+
+			// leaf node, level 0
+			this->level = 0;
 
 			// leaf node is always at the end of a delta chain
 			next = nullptr;
 		}
 
+		void set_next(Node *next_node) {
+			next = next_node;
+			chain_length = next_node->chain_length + 1;
+		}
+
 	};
 
-	struct InnerNode : public Node {
-		// node's key vector
-		std::vector<KeyType> keys;
-
+	// inner node of the bwtree
+	struct InnerNode : public TreeNode {
 		// node's key's children vector
 		std::vector<pid_t> children;
 
-		inline InnerNode() {
+		inline InnerNode(int level, const pid_t adj_node) {
 			type = NodeType::inner;
 
 			// inner node is always at the end of a delta chain
 			next = nullptr;
 
+			// set the sidelink
+			this->sidelink = adj_node;
+
 			// intialize chain length
 			this->chain_length = 1;
+
+			// intialize the level
+			this->level = 1;
+
+			// no records intially
+			this->record_count = 0;
+		}
+
+		void set_next(Node *next_node) {
+			next = next_node;
+			chain_length = next_node->chain_length + 1;
 		}
 	};
 
-	// delta record should track its original node
-	struct DeltaRecord : public Node {
-		Node *origin;
-
-	};
-
-	// delta insert record
-	struct DeltaInsert : public DeltaRecord {
-		// insert key
-		KeyType key;
-		//insert value
-		ValueType value;
-
-		inline DeltaInsert(const KeyType &key, const ValueType &value, Node *origin) {
-			this->key = key;
-			this->value = value;
-			this->origin = origin;
-			type = NodeType::deltaInsert;
-		}
-	};
-
-	struct DeltaDelete : public DeltaRecord {
-		//delete key
-		KeyType key;
-
-		inline DeltaDelete(const KeyType &key, Node *origin) {
-			this->key = key;
-			this->origin = origin;
-			type = NodeType::deltaDelete;
-		}
-	};
-
-	struct DeltaSplit : public DeltaRecord {
-		// split key for this record
-		KeyType splitKey;
-
-		// logical pointer to the new child record
-		pid_t new_child;
-
-		inline DeltaSplit(const KeyType &key, const pid_t new_child, Node *origin) {
-			splitKey = key;
-			// set the new child for split
-			this->new_child = new_child;
-			type = NodeType::deltaSplit;
-			// set the origin node
-			this->origin = origin;
-		}
-	};
-
-	struct Separator : public DeltaRecord {
+	// IndexDelta record of the delta chain
+	struct IndexDelta : public Node {
 		// low and high to specify key range
 		KeyType low;
 		KeyType high;
@@ -250,25 +233,315 @@ private:
 		// shortcut pointer to the new node
 		pid_t new_node;
 
-		inline Separator(const KeyType& low, const KeyType& high,
-										 const pid_t child, const pid_t new_node,
-										 Node *origin) {
+		inline IndexDelta(const KeyType& low, const KeyType& high,
+										 const pid_t new_node) {
+
+			// set the node's type
+			this->type = NodeType::indexDelta;
+
 			//low and high key ranges
 			this->low = low;
 			this->high = high;
 
-			this->child = child;
+			// add logical pointer to the provided new node
+			this->new_node = new_node;
+	}
+
+		void set_next(Node *next_node) {
+			// next node in the delta chain
+			this->next = next_node;
+
+			// chain has grown
+			this->chain_length = next_node->chain_length + 1;
+
+			// a new record is being added, increment
+			this->record_count = next_node->record_count + 1;
+
+			// level remains the same
+			this->level = next_node->level;
+		}
+
+	};
+
+	// DeleteIndex delta record for node merging
+	struct DeleteIndex : public Node {
+		// low and high to specify key range
+		KeyType low;
+		KeyType high;
+
+		// shortcut pointer to the merged node
+		pid_t merge_node;
+
+		inline DeleteIndex(const KeyType& low, const KeyType& high,
+											 const pid_t merge_node) {
+
+			// set the node's type
+			this->type = NodeType::deleteIndex;
+
+			//low and high key ranges
+			this->low = low;
+			this->high = high;
+
+			// update the node for merging
+			this->merge_node = merge_node;
+		}
+
+		void set_next(Node *next_node) {
+			// next node in the delta chain
+			this->next = next_node;
+
+			// chain has grown
+			this->chain_length = next_node->chain_length + 1;
+
+			// a record is being removed, decrement
+			this->record_count = next_node->record_count - 1;
+
+			// level remains the same
+			this->level = next_node->level;
+		}
+
+	};
+
+	// split record for inner node
+	struct DeltaSplitInner : public Node {
+
+	public:
+		// split key for this node
+		KeyType splitKey;
+
+		// shortcut pointer to the new node
+		pid_t new_node;
+
+
+		inline DeltaSplitInner(const KeyType& splitKey, const pid_t new_node,
+													 const int new_record_count) {
+			// set the node's type
+			this->type = NodeType::deltaSplitInner;
+
+			// set the split key
+			this->splitKey = splitKey;
+
+			// set the new node
 			this->new_node = new_node;
 
-			//pointer to the original node
-			this->origin = origin;
+			// get the new record count from SplitPage
+			this->record_count = new_record_count;
+		}
 
-			type = NodeType::separator;
+		// update the next pointer and bookeeping
+		void set_next(Node *next_node) {
+			// next node in the delta chain
+			this->next = next_node;
 
+			// chain has grown
+			this->chain_length = next_node->chain_length + 1;
+
+			// level remains the same
+			this->level = next_node->level;
+		}
+
+	};
+
+	struct MergeInner : public Node {
+		// split key for this node
+		KeyType splitKey;
+
+		// physical pointer to the node being delted
+		InnerNode* deleting_node;
+
+		inline MergeInner(const KeyType& splitKey, InnerNode* deleting_node,
+											const int new_record_count) {
+			// set the type
+			this->type = NodeType::mergeInner;
+
+			// set the split key
+			this->splitKey = splitKey;
+
+			// set the deleting node
+			this->deleting_node = deleting_node;
+
+			// update the record count from MergePage
+			this->record_count = new_record_count;
+		}
+
+		// update the next pointer and bookeeping
+		void set_next(Node *next_node) {
+			// next node in the delta chain
+			this->next = next_node;
+
+			// chain has grown
+			this->chain_length = next_node->chain_length + 1;
+
+			// level remains the same
+			this->level = next_node->level;
+		}
+
+	};
+
+	// delta insert record
+	struct DeltaInsert : public Node {
+		// insert key
+		KeyType key;
+
+		//insert value
+		ValueType value;
+
+		inline DeltaInsert(const KeyType &key, const ValueType &value) {
+			// set the type
+			this->type = NodeType::deltaInsert;
+
+			// set the key, value and base node
+			this->key = key;
+			this->value = value;
+		}
+
+		void set_next(Node *next_node) {
+			this->next = next_node;
+
+			// chain has grown
+			this->chain_length = next_node->chain_length + 1;
+
+			// a new record is being added, increment
+			this->record_count = next_node->record_count + 1;
+
+			// level remains the same
+			this->level = next_node->level;
 		}
 	};
 
-	//used for range scans
+	struct DeltaDelete : public Node {
+		//delete key
+		KeyType key;
+
+		inline DeltaDelete(const KeyType &key) {
+			// set the base node
+			type = NodeType::deltaDelete;
+
+			// set the key and base node
+			this->key = key;
+		}
+
+		// sets the next node in the delta chain
+		void set_next(Node *next_node) {
+			this->next = next_node;
+
+			// chain has grown
+			this->chain_length = next_node->chain_length + 1;
+
+			// a record is being removed, decrement
+			this->record_count = next_node->record_count - 1;
+
+			// level remains the same
+			this->level = next_node->level;
+		}
+
+	};
+
+	struct DeltaSplitLeaf : public Node {
+		// split key for this record
+		KeyType splitKey;
+
+		// logical pointer to the new child record
+		pid_t new_child;
+
+		inline DeltaSplitLeaf(const KeyType &key, const pid_t new_child,
+													const int new_record_count) {
+			// set the type
+			this->type = NodeType::deltaSplitLeaf;
+
+			// set the split key
+			this->splitKey = key;
+
+			// set the new child for split
+			this->new_child = new_child;
+
+			// set the updated record count from SplitPage
+			this->record_count = new_record_count;
+		}
+
+		// sets the next node in the delta chain
+		void set_next(Node *next_node) {
+			this->next = next_node;
+
+			// chain has grown
+			this->chain_length = next_node->chain_length + 1;
+
+			// level remains the same
+			this->level = next_node->level;
+		}
+	};
+
+	struct MergeLeaf : public Node {
+		// split key for this node
+		KeyType splitKey;
+
+		// physical pointer to the node being delted
+		LeafNode* deleting_node;
+
+		inline MergeLeaf(const KeyType& splitKey, LeafNode* deleting_node,
+											const int new_record_count) {
+			// set the type
+			this->type = NodeType::mergeLeaf;
+
+			// set the split key
+			this->splitKey = splitKey;
+
+			// set the deleting node
+			this->deleting_node = deleting_node;
+
+			// update the record count from MergePage
+			this->record_count = new_record_count;
+		}
+
+		// update the next pointer and bookeeping
+		void set_next(Node *next_node) {
+			// next node in the delta chain
+			this->next = next_node;
+
+			// chain has grown
+			this->chain_length = next_node->chain_length + 1;
+
+			// level remains the same
+			this->level = next_node->level;
+		}
+	};
+
+	// Remove node delta record for any node
+	struct RemoveNode : public Node {
+
+		inline RemoveNode() {
+			// set the type
+			this->type = NodeType::removeNode;
+		}
+
+		void set_next(Node *next_node) {
+			// set the next node
+			this->next = next_node;
+
+			// the delta chain has grown
+			this->chain_length = next_node->chain_length + 1;
+
+			// record count remains the same
+			this->record_count = next_node->record_count;
+
+			// level remains the same
+			this->level = next_node->level;
+		}
+	};
+
+	// stores the result of the operation
+	struct TreeOpResult {
+		// status of the operation
+		bool status;
+
+		// value returned, if any
+		ValueType value;
+
+		// validity of the value
+		bool is_invalid_value;
+	};
+
+	// TODO: used for range scans
 	class RangeVector {
 		//logical pointer to the current node
 		pid_t currnode;
@@ -300,7 +573,37 @@ private:
 		return !less_comparator_(a,b) && !less_comparator_(b,a);
 	}
 
+	//Available modes: Greater than equal to, Greater tham
+	enum node_search_mode {
+		GTE, GT
+	};
 
+
+	// Performs a binary search on a tree node to find the position of
+	// the key nearest to the search key, depending on the mode.
+	// Returns the index of the key, if found, and -1 for failed search
+	inline int node_key_search(const pid_t node_pid,  const KeyType& key,
+														 const node_search_mode& mode);
+
+	enum OperationType : int8_t{
+		insert_op,
+		delete_op,
+		search_op,
+	};
+
+	union LeafOperation {
+		// Search the leaf page PID for the given key
+		TreeOpResult (*search_leaf_page)(const pid_t pid, const KeyType& key);
+		TreeOpResult (*update_leaf_delta_chain)(const pid_t pid, KeyType* key,
+																						ValueType* value,
+																						const OperationType& type);
+	};
+
+
+	// Does a tree operation, with leaf node operation passed as a
+	// function pointer
+	TreeOpResult do_tree_operation(const KeyType& key, const LeafOperation *leaf_operation,
+																 const OperationType& type);
 
 public:
 
@@ -310,23 +613,27 @@ public:
 		root_ = static_cast<pid_t>(pid_gen_++);
 
 		//insert the chain into the mapping table
-		mapping_table_.insert_new_pid(root_, new LeafNode(NULL_PID, NULL_PID));
+		mapping_table_.insert_new_pid(root_, new LeafNode(NULL_PID));
 
 		//update the leaf pointers
 		head_leaf_ptr_ = root_;
 		tail_leaf_ptr_ = root_;
+
+		// TODO: decide values
+		consolidate_threshold_inner_ = 5;
+
+		consolidate_threshold_leaf_ = 8;
+
+		merge_threshold_ = 3;
+
+		split_threshold_ = 100;
 	}
 
-	//Available modes: Greater than equal to, Greater tham
-	enum node_search_mode {
-		GTE, GT
-	};
+	ValueType Search(const KeyType& key);
 
-	// Performs a binary search on a tree node to find the position of
-	// the key nearest to the search key, depending on the mode
-	inline int node_key_search(const Node*& node,  const KeyType& key,
-														 const node_search_mode& mode);
+	void Insert(const KeyType &key, const ValueType& value);
 
+	void Delete(const KeyType &key);
 };
 
 }  // End index namespace
