@@ -148,17 +148,10 @@ private:
 
 	// threshold for triggering split
 	int split_threshold_;
-<<<<<<< HEAD
 
 	// threshold for triggering merge
 	int merge_threshold_;
 
-=======
-
-	// threshold for triggering merge
-	int merge_threshold_;
-
->>>>>>> New API and binary search; pre-compile
 	// A tree node has a vector of keys and a side link
 	struct TreeNode : public Node {
 		// node's key vector
@@ -196,13 +189,8 @@ private:
 		}
 
 		void set_next(Node *next_node) {
-<<<<<<< HEAD
 			this->next = next_node;
 			this->chain_length = next_node->chain_length + 1;
-=======
-			next = next_node;
-			chain_length = next_node->chain_length + 1;
->>>>>>> New API and binary search; pre-compile
 		}
 
 	};
@@ -213,17 +201,10 @@ private:
 		std::vector<pid_t> children;
 
 		inline InnerNode(int level, const pid_t adj_node) {
-<<<<<<< HEAD
 			this->type = NodeType::inner;
-=======
-			type = NodeType::inner;
->>>>>>> New API and binary search; pre-compile
 
 			// inner node is always at the end of a delta chain
 			this->next = nullptr;
-
-			// set the sidelink
-			this->sidelink = adj_node;
 
 			// set the sidelink
 			this->sidelink = adj_node;
@@ -239,7 +220,6 @@ private:
 		}
 
 		void set_next(Node *next_node) {
-<<<<<<< HEAD
 			this->next = next_node;
 			this->chain_length = next_node->chain_length + 1;
 		}
@@ -283,59 +263,10 @@ private:
 
 			// level remains the same
 			this->level = next_node->level;
-=======
-			next = next_node;
-			chain_length = next_node->chain_length + 1;
->>>>>>> New API and binary search; pre-compile
 		}
 
 	};
 
-<<<<<<< HEAD
-=======
-	// IndexDelta record of the delta chain
-	struct IndexDelta : public Node {
-		// low and high to specify key range
-		KeyType low;
-		KeyType high;
-
-		// child logical pointer
-		pid_t child;
-
-		// shortcut pointer to the new node
-		pid_t new_node;
-
-		inline IndexDelta(const KeyType& low, const KeyType& high,
-										 const pid_t new_node) {
-
-			// set the node's type
-			this->type = NodeType::indexDelta;
-
-			//low and high key ranges
-			this->low = low;
-			this->high = high;
-
-			// add logical pointer to the provided new node
-			this->new_node = new_node;
-	}
-
-		void set_next(Node *next_node) {
-			// next node in the delta chain
-			this->next = next_node;
-
-			// chain has grown
-			this->chain_length = next_node->chain_length + 1;
-
-			// a new record is being added, increment
-			this->record_count = next_node->record_count + 1;
-
-			// level remains the same
-			this->level = next_node->level;
-		}
-
-	};
-
->>>>>>> New API and binary search; pre-compile
 	// DeleteIndex delta record for node merging
 	struct DeleteIndex : public Node {
 		// low and high to specify key range
@@ -488,11 +419,7 @@ private:
 
 		inline DeltaDelete(const KeyType &key) {
 			// set the base node
-<<<<<<< HEAD
 			this->type = NodeType::deltaDelete;
-=======
-			type = NodeType::deltaDelete;
->>>>>>> New API and binary search; pre-compile
 
 			// set the key and base node
 			this->key = key;
@@ -577,7 +504,6 @@ private:
 
 			// chain has grown
 			this->chain_length = next_node->chain_length + 1;
-<<<<<<< HEAD
 
 			// level remains the same
 			this->level = next_node->level;
@@ -602,32 +528,6 @@ private:
 			// record count remains the same
 			this->record_count = next_node->record_count;
 
-=======
-
-			// level remains the same
-			this->level = next_node->level;
-		}
-	};
-
-	// Remove node delta record for any node
-	struct RemoveNode : public Node {
-
-		inline RemoveNode() {
-			// set the type
-			this->type = NodeType::removeNode;
-		}
-
-		void set_next(Node *next_node) {
-			// set the next node
-			this->next = next_node;
-
-			// the delta chain has grown
-			this->chain_length = next_node->chain_length + 1;
-
-			// record count remains the same
-			this->record_count = next_node->record_count;
-
->>>>>>> New API and binary search; pre-compile
 			// level remains the same
 			this->level = next_node->level;
 		}
@@ -702,15 +602,7 @@ private:
 																						ValueType* value,
 																						const OperationType& type);
 	};
-<<<<<<< HEAD
 
-=======
->>>>>>> New API and binary search; pre-compile
-
-	// Does a tree operation, with leaf node operation passed as a
-	// function pointer
-	TreeOpResult do_tree_operation(const KeyType& key, const LeafOperation *leaf_operation,
-																 const OperationType& type);
 
 	// Does a tree operation, with leaf node operation passed as a
 	// function pointer

@@ -74,27 +74,28 @@ namespace index {
         Node<KeyType, ValueType> *ptr_l = get_phy_ptr(pid_l);
         Node<KeyType, ValueType> *ptr_r = get_phy_ptr(pid_r);
         Node<KeyType, ValueType> *ptr_parent = get_phy_ptr(pid_parent);
-        // TODO distinguish leaf or inner node
+        bool leaf = ptr_r.is_leaf();
 
         // Step 1 marking for delete
         // create remove node delta node
-        Node *remove_node_delta = TODO create_remove_node_delta();
-        remove_node_delta->next = ptr_r;
-        TODO CAS(pid_r, ptr_r, remove_node_delta);
+        Node *remove_node_delta = new RemoveNode();
+        remove_node_delta.set_next(ptr_r);
+        mapping_table_.install_node(pid_r, ptr_r, remove_node_delta);
         // Step 2 merging children
         // create node merge delta
-        Node *node_merge_delta = TODO create_node_merge_delta();
-        node_merge_delta->left = ptr_l;
-        node_merge_delta->right = ptr_r;
-        node_merge_delta->separator = ptr_r->separator_low;
-        TODO CAS(pid_l, ptr_l, node_merge_delta);
+        int record_count = ptr_l->record_count + ptr_r->record_count;
+        if (leaf) {
+            Node *node_merge_delta = new MergeLeaf(ptr_r->separator_low, ptr_r, record_count);
+        } else {
+            Node *node_merge_delta = new mergeInner(ptr_r->separator_low, ptr_r, record_count);
+        }
+        remove_node_delta.set_next(ptr_l);
+        mapping_table_.install_node(pid_l, ptr_l, node_merge_delta);
         // Step 3 parent update
         // create index term delete delta
-        Node *index_term_delete_delta = TODO create_index_term_delete_delta();
-        index_term_delete_delta->separator_low = ptr_l->low;
-        index_term_delete_delta->separator_high = ptr_r->high;
-        index_term_delete_delta->next = ptr_parent;
-        TODO CAS(pid_parent, ptr_parent, index_term_delete_delta);
+        Node *index_term_delete_delta = new IndexDelta(ptr_l->low, ptr_r->high, pid_l);
+        index_term_delete_delta->set_next = ptr_parent;
+        mapping_table_.install_node(pid_parent, ptr_parent, index_term_delete_delta);
     }
 
     }  // End index namespace
