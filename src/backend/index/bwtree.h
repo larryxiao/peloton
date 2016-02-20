@@ -17,6 +17,7 @@
 #include <vector>
 #include <atomic>
 #include <bits/atomic_base.h>
+#include "index_key.h"
 
 //Null page id
 #define NULL_PID 0
@@ -26,7 +27,7 @@ namespace index {
 
 // Look up the stx btree interface for background.
 // peloton/third_party/stx/btree.h
-template <typename KeyType, typename ValueType, class KeyComparator>
+template <typename KeyType, typename ValueType, class KeyComparator, class KeyEqualityChecker>
 class BWTree {
 
 private:
@@ -77,7 +78,10 @@ private:
 	// TODO: performance issues?
 	struct LockFreeTable {
 		// static table block
-		std::vector<std::atomic<Node*>> table{4194304};
+		std::vector<std::atomic<Node*>> table;
+
+		inline LockFreeTable() : table(4194304)
+		{}
 
 		// lookup and return physical pointer corresponding to pid
 		inline Node* get_phy_ptr(const pid_t& pid) {
@@ -169,7 +173,7 @@ private:
 			// doubly linked list of leaves
 			this->sidelink = nextleaf;
 
-			type = NodeType::leaf;
+			this->type = NodeType::leaf;
 
 			//initialize chain length
 			this->chain_length = 1;
@@ -181,12 +185,12 @@ private:
 			this->level = 0;
 
 			// leaf node is always at the end of a delta chain
-			next = nullptr;
+			this->next = nullptr;
 		}
 
 		void set_next(Node *next_node) {
-			next = next_node;
-			chain_length = next_node->chain_length + 1;
+			this->next = next_node;
+			this->chain_length = next_node->chain_length + 1;
 		}
 
 	};
@@ -197,10 +201,10 @@ private:
 		std::vector<pid_t> children;
 
 		inline InnerNode(int level, const pid_t adj_node) {
-			type = NodeType::inner;
+			this->type = NodeType::inner;
 
 			// inner node is always at the end of a delta chain
-			next = nullptr;
+			this->next = nullptr;
 
 			// set the sidelink
 			this->sidelink = adj_node;
@@ -216,8 +220,8 @@ private:
 		}
 
 		void set_next(Node *next_node) {
-			next = next_node;
-			chain_length = next_node->chain_length + 1;
+			this->next = next_node;
+			this->chain_length = next_node->chain_length + 1;
 		}
 	};
 
@@ -415,7 +419,7 @@ private:
 
 		inline DeltaDelete(const KeyType &key) {
 			// set the base node
-			type = NodeType::deltaDelete;
+			this->type = NodeType::deltaDelete;
 
 			// set the key and base node
 			this->key = key;
@@ -608,7 +612,7 @@ private:
 public:
 
 	//by default, start the pid generator at 1, 0 is NULL page
-	inline BWTree() {
+	inline BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>() {
 		pid_gen_ = NULL_PID+1;
 		root_ = static_cast<pid_t>(pid_gen_++);
 

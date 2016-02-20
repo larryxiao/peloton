@@ -15,8 +15,9 @@
 namespace peloton {
 namespace index {
 
-	template <typename KeyType, typename ValueType, class KeyComparator>
-	int BWTree::node_key_search(const pid_t node_pid, const KeyType &key, const node_search_mode &mode) {
+	template <typename KeyType, typename ValueType, class KeyComparator, class KeyEqualityChecker>
+	int BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+	node_key_search(const pid_t node_pid, const KeyType &key, const node_search_mode &mode) {
 
 		// Lookup logical ptr from mapping table
 		// and cast as tree node
