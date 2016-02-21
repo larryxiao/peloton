@@ -23,15 +23,16 @@ namespace index {
 									const NodeSearchMode mode = NodeSearchMode::GTE) {
 
 		// empty node? error case
-		if(node->keys.size() == 0) return -1;
+		if(node->key_values.size() == 0) return -1;
 
+		auto last_key = node->key_values.back().first;
 		// if lastKey < key?
-		if(key_compare_lt(node->keys.back() , key))
+		if(key_compare_lt(last_key , key))
 			// return n+1 th position
-			return node->keys.size();
+			return node->key_values.size();
 
 		// set the binary search range
-		int min = 0, max = node->keys.size() - 1;
+		int min = 0, max = node->key_values.size() - 1;
 
 		//used to store comparison result after switch case
 		bool compare_result;
@@ -40,16 +41,19 @@ namespace index {
 			// find middle element
 			int mid = (min + max) >> 1;
 
+			// extract the middle key
+			auto mid_key = node->key_values[mid].first;
+
 			switch(mode){
 				case GTE:
-					compare_result = key_compare_lte(key, node->keys[mid]);
+					compare_result = key_compare_lte(key, mid_key);
 					break;
 				case GT:
-					compare_result = key_compare_lt(key, node->keys[mid]);
+					compare_result = key_compare_lt(key, mid_key);
 					break;
 				default:
 					//default case is GTE for now
-					compare_result = key_compare_lte(key, node->keys[mid]);
+					compare_result = key_compare_lte(key, mid_key);
 			}
 
 			if (compare_result) {
@@ -177,7 +181,8 @@ namespace index {
 						return get_failed_result();
 					}
 
-					auto child_pid = inner_node->children[child_pos];
+					// extract child pid from they key value pair
+					pid_t child_pid = inner_node->key_values[child_pos].second;
 					// check the node's level
 
 					if (inner_node->level == 1) {
@@ -198,12 +203,25 @@ namespace index {
 						}
 					} else {
 						// otherwise recurse into child node
-						result = do_tree_operation(inner_node->children[child_pid],
-																				key, value, leaf_operation, op_type);
+						result = do_tree_operation(child_pid, key, value,
+																			 leaf_operation, op_type);
 						//don't iterate anymore
 						continue_itr = false;
 					}
 
+					// check if child node has requested for merge
+					if (result.needs_merge) {
+						// TODO: Handle leftmost edge case, see WIKI
+
+						// where we came from
+						pid_t right = child_pid;
+
+						// what we are merging with
+						pid_t left =inner_node->key_values[child_pos-1].second;
+
+						// Merge
+						MergePage(left, right, inner_node->pid);
+					}
 					break;
 				}
 			}
@@ -212,12 +230,19 @@ namespace index {
 			node = node->next;
 		}
 
+
+		result.needs_split = false;
+
 		if (head->record_count > split_threshold_){
-			// split this node
+			// TODO:split this node
+			result.needs_split = true;
 		}
+
+		result.needs_merge = false;
 
 		if (head-> record_count < merge_threshold_) {
 			// merge this node
+			result.needs_merge = true;
 		}
 
 		// return the result from lower levels.
@@ -226,36 +251,65 @@ namespace index {
 
 	}
 
-	void BwTree::merge(PID pid_l, PID pid_r, PID pid_parent) {
-		Node *ptr_l = get_phy_ptr(pid_l);
-		Node *ptr_r = get_phy_ptr(pid_r);
-		Node *ptr_parent = get_phy_ptr(pid_parent);
-		bool leaf = ptr_r.is_leaf();
+	template <typename KeyType, typename ValueType, class KeyComparator,
+			class KeyEqualityChecker>
+	void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+	MergePage(pid_t pid_l, pid_t pid_r, pid_t pid_parent) {
+
+		Node *ptr_l = mapping_table_.get_phy_ptr(pid_l);
+		Node *ptr_r = mapping_table_.get_phy_ptr(pid_r);
+		Node *ptr_parent = mapping_table_.get_phy_ptr(pid_parent);
+		bool leaf = ptr_r->is_leaf();
 
 		// Step 1 marking for delete
 		// create remove node delta node
 		RemoveNode *remove_node_delta = new RemoveNode();
-		remove_node_delta.set_next(ptr_r);
+		remove_node_delta->set_next(ptr_r);
 		mapping_table_.install_node(pid_r, ptr_r, remove_node_delta);
+
+		// merge delta node ptr
+		Node *node_merge_delta = nullptr;
+
 		// Step 2 merging children
 		// create node merge delta
 		// TODO key range
 		int record_count = ptr_l->record_count + ptr_r->record_count;
 		if (leaf) {
-			MergeLeaf *node_merge_delta = new MergeLeaf(ptr_r->low, ptr_r, record_count);
+			// cast the right ptr
+			auto leaf_node = static_cast<LeafNode *>(ptr_r);
+			// the first right node key
+			auto split_key = leaf_node->key_values.front().first;
+			// create the delta record
+			node_merge_delta = new MergeLeaf(split_key, leaf_node, record_count);
 		} else {
-			MergeInner *node_merge_delta = new MergeInner(ptr_r->low, ptr_r, record_count);
+			// cast as inner node
+			auto inner_node = static_cast<InnerNode *>(ptr_r);
+			// the first right node key
+			auto split_key = inner_node->key_values.front().first;
+			// create delta record
+			node_merge_delta = new MergeInner(split_key, inner_node, record_count);
 		}
-		remove_node_delta.set_next(ptr_l);
-		mapping_table_.install_node(pid_l, ptr_l, (Node *) node_merge_delta);
+
+		// add to the list
+		remove_node_delta->set_next(ptr_l);
+		mapping_table_.install_node(pid_l, ptr_l, node_merge_delta);
+
 		// Step 3 parent update
 		// create index term delete delta
-		IndexDelta *index_term_delete_delta = new IndexDelta(ptr_l->low, ptr_r->high, pid_l);
-		index_term_delete_delta->set_next = ptr_parent;
+		auto left_ptr = static_cast<TreeNode *>(ptr_l);
+		KeyType left_low_key = left_ptr->key_values.front().first;
+
+		auto right_ptr = static_cast<TreeNode *>(ptr_r);
+		KeyType right_high_key = right_ptr->key_values.back().first;
+
+		DeleteIndex *index_term_delete_delta = new DeleteIndex(left_low_key, right_high_key, pid_l);
+		index_term_delete_delta->set_next(ptr_parent);
 		mapping_table_.install_node(pid_parent, ptr_parent, (Node *) index_term_delete_delta);
 	}
 
-	bool BwTree::cleanup() {
+	template <typename KeyType, typename ValueType, class KeyComparator,
+			class KeyEqualityChecker>
+	bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::cleanup() {
 		return true;
 	}
 }  // End index namespace

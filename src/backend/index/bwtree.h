@@ -156,26 +156,32 @@ private:
 	// threshold for triggering merge
 	int merge_threshold_;
 
-	// A tree node has a vector of keys and a side link
+	// A tree node has a vector of key templates
+	// and corresponding value templates
+	// and a side link
+	template <typename K, typename V>
 	struct TreeNode : public Node {
 		// node's key vector
-		std::vector<KeyType> keys;
+		std::vector<std::pair<K, V>> key_values;
+
+		// self pid
+		pid_t pid;
 
 		// logical pointer to next leaf on the right
 		pid_t sidelink;
 
 	};
 
-	// leaf node of the bw-tree
-	struct LeafNode : public TreeNode {
-		// node's key's values vector (only leaves have values)
-		std::vector<ValueType> values;
-
+	// leaf node of the bw-tree, has KeyType and corresp.
+	// ValueType of record
+	struct LeafNode : public TreeNode<KeyType, ValueType> {
 		//leaf nodes are always level 0
-		inline LeafNode(const pid_t nextleaf)
+		inline LeafNode(const pid_t self, const pid_t nextleaf)
 		{
 			// doubly linked list of leaves
 			this->sidelink = nextleaf;
+
+			this->pid = self;
 
 			this->type = NodeType::leaf;
 
@@ -199,13 +205,17 @@ private:
 
 	};
 
-	// inner node of the bwtree
-	struct InnerNode : public TreeNode {
-		// node's key's children vector
-		std::vector<pid_t> children;
+	// inner node of the bwtree, stores pairs of keys and the
+	// child on their left pointer
+	struct InnerNode : public TreeNode<KeyType, pid_t> {
+		// pointer to the (n+1)th child, for n keys
+		pid_t last_child;
 
-		inline InnerNode(int level, const pid_t adj_node) {
+		inline InnerNode(const pid_t self, int level,
+										 const pid_t adj_node) {
 			this->type = NodeType::inner;
+
+			this->pid = self;
 
 			// inner node is always at the end of a delta chain
 			this->next = nullptr;
@@ -548,10 +558,18 @@ private:
 		// validity of the value
 		bool is_valid_value;
 
-		inline TreeOpResult(const bool status = false) : is_valid_value(false)
+		bool needs_split;
+
+		bool needs_merge;
+
+		inline TreeOpResult(const bool status = false) : is_valid_value(false),
+																										 needs_split(false),
+																										 needs_merge(false)
 		{}
 
-		inline TreeOpResult(const ValueType value) : status(true), value(value)
+		inline TreeOpResult(const ValueType value) : status(true), value(value),
+																								 needs_split(false),
+																								 needs_merge(false)
 		{}
 	};
 
@@ -643,7 +661,7 @@ public:
 		root_ = static_cast<pid_t>(pid_gen_++);
 
 		//insert the chain into the mapping table
-		mapping_table_.insert_new_pid(root_, new LeafNode(NULL_PID));
+		mapping_table_.insert_new_pid(root_, new LeafNode(root_, NULL_PID));
 
 		//update the leaf pointers
 		head_leaf_ptr_ = root_;
@@ -665,7 +683,7 @@ public:
 
 	void Delete(const KeyType &key);
 
-	void merge(PID pid_l, PID pid_r, PID pid_parent);
+	void MergePage(pid_t pid_l, pid_t pid_r, pid_t pid_parent);
 
 	bool cleanup();
 };
