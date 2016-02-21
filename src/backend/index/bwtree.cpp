@@ -18,12 +18,9 @@ namespace index {
 
 	template <typename KeyType, typename ValueType, class KeyComparator,
 			class KeyEqualityChecker>
-	int BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+	unsigned long BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
 	node_key_search(const TreeNode *node, KeyType &key,
 									const NodeSearchMode mode = NodeSearchMode::GTE) {
-
-		// empty node? error case
-		if(node->key_values.size() == 0) return -1;
 
 		auto last_key = node->key_values.back().first;
 		// if lastKey < key?
@@ -32,14 +29,14 @@ namespace index {
 			return node->key_values.size();
 
 		// set the binary search range
-		int min = 0, max = node->key_values.size() - 1;
+		unsigned long min = 0, max = node->key_values.size() - 1;
 
 		//used to store comparison result after switch case
 		bool compare_result;
 
 		while (min < max) {
 			// find middle element
-			int mid = (min + max) >> 1;
+			unsigned long mid = (min + max) >> 1;
 
 			// extract the middle key
 			auto mid_key = node->key_values[mid].first;
@@ -171,15 +168,16 @@ namespace index {
 
 				case inner: {
 					auto inner_node = static_cast<InnerNode *>(node);
-					// find the position of the child to the left of nearest
-					// greater key
-					int child_pos = node_key_search(inner_node, key);
 
-					if (child_pos == -1) {
+					if (inner_node->key_values.empty()) {
 						//this shouldn't happen
 						LOG_ERROR("Failed binary search at page");
 						return get_failed_result();
 					}
+
+					// find the position of the child to the left of nearest
+					// greater key
+					auto child_pos = node_key_search(inner_node, key);
 
 					// extract child pid from they key value pair
 					pid_t child_pid = inner_node->key_values[child_pos].second;
@@ -220,7 +218,7 @@ namespace index {
 						pid_t left =inner_node->key_values[child_pos-1].second;
 
 						// Merge
-						MergePage(left, right, inner_node->pid);
+						merge_page(left, right, inner_node->pid);
 					}
 					break;
 				}
@@ -253,8 +251,243 @@ namespace index {
 
 	template <typename KeyType, typename ValueType, class KeyComparator,
 			class KeyEqualityChecker>
+	TreeOpResult BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+			search_leaf_page(const pid_t node_pid, const KeyType &key) {
+
+		Node *head = mapping_table_.get_phy_ptr(node_pid);
+		return search_leaf_page(head, key);
+	};
+
+	template <typename KeyType, typename ValueType, class KeyComparator,
+			class KeyEqualityChecker>
+	TreeOpResult BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+	search_leaf_page(Node* head, const KeyType &key) {
+
+		if (head->get_type() == NodeType::removeNode) {
+			// we have a remove node delta, end search and try again
+			return get_failed_result();
+		}
+
+		if (head->chain_length > consolidate_threshold_leaf_) {
+			// perform consolidation
+			consolidate(head);
+		}
+
+		bool continue_itr = true;
+
+		TreeOpResult result = get_failed_result();
+
+		// used to iterate the delta chain
+		auto node = head;
+
+		while(continue_itr && node != nullptr) {
+
+			switch(node->get_type()) {
+
+				case deltaInsert: {
+					auto delta_node = static_cast<DeltaInsert *>(node);
+
+					if (delta_node->key == key) {
+						// node has been inserted, prepare result
+						result = make_search_result(delta_node->value);
+
+						continue_itr = false;
+					}
+
+					break;
+				}
+
+				case deltaDelete: {
+					auto delta_node = static_cast<DeltaDelete *>(node);
+
+					if (delta_node->key == key) {
+						// node has been deleted, fail the search
+						result = make_search_fail_result();
+
+						continue_itr = false;
+					}
+					break;
+				}
+
+				case deltaSplitLeaf: {
+					auto delta_node = static_cast<DeltaSplitLeaf *>(node);
+
+					// splitKey <= key?
+					if (key_compare_lte(delta_node->splitKey, key )) {
+						// continue search on Q
+						result = search_leaf_page(delta_node->new_child, key);
+
+						continue_itr = false;
+					}
+					break;
+				}
+
+				case mergeLeaf: {
+					auto delta_node = static_cast<MergeLeaf *>(node);
+
+					// splitKey <= key?
+					if (key_compare_lte(delta_node->splitKey, key )) {
+						// continue search on R
+						result = search_leaf_page(delta_node->deleting_node, key);
+
+						continue_itr = false;
+					}
+					break;
+				}
+
+				case leaf: {
+					auto leaf_node = static_cast<LeafNode *>(node);
+
+					if (leaf_node->key_values.empty()) {
+						//this shouldn't happen
+						LOG_ERROR("Failed binary search at page");
+						return get_failed_result();
+					}
+
+					// find the position of the child to the left of nearest
+					// greater key
+					auto child_pos = node_key_search(leaf_node, key);
+
+					// extract child pid from they key value pair
+					auto match = leaf_node->key_values[child_pos];
+
+					// check the binary search result
+					if (key_compare_eq(match.first, key)) {
+						// keys are equal
+						result =  make_search_result(match.second);
+					} else {
+ 						result = make_search_fail_result();
+					}
+
+					continue_itr = false;
+
+					break;
+				}
+			}
+			// go to next node
+			node = node->next;
+		}
+
+		result.needs_split = false;
+		if (head->record_count > split_threshold_) {
+			result.needs_split = true;
+		}
+
+		result.needs_merge = false;
+		if (head->record_count < merge_threshold_) {
+			result.needs_merge = true;
+		}
+
+		return result;
+
+	}
+
+	template <typename KeyType, typename ValueType, class KeyComparator,
+			class KeyEqualityChecker>
+	TreeOpResult BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+	update_leaf_delta_chain(const pid_t pid, KeyType* key, ValueType* value,
+															const OperationType& op_type) {
+
+		Node *head = mapping_table_.get_phy_ptr(pid);
+
+		if (head->get_type() == NodeType::removeNode) {
+			return get_failed_result();
+		}
+
+		if (head->chain_length > consolidate_threshold_leaf_) {
+			consolidate(head);
+		}
+
+		Node *update = nullptr;
+
+		if (op_type == OperationType::insert_op) {
+			update = new DeltaInsert(key, *value);
+		} else {
+			// otherwise, it is a delte op
+			update = new DeltaDelete(key);
+		}
+
+		// try till update succeeds
+		while(!mapping_table_.install_node(pid, head, update)){
+			// get latest head value
+			 head = mapping_table_.get_phy_ptr(pid);
+		}
+
+		// link to delta chain
+		update->set_next(head);
+
+		TreeOpResult result = get_update_success_result();
+
+		result.needs_split = false;
+		if (head->record_count > split_threshold_) {
+			result.needs_split = true;
+		}
+
+		result.needs_merge = false;
+		if (head->record_count < merge_threshold_) {
+			result.needs_merge = true;
+		}
+
+		return result;
+
+	}
+
+	template <typename KeyType, typename ValueType, class KeyComparator,
+			class KeyEqualityChecker>
+	bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+	Search(const KeyType &key, ValueType **value) {
+		LeafOperation leaf_op;
+		// set the search leaf function
+		leaf_op.search_leaf_page = search_leaf_page;
+
+		auto result = do_tree_operation(root_, key, value, &leaf_op,
+																		OperationType::search_op);
+
+		if (result.status && result.is_valid_value) {
+			// search has succeeded
+			*value = result.value;
+			return true;
+		}
+
+		return false;
+
+	}
+
+	template <typename KeyType, typename ValueType, class KeyComparator,
+			class KeyEqualityChecker>
+	bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+	Insert(const KeyType &key, const ValueType &value) {
+		LeafOperation leaf_op;
+		// set the delta chain update function
+		leaf_op.update_leaf_delta_chain = update_leaf_delta_chain;
+
+		auto result = do_tree_operation(root_, key, value, &leaf_op,
+																		OperationType::insert_op);
+
+		return result.status;
+	}
+
+
+	template <typename KeyType, typename ValueType, class KeyComparator,
+			class KeyEqualityChecker>
+	bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+	Delete(const KeyType &key) {
+
+		LeafOperation leaf_op;
+		// set the delta chain update function
+		leaf_op.update_leaf_delta_chain = update_leaf_delta_chain;
+
+		auto result = do_tree_operation(root_, key, nullptr, &leaf_op,
+																		OperationType::delete_op);
+
+		return result.status;
+	}
+
+
+	template <typename KeyType, typename ValueType, class KeyComparator,
+			class KeyEqualityChecker>
 	void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
-	MergePage(pid_t pid_l, pid_t pid_r, pid_t pid_parent) {
+	merge_page(pid_t pid_l, pid_t pid_r, pid_t pid_parent) {
 
 		Node *ptr_l = mapping_table_.get_phy_ptr(pid_l);
 		Node *ptr_r = mapping_table_.get_phy_ptr(pid_r);
@@ -309,7 +542,7 @@ namespace index {
 
 	template <typename KeyType, typename ValueType, class KeyComparator,
 			class KeyEqualityChecker>
-	bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::cleanup() {
+	bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Cleanup() {
 		return true;
 	}
 }  // End index namespace

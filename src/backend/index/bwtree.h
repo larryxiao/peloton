@@ -573,9 +573,22 @@ private:
 		{}
 	};
 
+	inline TreeOpResult get_update_success_result() {
+		return TreeOpResult(true);
+	}
+
 	inline TreeOpResult get_failed_result() {
 		return TreeOpResult();
 	}
+
+	inline TreeOpResult make_search_result(ValueType value) {
+		return TreeOpResult(value);
+	}
+
+	inline TreeOpResult make_search_fail_result() {
+		return TreeOpResult(true);
+	}
+
 	// TODO: used for range scans
 	class RangeVector {
 		//logical pointer to the current node
@@ -618,7 +631,7 @@ private:
 	// the key nearest to the search key, depending on the mode.
 	// Returns the position of the child to the left of nearest greater key
 	// and -1 for failed search
-	inline int node_key_search(const TreeNode *node,  const KeyType& key,
+	inline unsigned long node_key_search(const TreeNode *node,  const KeyType& key,
 														 const NodeSearchMode mode = NodeSearchMode::GTE);
 
 	enum OperationType : int8_t{
@@ -633,7 +646,7 @@ private:
 		TreeOpResult (*update_leaf_delta_chain)(const pid_t pid, KeyType* key,
 																						ValueType* value,
 																						const OperationType& op_type);
-	}leaf_operation_;
+	};
 
 
 	// Does a tree operation on inner node (head of it's delta chain)
@@ -644,14 +657,31 @@ private:
 																 const OperationType& op_type);
 
 	// Wrapper for the above function that looks up pid from mapping table
-	TreeOpResult do_tree_operation(const pid_t node_pid, KeyType& key,
+	inline TreeOpResult do_tree_operation(const pid_t node_pid, KeyType& key,
 																 ValueType* value,
 																 const LeafOperation *leaf_operation,
 																 const OperationType& op_type);
 
 
+	// Search leaf page and return the found value, if exists. Try SMOs /
+	// Consolidation, if necessary
+	TreeOpResult search_leaf_page(const pid_t pid, const KeyType& key);
+
+	// Wrapper for the above function
+	inline TreeOpResult search_leaf_page(Node *head, const KeyType& key);
+
+	// Update the leaf delta chain during insert/delta. Try SMOs /
+	// Consolidation, if necessary
+	TreeOpResult update_leaf_delta_chain(const pid_t pid, KeyType* key,
+																					ValueType* value,
+																					const OperationType& op_type);
+
+
 	// consolidation skeleton, starting from the given physical pointer
 	void consolidate(const Node * node);
+
+	// Merge page operation for node underflows
+	void merge_page(pid_t pid_l, pid_t pid_r, pid_t pid_parent);
 
 public:
 
@@ -677,15 +707,13 @@ public:
 		split_threshold_ = 100;
 	}
 
-	ValueType Search(const KeyType& key);
+	bool Search(const KeyType& key, ValueType **value);
 
-	void Insert(const KeyType &key, const ValueType& value);
+	bool Insert(const KeyType &key, const ValueType& value);
 
-	void Delete(const KeyType &key);
+	bool Delete(const KeyType &key);
 
-	void MergePage(pid_t pid_l, pid_t pid_r, pid_t pid_parent);
-
-	bool cleanup();
+	bool Cleanup();
 };
 
 }  // End index namespace
