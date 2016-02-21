@@ -11,9 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "backend/common/logger.h"
-#include "backend/index/bwtree_index.h"
 #include "backend/index/index_key.h"
 #include "backend/storage/tuple.h"
+
+#include "backend/index/bwtree_index.h"
 
 namespace peloton {
 namespace index {
