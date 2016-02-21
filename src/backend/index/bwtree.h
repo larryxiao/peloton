@@ -633,7 +633,7 @@ private:
 
 
 	// consolidation skeleton, starting from the given physical pointer
-	void consolidate(const Node * node) {}
+	void consolidate(const Node * node);
 
 public:
 
@@ -664,6 +664,10 @@ public:
 	void Insert(const KeyType &key, const ValueType& value);
 
 	void Delete(const KeyType &key);
+
+	void merge(PID pid_l, PID pid_r, PID pid_parent);
+
+	bool cleanup();
 };
 
 }  // End index namespace
