@@ -638,6 +638,10 @@ public:
 	void Insert(const KeyType &key, const ValueType& value);
 
 	void Delete(const KeyType &key);
+
+    void merge(PID pid_l, PID pid_r, PID pid_parent);
+
+    bool cleanup();
 };
 
 }  // End index namespace

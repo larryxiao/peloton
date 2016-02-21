@@ -71,31 +71,36 @@ namespace index {
 	}
 
     void BwTree::merge(PID pid_l, PID pid_r, PID pid_parent) {
-        Node<KeyType, ValueType> *ptr_l = get_phy_ptr(pid_l);
-        Node<KeyType, ValueType> *ptr_r = get_phy_ptr(pid_r);
-        Node<KeyType, ValueType> *ptr_parent = get_phy_ptr(pid_parent);
+        Node *ptr_l = get_phy_ptr(pid_l);
+        Node *ptr_r = get_phy_ptr(pid_r);
+        Node *ptr_parent = get_phy_ptr(pid_parent);
         bool leaf = ptr_r.is_leaf();
 
         // Step 1 marking for delete
         // create remove node delta node
-        Node *remove_node_delta = new RemoveNode();
+        RemoveNode *remove_node_delta = new RemoveNode();
         remove_node_delta.set_next(ptr_r);
         mapping_table_.install_node(pid_r, ptr_r, remove_node_delta);
         // Step 2 merging children
         // create node merge delta
+        // TODO key range
         int record_count = ptr_l->record_count + ptr_r->record_count;
         if (leaf) {
-            Node *node_merge_delta = new MergeLeaf(ptr_r->separator_low, ptr_r, record_count);
+            MergeLeaf *node_merge_delta = new MergeLeaf(ptr_r->low, ptr_r, record_count);
         } else {
-            Node *node_merge_delta = new mergeInner(ptr_r->separator_low, ptr_r, record_count);
+            MergeInner *node_merge_delta = new MergeInner(ptr_r->low, ptr_r, record_count);
         }
         remove_node_delta.set_next(ptr_l);
-        mapping_table_.install_node(pid_l, ptr_l, node_merge_delta);
+        mapping_table_.install_node(pid_l, ptr_l, (Node *) node_merge_delta);
         // Step 3 parent update
         // create index term delete delta
-        Node *index_term_delete_delta = new IndexDelta(ptr_l->low, ptr_r->high, pid_l);
+        IndexDelta *index_term_delete_delta = new IndexDelta(ptr_l->low, ptr_r->high, pid_l);
         index_term_delete_delta->set_next = ptr_parent;
-        mapping_table_.install_node(pid_parent, ptr_parent, index_term_delete_delta);
+        mapping_table_.install_node(pid_parent, ptr_parent, (Node *) index_term_delete_delta);
+    }
+
+    bool BwTree::cleanup() {
+        return true;
     }
 
     }  // End index namespace
