@@ -95,7 +95,7 @@ namespace index {
 		bool continue_itr = true;
 
 		// store result from recursion, if any
-		TreeOpResult *result = nullptr;
+		TreeOpResult result = get_failed_result();
 
 		// pointer for iterating
 		auto node = head;
@@ -113,13 +113,13 @@ namespace index {
 					if(key_compare_lte(delta_node->low, key) &&
 							key_compare_lt(key, delta_node->high)) {
 						// recurse into shortcut pointer
-						*result = do_tree_operation(delta_node->new_node,
+						result = do_tree_operation(delta_node->new_node,
 																				key, value, leaf_operation,
 																				op_type);
 						// don't iterate anymore
 						continue_itr = false;
 					}
-					// else, descend delta chain
+					break;
 				}
 
 				case deleteIndex: {
@@ -128,12 +128,12 @@ namespace index {
 					if(key_compare_lte(delta_node->low, key) &&
 							key_compare_lt(key, delta_node->high)) {
 						// recurse into shortcut pointer
-						*result = do_tree_operation(delta_node->merge_node, key,
+						result = do_tree_operation(delta_node->merge_node, key,
 																				value, leaf_operation, op_type);
 						// don't iterate anymore
 						continue_itr = false;
 					}
-					// else, descend delta chain
+					break;
 				}
 
 				case deltaSplitInner: {
@@ -141,12 +141,13 @@ namespace index {
 					// splitkey <= Key?
 					if(key_compare_lte(delta_node->splitKey, key)){
 						// recurse into new node
-						*result = do_tree_operation(delta_node->new_node, key, value,
+						result = do_tree_operation(delta_node->new_node, key, value,
 																				leaf_operation, op_type);
 						// don't iterate anymore
 						continue_itr = false;
 					}
-					// else, descend delta chain
+
+					break;
 				}
 
 				case mergeInner: {
@@ -154,12 +155,13 @@ namespace index {
 					// splitkey <= key?
 					if (key_compare_lte(delta_node->splitKey, key)) {
 						// recurse into node to be deleted
-						*result = do_tree_operation(delta_node->deleting_node, key,
+						result = do_tree_operation(delta_node->deleting_node, key,
 																				value, leaf_operation, op_type);
 						// don't iterate anymore
 						continue_itr = false;
 					}
-					// else, descend delta chain
+
+					break;
 				}
 
 				case inner: {
@@ -181,13 +183,13 @@ namespace index {
 						// next level is leaf, execute leaf operation
 						if (op_type == OperationType::search_op){
 							// search the leaf page and get result
-							*result = leaf_operation->search_leaf_page(child_pid, key);
+							result = leaf_operation->search_leaf_page(child_pid, key);
 							// don't iterate anymore
 							continue_itr = false;
 						} else {
 							// insert/delete operation; try to update
 							// delta chain and fetch result
-							*result = leaf_operation->update_leaf_delta_chain(child_pid,
+							result = leaf_operation->update_leaf_delta_chain(child_pid,
 																																&key, value,
 																																op_type);
 							// don't iterate anymore
@@ -195,15 +197,13 @@ namespace index {
 						}
 					} else {
 						// otherwise recurse into child node
-						*result = do_tree_operation(inner_node->children[child_pid],
+						result = do_tree_operation(inner_node->children[child_pid],
 																				key, value, leaf_operation, op_type);
 						//don't iterate anymore
 						continue_itr = false;
 					}
 
-					if (result == nullptr) {
-						LOG_ERROR("No valid result from operation");
-					}
+					break;
 				}
 			}
 
@@ -219,12 +219,8 @@ namespace index {
 			// merge this node
 		}
 
-		if(result == nullptr) {
-			// this should not happen
-			return get_failed_result();
-		}
-
-		// return the result from lower levels
+		// return the result from lower levels.
+		// or failure
 		return result;
 
 	}
