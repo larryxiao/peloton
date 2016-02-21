@@ -591,16 +591,17 @@ private:
 	}
 
 	//Available modes: Greater than equal to, Greater tham
-	enum node_search_mode {
+	enum NodeSearchMode {
 		GTE, GT
 	};
 
 
 	// Performs a binary search on a tree node to find the position of
 	// the key nearest to the search key, depending on the mode.
-	// Returns the index of the key, if found, and -1 for failed search
-	inline int node_key_search(const pid_t node_pid,  const KeyType& key,
-														 const node_search_mode& mode);
+	// Returns the position of the child to the left of nearest greater key
+	// and -1 for failed search
+	inline int node_key_search(const TreeNode *node,  const KeyType& key,
+														 const NodeSearchMode mode = NodeSearchMode::GTE);
 
 	enum OperationType : int8_t{
 		insert_op,
@@ -613,15 +614,23 @@ private:
 		TreeOpResult (*search_leaf_page)(const pid_t pid, const KeyType& key);
 		TreeOpResult (*update_leaf_delta_chain)(const pid_t pid, KeyType* key,
 																						ValueType* value,
-																						const OperationType& type);
-	};
+																						const OperationType& op_type);
+	}leaf_operation_;
 
 
-	// Does a tree operation on inner node (node_pid) with leaf node
-	// operation passed as a function pointer
-	TreeOpResult do_tree_operation(const pid_t node_pid, const KeyType& key,
+	// Does a tree operation on inner node (head of it's delta chain)
+	// with leaf node operation passed as a function pointer
+	TreeOpResult do_tree_operation(Node* head, KeyType& key,
+																 ValueType* value,
 																 const LeafOperation *leaf_operation,
-																 const OperationType& type);
+																 const OperationType& op_type);
+
+	// Wrapper for the above function that looks up pid from mapping table
+	TreeOpResult do_tree_operation(const pid_t node_pid, KeyType& key,
+																 ValueType* value,
+																 const LeafOperation *leaf_operation,
+																 const OperationType& op_type);
+
 
 	// consolidation skeleton, starting from the given physical pointer
 	void consolidate(const Node * node) {}
