@@ -71,7 +71,6 @@ namespace peloton {
 				inline bool is_leaf() {
 					return (level == 0);
 				}
-
 			};
 
 			// TODO: performance issues?
@@ -578,7 +577,6 @@ namespace peloton {
 				GTE, GT
 			};
 
-
 			// Performs a binary search on a tree node to find the position of
 			// the key nearest to the search key, depending on the mode.
 			// Returns the index of the key, if found, and -1 for failed search
@@ -598,7 +596,6 @@ namespace peloton {
 														ValueType* value,
 														const OperationType& type);
 			};
-
 
 			// Does a tree operation, with leaf node operation passed as a
 			// function pointer
@@ -628,6 +625,10 @@ namespace peloton {
 
 				split_threshold_ = 100;
 			}
+
+			void setSibling(Node* node,Node* sibling);
+
+			bool splitPage(pid_t pPID,pid_t pParentPID);
 
 			ValueType Search(const KeyType& key);
 

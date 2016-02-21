@@ -56,62 +56,118 @@ namespace index {
 		return min;
 	}
 
-	Node* getHeadNodePointerForPID(const pid_t pPID) {
-		//check if null?
-		return table[pPID];
+	template <typename KeyType, typename ValueType, class KeyComparator>
+	void BWTree::setSibling(Node* node,Node* sibling){
+		while(node->next!= nullptr)
+		{
+			node=node->next;
+		}
+		node->sidelink = sibling;
 	}
 
+	template <typename KeyType, typename ValueType, class KeyComparator>
+	std::tuple<std::vector<KeyType>,std::vector<ValueType>> BWTree::getCurrentCenterKey(Node* headNodeP){
+		Node *copyHeadNodeP = headNodeP;
+		while(headNodeP->next!= nullptr){
+			headNodeP=headNodeP->next;
+		}
+		//TODO:yet to handle for duplicate keys case
+		std::vector<KeyType> overallKeys = headNodeP->keys;
+//		std::vector<KeyType> insertedKeys;
+		std::vector<KeyType> deletedKeys;
+
+		//handling deltaInsert, deltaDelete, removeNode
+		while(copyHeadNodeP->next!= nullptr){
+			switch (copyHeadNodeP->get_type()){
+				case deltaInsert:
+					overallKeys.push_back(copyHeadNodeP->key);
+					break;
+				case deltaDelete:
+					deletedKeys.push_back(copyHeadNodeP->key);
+					break;
+				default:
+					break;
+			}
+			copyHeadNodeP=copyHeadNodeP->next;
+		}
+
+		for(auto const& elem: deletedKeys){
+			auto it = find(overallKeys.begin(), overallKeys.end(),elem);
+			if(it != overallKeys.end()){
+				overallKeys.erase(it);
+			}
+		}
+
+		std::sort(overallKeys.begin(), overallKeys.end(), less_comparator_);
+
+
+	};
+
+	template <typename KeyType, typename ValueType, class KeyComparator>
+	bool BWTree::checkIfRemoveDelta(Node* head){
+		while(head->next!= nullptr)
+		{
+			switch(head->get_type())
+			{
+				case removeNode:
+					return true;
+				default:
+					break;
+			}
+			head=head->next;
+		}
+		return false;
+	}
 
 	template <typename KeyType, typename ValueType, class KeyComparator>
 	bool BWTree::splitPage(pid_t pPID,pid_t pParentPID){
 
-		pid_t qPID;
+		pid_t qPID;Node* splitNode;
 
-		auto headNodeP = getHeadNodePointerForPID(pPID); //get the head node of the deltachain
-		auto headNodeParentP = getHeadNodePointerForPID(pParentPID);
+		Node *headNodeP = mapping_table_.get_phy_ptr(pPID); //get the head node of the deltachain
+		Node *headNodeParentP = mapping_table_.get_phy_ptr(pParentPID);
 
-		KeyType Kp = getSeperatorKeyForSplit(pPID); //TODO
-		KeyType Kq = getHighKeyForP(pParentPID, Kp); //TODO
+		if(checkIfRemoveDelta(headNodeP) || checkIfRemoveDelta(headNodeParentP))
+			return false;
 
-		if(pPID.isLeaf()) //TODO
+//		std::tie(prev, next, hadInfinityElement) = getConsolidatedInnerData(startNode, needSplitPage, nodes);
+
+		KeyType Kp,Kq;
+//		= getCurrentCenterKey(headNodeP);
+//		KeyType Kq = getHighKey(headNodeParentP, Kp); //TODO
+
+		if(headNodeP->is_leaf())
 		{
-			qPID=allocateLeaf(); //TODO
-			//insert all the key-values in Q for > Kp , delta chain needs to be traversed
+			Node* newLeafNode = new LeafNode((TreeNode*)headNodeP->sidelink); // P->R was there before
+			newLeafNode->set_next(nullptr);
+			qPID = static_cast<pid_t>(pid_gen_++);
+			mapping_table_.insert_new_pid(qPID, newLeafNode);
+
+			splitNode = new DeltaSplitLeaf(Kp, qPID, qPID->record_count);
 		}
 		else
 		{
-			qPID=allocateInner(); //TODO
-			//insert all the keys in Q for <= Kp , delta chain needs to be traversed
+			Node* newInnerNode = new InnerNode((TreeNode*)headNodeP->sidelink);
+			newInnerNode->set_next(nullptr);
+			qPID = static_cast<pid_t>(pid_gen_++);
+			mapping_table_.insert_new_pid(qPID, newInnerNode);
+
+			splitNode = new DeltaSplitInner(Kp, qPID, qPID->record_count);
 		}
 
-		auto splitDel = createSplitDeltaNodePointer(qPID, Kp); //sibling pointer to Q //TODO
-
-		if(!mapping[pPID].compare_exchange_weak(headNodeP, splitNode)) //TODO - mapping table structure, CAS
-		{
-			//CAS failed
-			//TODO: Free allocated nodes?
-			return false;
-		}
+		splitNode->set_next(headNodeP);
+		mapping_table_.install_node(pPID, headNodeP, splitNode);
 
 		//need to handle any specific delta record nodes?1
 
-//		if(!(std::atomic_compare_exchange_weak_explicit(
-//				headNodeP, *headNodeP, splitDel, false, std::memory_order_release,
-//				std::memory_order_relaxed)))
-//			return false; //no need to clear the new node?
-
 		//what if P disppears or the parent disappears, or R disappears
-		setSibling(pPID, nullptr); //set the sibling pointer to null
+		setSibling(headNodeP,nullptr);
 
-		//CAS update with number of nodes(after split) on P
-		auto sepDel = createSeperatorDeltaPointer(pParentPID, Kp, Kq, qPID); //it sets pointer to Q if range matches //TODO
+		//CAS update with number of nodes(after split) on P //TODO
 
-		if(!mapping[pParentPID].compare_exchange_weak(headNodeParentP,sepDel))
-		{
-			//CAS failed
-			//TODO: Free allocated nodes?
-			return false;
-		}
+		Node* sepDel = new IndexDelta(Kp,Kq,qPID); //what if the range doesn't match
+		sepDel->set_next(headNodeParentP);
+		mapping_table_.install_node(pParentPID, headNodeParentP, sepDel);
 
 		return true;
 	}
