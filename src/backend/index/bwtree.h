@@ -28,6 +28,7 @@ namespace index {
 // Look up the stx btree interface for background.
 // peloton/third_party/stx/btree.h
 template <typename KeyType, typename ValueType, class KeyComparator, class KeyEqualityChecker>
+	using BWTree = BWTree <KeyType, ValueType, KeyComparator, KeyEqualityChecker>;
 class BWTree {
 
 private:
@@ -631,8 +632,8 @@ private:
 	// the key nearest to the search key, depending on the mode.
 	// Returns the position of the child to the left of nearest greater key
 	// and -1 for failed search
-	inline unsigned long node_key_search(const TreeNode *node,  const KeyType& key,
-														 const NodeSearchMode mode = NodeSearchMode::GTE);
+	template <typename K, typename V>
+	inline unsigned long node_key_search(const TreeNode<K,V> *node,  const KeyType& key);
 
 	enum OperationType : int8_t{
 		insert_op,
@@ -706,6 +707,9 @@ public:
 
 		split_threshold_ = 100;
 	}
+
+	bool Insert(__attribute__((unused)) KeyType key,
+							__attribute__((unused)) ValueType value);
 
 	bool Search(const KeyType& key, ValueType **value);
 
