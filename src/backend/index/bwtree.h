@@ -28,7 +28,6 @@ namespace index {
 // Look up the stx btree interface for background.
 // peloton/third_party/stx/btree.h
 template <typename KeyType, typename ValueType, class KeyComparator, class KeyEqualityChecker>
-	using BWTree = BWTree <KeyType, ValueType, KeyComparator, KeyEqualityChecker>;
 class BWTree {
 
 private:
@@ -138,6 +137,9 @@ private:
 
 	// comparator, assuming the default comparator is lt
 	KeyComparator less_comparator_;
+
+	// equality checker
+	KeyEqualityChecker eq_checker_;
 
 	// Logical pointer to head leaf page
 	pid_t head_leaf_ptr_;
@@ -405,7 +407,7 @@ private:
 		//insert value
 		ValueType value;
 
-		inline DeltaInsert(const KeyType &key, const ValueType &value) {
+		inline DeltaInsert(const KeyType &key, const ValueType& value) {
 			// set the type
 			this->type = NodeType::deltaInsert;
 
@@ -644,8 +646,8 @@ private:
 	union LeafOperation {
 		// Search the leaf page PID for the given key
 		TreeOpResult (*search_leaf_page)(const pid_t pid, const KeyType& key);
-		TreeOpResult (*update_leaf_delta_chain)(const pid_t pid, KeyType* key,
-																						ValueType* value,
+		TreeOpResult (*update_leaf_delta_chain)(const pid_t pid, KeyType& key,
+																						const ValueType& value,
 																						const OperationType& op_type);
 	};
 
@@ -653,28 +655,28 @@ private:
 	// Does a tree operation on inner node (head of it's delta chain)
 	// with leaf node operation passed as a function pointer
 	TreeOpResult do_tree_operation(Node* head, KeyType& key,
-																 ValueType* value,
+																 const ValueType& value,
 																 const LeafOperation *leaf_operation,
 																 const OperationType& op_type);
 
 	// Wrapper for the above function that looks up pid from mapping table
-	inline TreeOpResult do_tree_operation(const pid_t node_pid, KeyType& key,
-																 ValueType* value,
+	TreeOpResult do_tree_operation(const pid_t node_pid, KeyType& key,
+																 const ValueType& value,
 																 const LeafOperation *leaf_operation,
 																 const OperationType& op_type);
 
 
 	// Search leaf page and return the found value, if exists. Try SMOs /
 	// Consolidation, if necessary
-	TreeOpResult search_leaf_page(const pid_t pid, const KeyType& key);
+	TreeOpResult search_leaf_page_phy(Node *head, const KeyType& key);
 
 	// Wrapper for the above function
-	inline TreeOpResult search_leaf_page(Node *head, const KeyType& key);
+	TreeOpResult search_leaf_page(const pid_t pid, const KeyType& key);
 
 	// Update the leaf delta chain during insert/delta. Try SMOs /
 	// Consolidation, if necessary
-	TreeOpResult update_leaf_delta_chain(const pid_t pid, KeyType* key,
-																					ValueType* value,
+	TreeOpResult update_leaf_delta_chain(const pid_t pid, const KeyType& key,
+																					const ValueType& value,
 																					const OperationType& op_type);
 
 
@@ -686,27 +688,28 @@ private:
 
 public:
 
+	BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>();
 	//by default, start the pid generator at 1, 0 is NULL page
-	inline BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>() {
-		pid_gen_ = NULL_PID+1;
-		root_ = static_cast<pid_t>(pid_gen_++);
-
-		//insert the chain into the mapping table
-		mapping_table_.insert_new_pid(root_, new LeafNode(root_, NULL_PID));
-
-		//update the leaf pointers
-		head_leaf_ptr_ = root_;
-		tail_leaf_ptr_ = root_;
-
-		// TODO: decide values
-		consolidate_threshold_inner_ = 5;
-
-		consolidate_threshold_leaf_ = 8;
-
-		merge_threshold_ = 3;
-
-		split_threshold_ = 100;
-	}
+//	BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>() {
+//		pid_gen_ = NULL_PID+1;
+//		root_ = static_cast<pid_t>(pid_gen_++);
+//
+//		//insert the chain into the mapping table
+//		mapping_table_.insert_new_pid(root_, new LeafNode(root_, NULL_PID));
+//
+//		//update the leaf pointers
+//		head_leaf_ptr_ = root_;
+//		tail_leaf_ptr_ = root_;
+//
+//		// TODO: decide values
+//		consolidate_threshold_inner_ = 5;
+//
+//		consolidate_threshold_leaf_ = 8;
+//
+//		merge_threshold_ = 3;
+//
+//		split_threshold_ = 100;
+//	}
 
 	bool Insert(__attribute__((unused)) KeyType key,
 							__attribute__((unused)) ValueType value);
