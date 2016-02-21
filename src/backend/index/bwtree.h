@@ -67,7 +67,7 @@ private:
 
 		int level;
 
-		virtual void set_next(Node *next_node) {}
+		virtual void set_next(Node *) {}
 
 		inline bool is_leaf() {
 			return (level == 0);
@@ -95,13 +95,10 @@ private:
 
 		// Used for first time insertion of this pid into the map
 		inline void insert_new_pid(const pid_t& pid, Node* node) {
-			std::atomic<Node *> atomic_node;
-
-			// only thread here, relaxed access
-			atomic_node.store(node, std::memory_order_relaxed);
-
 			// insert into the map
-			table.assign(pid, atomic_node);
+            // std::atomic<T> isn't copy-constructible, nor copy-assignable.
+			// only thread here, relaxed access
+			table[pid].store(node, std::memory_order_relaxed);
 
 			return;
 		}
@@ -109,20 +106,10 @@ private:
 		//tries to install the updated phy ptr
 		inline bool install_node(const pid_t& pid, Node* expected, Node* update) {
 
-			// atomically load the current value of node ptr
-			std::atomic<Node *> new_value;
-
-			// store the update value
-			new_value.store(update, std::memory_order_relaxed);
-
-			// try to atomically update the new node
-			if(std::atomic_compare_exchange_weak_explicit(
-					&table[pid], &expected, new_value,
-					std::memory_order_relaxed, std::memory_order_release
-			)) return true;
-
-			// CAS failed, return
-			return false;
+            // try to atomically update the new node
+            return std::atomic_compare_exchange_weak_explicit(
+                    &(table[pid]), &expected, update,
+                    std::memory_order_release, std::memory_order_relaxed);
 		}
 	};
 
@@ -230,7 +217,7 @@ private:
 			this->chain_length = 1;
 
 			// intialize the level
-			this->level = 1;
+			this->level = level;
 
 			// no records intially
 			this->record_count = 0;
@@ -565,15 +552,17 @@ private:
 
 		bool needs_merge;
 
-		inline TreeOpResult(const bool status = false) : is_valid_value(false),
-																										 needs_split(false),
-																										 needs_merge(false)
+        inline TreeOpResult(__attribute__((__unused__)) 
+                const bool status = false) : 
+            is_valid_value(false),
+            needs_split(false),
+            needs_merge(false)
 		{}
 
-		inline TreeOpResult(const ValueType value) : status(true), value(value),
-																								 needs_split(false),
-																								 needs_merge(false)
-		{}
+        inline TreeOpResult(const ValueType value) : status(true), value(value),
+        needs_split(false),
+        needs_merge(false)
+        {}
 	};
 
 	inline TreeOpResult get_update_success_result() {
