@@ -59,6 +59,7 @@ class BWTreeIndex : public Index {
 
   // TODO: Implement this
   bool Cleanup() {
+    container.cleanup();
     return true;
   }
 
