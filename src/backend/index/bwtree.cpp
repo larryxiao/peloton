@@ -493,65 +493,85 @@ Delete(const KeyType &key) {
   return result.status;
 }
 
+// step 1 marks start of merge, if fail on step 1 and see a NodeMergeDelta,
+// abort itself
+// step 2 and step 3 should retry until succeed
+// TODO key range
+// DONE failure case
+// TODO memory management
+// TODO OPTIMIZATION right is not changed, reuse delta node
 template <typename KeyType, typename ValueType, class KeyComparator,
           class KeyEqualityChecker>
 bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
 merge_page(pid_t pid_l, pid_t pid_r, pid_t pid_parent) {
 
-  Node *ptr_l = mapping_table_.get_phy_ptr(pid_l);
   Node *ptr_r = mapping_table_.get_phy_ptr(pid_r);
-  Node *ptr_parent = mapping_table_.get_phy_ptr(pid_parent);
+  Node *ptr_l, *ptr_parent;
   bool leaf = ptr_r->is_leaf();
+  RemoveNode *remove_node_delta = nullptr;
+  Node *node_merge_delta = nullptr;
+  DeleteIndex *index_term_delete_delta = nullptr;
 
   // Step 1 marking for delete
   // create remove node delta node
-  RemoveNode *remove_node_delta = new RemoveNode();
+  remove_node_delta = new RemoveNode();
   remove_node_delta->set_next(ptr_r);
-  if (!mapping_table_.install_node(pid_r, ptr_r, remove_node_delta))
+  if (!mapping_table_.install_node(pid_r, ptr_r, remove_node_delta)) {
+  	delete remove_node_delta;
     return false;
-
-  // merge delta node ptr
-  Node *node_merge_delta = nullptr;
-
-  // Step 2 merging children
-  // create node merge delta
-  // TODO key range
-  // TODO failure case
-  // TODO memory management
-  int record_count = ptr_l->record_count + ptr_r->record_count;
-  if (leaf) {
-    // cast the right ptr
-    auto leaf_node = static_cast<LeafNode *>(ptr_r);
-    // the first right node key
-    auto split_key = leaf_node->key_values.front().first;
-    // create the delta record
-    node_merge_delta = new MergeLeaf(split_key, leaf_node, record_count);
-  } else {
-    // cast as inner node
-    auto inner_node = static_cast<InnerNode *>(ptr_r);
-    // the first right node key
-    auto split_key = inner_node->key_values.front().first;
-    // create delta record
-    node_merge_delta = new MergeInner(split_key, inner_node, record_count);
   }
 
-  // add to the list
-  remove_node_delta->set_next(ptr_l);
-  mapping_table_.install_node(pid_l, ptr_l, node_merge_delta);
+  // Step 2 merging children
+  // merge delta node ptr
+  // create node merge delta
+  do {
+    ptr_l = mapping_table_.get_phy_ptr(pid_l);
+    if (node_merge_delta != nullptr) {
+      delete node_merge_delta;
+      node_merge_delta = nullptr;
+    }
+
+    int record_count = ptr_l->record_count + ptr_r->record_count;
+    if (leaf) {
+      // cast the right ptr
+      auto leaf_node = static_cast<LeafNode *>(ptr_r);
+      // the first right node key
+      auto split_key = leaf_node->key_values.front().first;
+      // create the delta record
+      node_merge_delta = new MergeLeaf(split_key, leaf_node, record_count);
+    } else {
+      // cast as inner node
+      auto inner_node = static_cast<InnerNode *>(ptr_r);
+      // the first right node key
+      auto split_key = inner_node->key_values.front().first;
+      // create delta record
+      node_merge_delta = new MergeInner(split_key, inner_node, record_count);
+    }
+    node_merge_delta->set_next(ptr_l);
+    // add to the list
+  } while (!mapping_table_.install_node(pid_l, ptr_l, node_merge_delta));
+
 
   // Step 3 parent update
   // create index term delete delta
-  auto left_ptr = static_cast<TreeNode<KeyType, ValueType> *>(ptr_l);
-  KeyType left_low_key = left_ptr->key_values.front().first;
+  do {
+  	ptr_parent = mapping_table_.get_phy_ptr(pid_parent);
+  	if (index_term_delete_delta != nullptr) {
+  	  delete index_term_delete_delta;
+  	  index_term_delete_delta = nullptr;
+  	}
 
-  auto right_ptr = static_cast<TreeNode<KeyType, ValueType> *>(ptr_r);
-  KeyType right_high_key = right_ptr->key_values.back().first;
+    auto left_ptr = static_cast<TreeNode<KeyType, ValueType> *>(ptr_l);
+    KeyType left_low_key = left_ptr->key_values.front().first;
 
-  DeleteIndex *index_term_delete_delta = new DeleteIndex(left_low_key,
-      right_high_key, pid_l);
-  index_term_delete_delta->set_next(ptr_parent);
-  mapping_table_.install_node(pid_parent, ptr_parent,
-                              (Node *) index_term_delete_delta);
+    auto right_ptr = static_cast<TreeNode<KeyType, ValueType> *>(ptr_r);
+    KeyType right_high_key = right_ptr->key_values.back().first;
+
+    index_term_delete_delta = new DeleteIndex(left_low_key,
+        right_high_key, pid_l);
+    index_term_delete_delta->set_next(ptr_parent);
+  } while (!mapping_table_.install_node(pid_parent, ptr_parent,
+                                        (Node *) index_term_delete_delta));
   return true;
 }
 
