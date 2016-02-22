@@ -575,9 +575,37 @@ merge_page(pid_t pid_l, pid_t pid_r, pid_t pid_parent) {
   return true;
 }
 
+// go through pid table, delete chain
+// on merge node, delete right chain
 template <typename KeyType, typename ValueType, class KeyComparator,
           class KeyEqualityChecker>
 bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Cleanup() {
+	std::vector<Node *> delete_queue;
+	for (int i = 0; i < pid_gen_; ++i)
+	{
+		Node * node = mapping_table_[i];
+		if (node == nullptr)
+			continue;
+		Node * next = node->next;
+		while (next != nullptr) {
+			if (node.NodeType == NodeType::mergeInner ||
+				node.NodeType == NodeType::mergeLeaf)
+				delete_queue.insert(node->deleting_node);
+			delete node;
+			node = next;
+			next = next.next;
+		}
+		delete node;
+	}
+	for (auto node = delete_queue.begin(); node != delete_queue.end(); node++) {
+	    Node * next = node->next;
+	    while (next != nullptr) {
+	    	delete node;
+	    	node = next;
+	    	next = next.next;
+	    }
+	    delete node;
+	}
   return true;
 }
 
