@@ -493,20 +493,19 @@ Delete(const KeyType &key) {
   return result.status;
 }
 
-// step 1 marks start of merge, if fail on step 1 and see a NodeMergeDelta,
+// step 1 marks start of merge, if fail on step 1 and see a RemoveNodeDelta,
 // abort itself
 // step 2 and step 3 should retry until succeed
 // TODO key range
 // DONE failure case
-// TODO memory management
-// TODO OPTIMIZATION right is not changed, reuse delta node
+// DONE memory management
+// TODO OPTIMIZATION reuse the nodes
 template <typename KeyType, typename ValueType, class KeyComparator,
           class KeyEqualityChecker>
 bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
 merge_page(pid_t pid_l, pid_t pid_r, pid_t pid_parent) {
 
-  Node *ptr_r = mapping_table_.get_phy_ptr(pid_r);
-  Node *ptr_l, *ptr_parent;
+  Node *ptr_r, *ptr_l, *ptr_parent;
   bool leaf = ptr_r->is_leaf();
   RemoveNode *remove_node_delta = nullptr;
   Node *node_merge_delta = nullptr;
@@ -514,12 +513,17 @@ merge_page(pid_t pid_l, pid_t pid_r, pid_t pid_parent) {
 
   // Step 1 marking for delete
   // create remove node delta node
-  remove_node_delta = new RemoveNode();
-  remove_node_delta->set_next(ptr_r);
-  if (!mapping_table_.install_node(pid_r, ptr_r, remove_node_delta)) {
-    delete remove_node_delta;
-    return false;
-  }
+  do {
+    ptr_r = mapping_table_.get_phy_ptr(pid_r);
+    if (remove_node_delta != nullptr) {
+      delete remove_node_delta;
+    }
+    if (ptr_r->NodeType == NodeType::removeNode) {
+      return false;
+    }
+    remove_node_delta = new RemoveNode();
+    remove_node_delta->set_next(ptr_r);
+  } while (!mapping_table_.install_node(pid_r, ptr_r, remove_node_delta));
 
   // Step 2 merging children
   // merge delta node ptr
@@ -587,8 +591,8 @@ bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Cleanup() {
       continue;
     Node * next = node->next;
     while (next != nullptr) {
-      if (node.NodeType == NodeType::mergeInner ||
-          node.NodeType == NodeType::mergeLeaf)
+      if (node->NodeType == NodeType::mergeInner ||
+          node->NodeType == NodeType::mergeLeaf)
         delete_queue.insert(node->deleting_node);
       delete node;
       node = next;
