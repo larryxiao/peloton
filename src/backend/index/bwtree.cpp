@@ -517,7 +517,7 @@ merge_page(pid_t pid_l, pid_t pid_r, pid_t pid_parent) {
   remove_node_delta = new RemoveNode();
   remove_node_delta->set_next(ptr_r);
   if (!mapping_table_.install_node(pid_r, ptr_r, remove_node_delta)) {
-  	delete remove_node_delta;
+    delete remove_node_delta;
     return false;
   }
 
@@ -555,11 +555,11 @@ merge_page(pid_t pid_l, pid_t pid_r, pid_t pid_parent) {
   // Step 3 parent update
   // create index term delete delta
   do {
-  	ptr_parent = mapping_table_.get_phy_ptr(pid_parent);
-  	if (index_term_delete_delta != nullptr) {
-  	  delete index_term_delete_delta;
-  	  index_term_delete_delta = nullptr;
-  	}
+    ptr_parent = mapping_table_.get_phy_ptr(pid_parent);
+    if (index_term_delete_delta != nullptr) {
+      delete index_term_delete_delta;
+      index_term_delete_delta = nullptr;
+    }
 
     auto left_ptr = static_cast<TreeNode<KeyType, ValueType> *>(ptr_l);
     KeyType left_low_key = left_ptr->key_values.front().first;
@@ -580,32 +580,31 @@ merge_page(pid_t pid_l, pid_t pid_r, pid_t pid_parent) {
 template <typename KeyType, typename ValueType, class KeyComparator,
           class KeyEqualityChecker>
 bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Cleanup() {
-	std::vector<Node *> delete_queue;
-	for (int i = 0; i < pid_gen_; ++i)
-	{
-		Node * node = mapping_table_[i];
-		if (node == nullptr)
-			continue;
-		Node * next = node->next;
-		while (next != nullptr) {
-			if (node.NodeType == NodeType::mergeInner ||
-				node.NodeType == NodeType::mergeLeaf)
-				delete_queue.insert(node->deleting_node);
-			delete node;
-			node = next;
-			next = next.next;
-		}
-		delete node;
-	}
-	for (auto node = delete_queue.begin(); node != delete_queue.end(); node++) {
-	    Node * next = node->next;
-	    while (next != nullptr) {
-	    	delete node;
-	    	node = next;
-	    	next = next.next;
-	    }
-	    delete node;
-	}
+  std::vector<Node *> delete_queue;
+  for (int i = 0; i < pid_gen_; ++i) {
+    Node * node = mapping_table_[i];
+    if (node == nullptr)
+      continue;
+    Node * next = node->next;
+    while (next != nullptr) {
+      if (node.NodeType == NodeType::mergeInner ||
+          node.NodeType == NodeType::mergeLeaf)
+        delete_queue.insert(node->deleting_node);
+      delete node;
+      node = next;
+      next = next.next;
+    }
+    delete node;
+  }
+  for (auto node = delete_queue.begin(); node != delete_queue.end(); node++) {
+    Node * next = node->next;
+    while (next != nullptr) {
+      delete node;
+      node = next;
+      next = next.next;
+    }
+    delete node;
+  }
   return true;
 }
 
