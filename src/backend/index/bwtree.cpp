@@ -409,18 +409,25 @@ update_leaf_delta_chain(const pid_t pid, const KeyType& key,
   if (op_type == OperationType::insert_op) {
     update = new DeltaInsert(key, value);
   } else {
-    // otherwise, it is a delte op
+    // otherwise, it is a delete op
     update = new DeltaDelete(key);
   }
 
   // try till update succeeds
-  while (!mapping_table_.install_node(pid, head, update)) {
+  do {
     // get latest head value
     head = mapping_table_.get_phy_ptr(pid);
-  }
 
-  // link to delta chain
-  update->set_next(head);
+    if (head->get_type() == NodeType::removeNode) {
+      return get_failed_result();
+    }
+
+    // link to delta chain
+    update->set_next(head);
+  } while (!mapping_table_.install_node(pid, head, update));
+
+  // set head as the new node we installed
+  head = update;
 
   TreeOpResult result = get_update_success_result();
 
@@ -486,111 +493,120 @@ template <typename KeyType, typename ValueType, class KeyComparator,
           class KeyEqualityChecker>
 bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
 merge_page(pid_t pid_l, pid_t pid_r, pid_t pid_parent) {
-
-  Node *ptr_r, *ptr_l, *ptr_parent;
-  bool leaf = ptr_r->is_leaf();
-  RemoveNode *remove_node_delta = nullptr;
-  Node *node_merge_delta = nullptr;
-  DeleteIndex *index_term_delete_delta = nullptr;
-
-  // Step 1 marking for delete
-  // create remove node delta node
-  do {
-    ptr_r = mapping_table_.get_phy_ptr(pid_r);
-    if (remove_node_delta != nullptr) {
-      delete remove_node_delta;
-    }
-    if (ptr_r->get_type() == NodeType::removeNode) {
-      return false;
-    }
-    remove_node_delta = new RemoveNode();
-    remove_node_delta->set_next(ptr_r);
-  } while (!mapping_table_.install_node(pid_r, ptr_r, remove_node_delta));
-
-  // Step 2 merging children
-  // merge delta node ptr
-  // create node merge delta
-  do {
-    ptr_l = mapping_table_.get_phy_ptr(pid_l);
-    if (node_merge_delta != nullptr) {
-      delete node_merge_delta;
-      node_merge_delta = nullptr;
-    }
-
-    int record_count = ptr_l->record_count + ptr_r->record_count;
-    if (leaf) {
-      // cast the right ptr
-      auto leaf_node = static_cast<LeafNode *>(ptr_r);
-      // the first right node key
-      auto split_key = leaf_node->key_values.front().first;
-      // create the delta record
-      node_merge_delta = new MergeLeaf(split_key, leaf_node, record_count);
-    } else {
-      // cast as inner node
-      auto inner_node = static_cast<InnerNode *>(ptr_r);
-      // the first right node key
-      auto split_key = inner_node->key_values.front().first;
-      // create delta record
-      node_merge_delta = new MergeInner(split_key, inner_node, record_count);
-    }
-    node_merge_delta->set_next(ptr_l);
-    // add to the list
-  } while (!mapping_table_.install_node(pid_l, ptr_l, node_merge_delta));
-
-
-  // Step 3 parent update
-  // create index term delete delta
-  do {
-    ptr_parent = mapping_table_.get_phy_ptr(pid_parent);
-    if (index_term_delete_delta != nullptr) {
-      delete index_term_delete_delta;
-      index_term_delete_delta = nullptr;
-    }
-
-    auto left_ptr = static_cast<TreeNode<KeyType, ValueType> *>(ptr_l);
-    KeyType left_low_key = left_ptr->key_values.front().first;
-
-    auto right_ptr = static_cast<TreeNode<KeyType, ValueType> *>(ptr_r);
-    KeyType right_high_key = right_ptr->key_values.back().first;
-
-    index_term_delete_delta = new DeleteIndex(left_low_key,
-        right_high_key, pid_l);
-    index_term_delete_delta->set_next(ptr_parent);
-  } while (!mapping_table_.install_node(pid_parent, ptr_parent,
-                                        (Node *) index_term_delete_delta));
-  return true;
+    return (pid_l > 0 && pid_r > 0 && pid_parent > 0);
+//  Node *ptr_r, *ptr_l, *ptr_parent;
+//  bool leaf = ptr_r->is_leaf();
+//  RemoveNode *remove_node_delta = nullptr;
+//  Node *node_merge_delta = nullptr;
+//  DeleteIndex *index_term_delete_delta = nullptr;
+//
+//  // Step 1 marking for delete
+//  // create remove node delta node
+//  do {
+//    ptr_r = mapping_table_.get_phy_ptr(pid_r);
+//    if (remove_node_delta != nullptr) {
+//      delete remove_node_delta;
+//    }
+//    if (ptr_r->get_type() == NodeType::removeNode) {
+//      return false;
+//    }
+//    remove_node_delta = new RemoveNode();
+//    remove_node_delta->set_next(ptr_r);
+//  } while (!mapping_table_.install_node(pid_r, ptr_r, remove_node_delta));
+//
+//  // Step 2 merging children
+//  // merge delta node ptr
+//  // create node merge delta
+//  do {
+//    ptr_l = mapping_table_.get_phy_ptr(pid_l);
+//    if (node_merge_delta != nullptr) {
+//      delete node_merge_delta;
+//      node_merge_delta = nullptr;
+//    }
+//
+//    int record_count = ptr_l->record_count + ptr_r->record_count;
+//    if (leaf) {
+//      // cast the right ptr
+//      auto leaf_node = static_cast<LeafNode *>(ptr_r);
+//      // the first right node key
+//      auto split_key = leaf_node->key_values.front().first;
+//      // create the delta record
+//      node_merge_delta = new MergeLeaf(split_key, leaf_node, record_count);
+//    } else {
+//      // cast as inner node
+//      auto inner_node = static_cast<InnerNode *>(ptr_r);
+//      // the first right node key
+//      auto split_key = inner_node->key_values.front().first;
+//      // create delta record
+//      node_merge_delta = new MergeInner(split_key, inner_node, record_count);
+//    }
+//    node_merge_delta->set_next(ptr_l);
+//    // add to the list
+//  } while (!mapping_table_.install_node(pid_l, ptr_l, node_merge_delta));
+//
+//
+//  // Step 3 parent update
+//  // create index term delete delta
+//  do {
+//    ptr_parent = mapping_table_.get_phy_ptr(pid_parent);
+//    if (index_term_delete_delta != nullptr) {
+//      delete index_term_delete_delta;
+//      index_term_delete_delta = nullptr;
+//    }
+//
+//    auto left_ptr = static_cast<TreeNode<KeyType, ValueType> *>(ptr_l);
+//    KeyType left_low_key = left_ptr->key_values.front().first;
+//
+//    auto right_ptr = static_cast<TreeNode<KeyType, ValueType> *>(ptr_r);
+//    KeyType right_high_key = right_ptr->key_values.back().first;
+//
+//    index_term_delete_delta = new DeleteIndex(left_low_key,
+//        right_high_key, pid_l);
+//    index_term_delete_delta->set_next(ptr_parent);
+//  } while (!mapping_table_.install_node(pid_parent, ptr_parent,
+//                                        (Node *) index_term_delete_delta));
+//  return true;
 }
 
+template <typename KeyType, typename ValueType, class KeyComparator,
+    class KeyEqualityChecker>
+void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+consolidate(Node *node) {
+  node->chain_length = 1;
+
+}
 // go through pid table, delete chain
 // on merge node, delete right chain
 template <typename KeyType, typename ValueType, class KeyComparator,
           class KeyEqualityChecker>
 bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Cleanup() {
-  std::vector<Node *> delete_queue;
-  for (pid_t pid = 0; pid < pid_gen_; ++pid) {
-    Node * node = mapping_table_.get_phy_ptr(pid);
-    if (node == nullptr)
-      continue;
-    Node * next = node->next;
-    while (next != nullptr) {
-      if (node->get_type() == NodeType::mergeInner ||
-          node->get_type() == NodeType::mergeLeaf)
-        delete_queue.insert(node->deleting_node);
-      delete node;
-      node = next;
-      next = next->next;
-    }
-    delete node;
-  }
-  for (auto node = delete_queue.begin(); node != delete_queue.end(); node++) {
-    Node * next = node->next;
-    while (next != nullptr) {
-      delete node;
-      node = next;
-      next = next.next;
-    }
-    delete node;
-  }
+//  std::vector<Node *> delete_queue;
+//  for (pid_t pid = 0; pid < pid_gen_; ++pid) {
+//    Node * node = mapping_table_.get_phy_ptr(pid);
+//    if (node == nullptr)
+//      continue;
+//    Node * next = node->next;
+//    while (next != nullptr) {
+//      if (node->get_type() == NodeType::mergeInner ||
+//          node->get_type() == NodeType::mergeLeaf)
+//        delete_queue.insert(node->deleting_node);
+//      delete node;
+//      node = next;
+//      next = next->next;
+//    }
+//    delete node;
+//  }
+//  for (auto node = delete_queue.begin(); node != delete_queue.end(); node++) {
+//    Node * next = node->next;
+//    while (next != nullptr) {
+//      delete node;
+//      node = next;
+//      next = next.next;
+//    }
+//    delete node;
+//  }
+  LeafNode *node = static_cast<LeafNode *>(mapping_table_.get_phy_ptr(root_));
+  delete node;
   return true;
 }
 

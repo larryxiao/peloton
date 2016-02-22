@@ -78,6 +78,8 @@ class BWTree {
       return type;
     }
 
+    virtual ~Node() {}
+
   };
 
   // TODO: performance issues?
@@ -193,6 +195,8 @@ class BWTree {
       this->chain_length = next_node->chain_length + 1;
     }
 
+    ~LeafNode(){};
+
   };
 
   // inner node of the bwtree, stores pairs of keys and the
@@ -227,6 +231,8 @@ class BWTree {
       this->next = next_node;
       this->chain_length = next_node->chain_length + 1;
     }
+
+    ~InnerNode(){};
   };
 
   // IndexDelta record of the delta chain
@@ -234,9 +240,6 @@ class BWTree {
     // low and high to specify key range
     KeyType low;
     KeyType high;
-
-    // child logical pointer
-    pid_t child;
 
     // shortcut pointer to the new node
     pid_t new_node;
@@ -268,6 +271,8 @@ class BWTree {
       // level remains the same
       this->level = next_node->level;
     }
+
+    ~IndexDelta(){};
 
   };
 
@@ -307,6 +312,8 @@ class BWTree {
       // level remains the same
       this->level = next_node->level;
     }
+
+    ~DeleteIndex(){};
 
   };
 
@@ -348,6 +355,8 @@ class BWTree {
       this->level = next_node->level;
     }
 
+    ~DeltaSplitInner(){};
+
   };
 
   struct MergeInner : public Node {
@@ -384,6 +393,8 @@ class BWTree {
       this->level = next_node->level;
     }
 
+    ~MergeInner(){};
+
   };
 
   // delta insert record
@@ -415,6 +426,8 @@ class BWTree {
       // level remains the same
       this->level = next_node->level;
     }
+
+    ~DeltaInsert(){};
   };
 
   struct DeltaDelete : public Node {
@@ -442,6 +455,8 @@ class BWTree {
       // level remains the same
       this->level = next_node->level;
     }
+
+    ~DeltaDelete(){};
 
   };
 
@@ -477,6 +492,8 @@ class BWTree {
       // level remains the same
       this->level = next_node->level;
     }
+
+    ~DeltaSplitLeaf(){};
   };
 
   struct MergeLeaf : public Node {
@@ -512,6 +529,8 @@ class BWTree {
       // level remains the same
       this->level = next_node->level;
     }
+
+    ~MergeLeaf(){};
   };
 
   // Remove node delta record for any node
@@ -535,6 +554,8 @@ class BWTree {
       // level remains the same
       this->level = next_node->level;
     }
+
+    ~RemoveNode(){};
   };
 
   // stores the result of the operation
@@ -660,7 +681,7 @@ class BWTree {
                                        const OperationType op_type);
 
   // consolidation skeleton, starting from the given physical pointer
-  void consolidate(const Node * node);
+  void consolidate(Node * node);
 
   // Merge page operation for node underflows
   bool merge_page(pid_t pid_l, pid_t pid_r, pid_t pid_parent);

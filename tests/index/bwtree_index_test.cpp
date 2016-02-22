@@ -11,14 +11,14 @@
 namespace peloton {
 namespace test {
 
-	catalog::Schema *key_schema = nullptr;
-	catalog::Schema *tuple_schema = nullptr;
+	catalog::Schema *bw_key_schema = nullptr;
+	catalog::Schema *bw_tuple_schema = nullptr;
 
-	ItemPointer item0(120, 5);
-	ItemPointer item1(120, 7);
-	ItemPointer item2(123, 19);
+	ItemPointer bw_item0(120, 5);
+	ItemPointer bw_item1(120, 7);
+	ItemPointer bw_item2(123, 19);
 
-	index::Index *BuildIndex() {
+	index::Index *BuildBWIndex() {
 		// Build tuple and key schema
 		std::vector<std::vector<std::string>> column_names;
 		std::vector<catalog::Column> columns;
@@ -39,21 +39,21 @@ namespace test {
 		columns.push_back(column2);
 
 		// INDEX KEY SCHEMA -- {column1, column2}
-		key_schema = new catalog::Schema(columns);
-		key_schema->SetIndexedColumns({0, 1});
+		bw_key_schema = new catalog::Schema(columns);
+		bw_key_schema->SetIndexedColumns({0, 1});
 
 		columns.push_back(column3);
 		columns.push_back(column4);
 
 		// TABLE SCHEMA -- {column1, column2, column3, column4}
-		tuple_schema = new catalog::Schema(columns);
+		bw_tuple_schema = new catalog::Schema(columns);
 
 		// Build index metadata
 		const bool unique_keys = false;
 
 		index::IndexMetadata *index_metadata = new index::IndexMetadata(
 				"test_index", 125, index_type, INDEX_CONSTRAINT_TYPE_DEFAULT,
-				tuple_schema, key_schema, unique_keys);
+				bw_tuple_schema, bw_key_schema, unique_keys);
 
 		// Build index
 		index::Index *index = index::IndexFactory::GetInstance(index_metadata);
@@ -62,21 +62,21 @@ namespace test {
 		return index;
 	}
 
-	TEST(IndexTests, BasicTest) {
+	TEST(BWTreeIndexTests, BasicTest) {
 		auto pool = TestingHarness::GetInstance().GetTestingPool();
 		std::vector<ItemPointer> locations;
 
 		// INDEX
-		std::unique_ptr<index::Index> index(BuildIndex());
+		std::unique_ptr<index::Index> index(BuildBWIndex());
 
-		std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
+		std::unique_ptr<storage::Tuple> key0(new storage::Tuple(bw_key_schema, true));
 
 		key0->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
 
 		key0->SetValue(1, ValueFactory::GetStringValue("a"), pool);
 
 		// INSERT
-		index->InsertEntry(key0.get(), item0);
+		index->InsertEntry(key0.get(), bw_item0);
 
 //		locations = index->ScanKey(key0.get());
 //		EXPECT_EQ(locations.size(), 1);
@@ -88,7 +88,7 @@ namespace test {
 //		locations = index->ScanKey(key0.get());
 //		EXPECT_EQ(locations.size(), 0);
 
-		delete tuple_schema;
+		delete bw_tuple_schema;
 	}
 
 }
