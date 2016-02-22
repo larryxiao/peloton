@@ -31,7 +31,8 @@ namespace index {
  *
  * @see Index
  */
-template <typename KeyType, typename ValueType, class KeyComparator, class KeyEqualityChecker>
+template <typename KeyType, typename ValueType, class KeyComparator, 
+class KeyEqualityChecker>
 class BWTreeIndex : public Index {
   friend class IndexFactory;
 
