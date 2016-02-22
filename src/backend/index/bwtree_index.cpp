@@ -23,6 +23,7 @@ template <typename KeyType, typename ValueType, class KeyComparator, class KeyEq
 BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::BWTreeIndex(
     IndexMetadata *metadata)
     : Index(metadata),
+      container(metadata),
       equals(metadata),
       comparator(metadata) {
   // Add your implementation here
@@ -31,6 +32,7 @@ BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::BWTreeIndex(
 template <typename KeyType, typename ValueType, class KeyComparator, class KeyEqualityChecker>
 BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::~BWTreeIndex() {
   // Add your implementation here
+  container.Cleanup();
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, class KeyEqualityChecker>
