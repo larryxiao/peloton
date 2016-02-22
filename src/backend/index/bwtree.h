@@ -633,44 +633,31 @@ class BWTree {
     search_op,
   };
 
-  union LeafOperation {
-    // Search the leaf page PID for the given key
-    TreeOpResult (BWTree::*search_leaf_page)(const pid_t pid,
-        const KeyType& key);
-    TreeOpResult (BWTree::*update_leaf_delta_chain)(const pid_t pid,
-        const KeyType& key,
-        const ValueType& value,
-        const OperationType op_type);
-  };
-
 
   // Does a tree operation on inner node (head of it's delta chain)
   // with leaf node operation passed as a function pointer
   TreeOpResult do_tree_operation(Node* head, const KeyType& key,
                                  const ValueType& value,
-                                 const LeafOperation *leaf_operation,
                                  const OperationType op_type);
 
   // Wrapper for the above function that looks up pid from mapping table
   TreeOpResult do_tree_operation(const pid_t node_pid, const KeyType& key,
                                  const ValueType& value,
-                                 const LeafOperation *leaf_operation,
                                  const OperationType op_type);
 
+  // Wrapper for the above function
+  TreeOpResult search_leaf_page(const pid_t pid, const KeyType& key);
 
   // Search leaf page and return the found value, if exists. Try SMOs /
   // Consolidation, if necessary
   TreeOpResult search_leaf_page_phy(Node *head, const KeyType& key);
 
-  // Wrapper for the above function
-  TreeOpResult search_leaf_page(const pid_t pid, const KeyType& key);
 
   // Update the leaf delta chain during insert/delta. Try SMOs /
   // Consolidation, if necessary
   TreeOpResult update_leaf_delta_chain(const pid_t pid, const KeyType& key,
                                        const ValueType& value,
                                        const OperationType op_type);
-
 
   // consolidation skeleton, starting from the given physical pointer
   void consolidate(const Node * node);
@@ -709,7 +696,7 @@ class BWTree {
   //bool Insert(__attribute__((unused)) KeyType key,
   //__attribute__((unused)) ValueType value);
   bool Insert(const KeyType &key, const ValueType& value);
-  bool Search(const KeyType& key, ValueType **value);
+  bool Search(const KeyType& key, ValueType *value);
   bool Delete(const KeyType &key);
   bool Cleanup();
 };
