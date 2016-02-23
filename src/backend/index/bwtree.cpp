@@ -605,7 +605,7 @@ bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Cleanup() {
 //    }
 //    delete node;
 //  }
-  LeafNode *node = static_cast<LeafNode *>(mapping_table_.get_phy_ptr(root_));
+  Node *node = mapping_table_.get_phy_ptr(root_);
   delete node;
   return true;
 }
