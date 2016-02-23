@@ -500,11 +500,8 @@ Insert(const KeyType &key, const ValueType &value) {
 template <typename KeyType, typename ValueType, class KeyComparator,
     class ValueComparator, class KeyEqualityChecker>
 bool BWTree<KeyType, ValueType, KeyComparator, ValueComparator, KeyEqualityChecker>::
-Delete(const KeyType &key) {
-  ValueType dummy_val;
-
-  TreeOpResult result = do_tree_operation(root_, key, dummy_val, OperationType::delete_op);
-
+Delete(const KeyType &key, const ValueType& value) {
+  TreeOpResult result = do_tree_operation(root_, key, value, OperationType::delete_op);
   return result.status;
 }
 

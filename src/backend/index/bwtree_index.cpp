@@ -60,7 +60,7 @@ __attribute__((unused)) const ItemPointer location) {
   // Add your implementation here
   KeyType index_key;
   index_key.SetFromKey(key);
-  container.Delete(index_key);
+  container.Delete(index_key, location);
   return true;
 }
 

@@ -767,7 +767,7 @@ class BWTree {
   //__attribute__((unused)) ValueType value);
   bool Insert(const KeyType &key, const ValueType& value);
   std::vector<ValueType> Search(const KeyType& key);
-  bool Delete(const KeyType &key);
+  bool Delete(const KeyType &key, const ValueType& value);
   bool Cleanup();
 };
 
