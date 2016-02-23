@@ -686,6 +686,14 @@ class BWTree {
   // Merge page operation for node underflows
   bool merge_page(pid_t pid_l, pid_t pid_r, pid_t pid_parent);
 
+  void setSibling(Node* node,pid_t sideNode);
+  pid_t getSibling(Node* node);
+  bool splitPage(pid_t pPID,pid_t rPID,pid_t pParentPID);
+  bool checkIfRemoveDelta(Node* head);
+
+  std::vector<std::pair<KeyType, ValueType>> getToBeMovedPairsLeaf(Node* headNodeP);
+  std::vector<std::pair<KeyType, pid_t>> getToBeMovedPairsInner(Node* headNodeP);
+
  public:
 
   //BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>();
@@ -720,13 +728,6 @@ class BWTree {
   bool Search(const KeyType& key, ValueType *value);
   bool Delete(const KeyType &key);
   bool Cleanup();
-
-  void setSibling(Node* node,pid_t sideNode);
-  pid_t getSibling(Node* node);
-  bool splitPage(pid_t pPID,pid_t rPID,pid_t pParentPID);
-  bool checkIfRemoveDelta(Node* head);
-  std::vector<std::pair<KeyType, ValueType>> getToBeMovedPairsLeaf(Node* headNodeP);
-  std::vector<std::pair<KeyType, pid_t>> getToBeMovedPairsInner(Node* headNodeP);
 };
 
 }  // End index namespace
