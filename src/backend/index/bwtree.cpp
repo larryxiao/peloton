@@ -610,7 +610,6 @@ bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Cleanup() {
   return true;
 }
 
-
 // Explicit template instantiations
 
 template class BWTree<IntsKey<1>, ItemPointer, IntsComparator<1>,
