@@ -11,6 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "backend/index/bwtree.h"
+#include "bwtree_index.h"
+
 #define TODO
 
 namespace peloton {
@@ -19,8 +21,8 @@ namespace index {
 typedef unsigned int pid_t;
 
 template <typename KeyType, typename ValueType, class KeyComparator,
-          class KeyEqualityChecker> template <typename K, typename V>
-unsigned long BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+    class ValueComparator, class KeyEqualityChecker> template <typename K, typename V>
+unsigned long BWTree<KeyType, ValueType, KeyComparator, ValueComparator, KeyEqualityChecker>::
 node_key_search(const TreeNode<K, V> *node, const KeyType &key) {
 
   NodeSearchMode  mode = GTE;
@@ -61,9 +63,9 @@ node_key_search(const TreeNode<K, V> *node, const KeyType &key) {
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator,
-          class KeyEqualityChecker>
-typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
-TreeOpResult BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+    class ValueComparator, class KeyEqualityChecker>
+typename BWTree<KeyType, ValueType, KeyComparator, ValueComparator, KeyEqualityChecker>::
+TreeOpResult BWTree<KeyType, ValueType, KeyComparator, ValueComparator, KeyEqualityChecker>::
 do_tree_operation(const pid_t node_pid, const KeyType &key,
                   const ValueType& value,
                   const OperationType op_type) {
@@ -73,9 +75,9 @@ do_tree_operation(const pid_t node_pid, const KeyType &key,
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator,
-          class KeyEqualityChecker>
-typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
-TreeOpResult BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+    class ValueComparator, class KeyEqualityChecker>
+typename BWTree<KeyType, ValueType, KeyComparator, ValueComparator, KeyEqualityChecker>::
+TreeOpResult BWTree<KeyType, ValueType, KeyComparator, ValueComparator, KeyEqualityChecker>::
 do_tree_operation(Node* head, const KeyType &key,
                   const ValueType& value,
                   const OperationType op_type) {
@@ -188,7 +190,7 @@ do_tree_operation(Node* head, const KeyType &key,
       auto child_pos = node_key_search(inner_node, key);
 
       // extract child pid from they key value pair
-      pid_t child_pid = inner_node->key_values[child_pos].second;
+      pid_t child_pid = inner_node->key_values[child_pos].second[0];
       // check the node's level
 
       if (inner_node->level == 1) {
@@ -220,7 +222,7 @@ do_tree_operation(Node* head, const KeyType &key,
         pid_t right = child_pid;
 
         // what we are merging with
-        pid_t left = inner_node->key_values[child_pos - 1].second;
+        pid_t left = inner_node->key_values[child_pos - 1].second[0];
 
         // Merge
         merge_page(left, right, inner_node->pid);
@@ -264,9 +266,9 @@ do_tree_operation(Node* head, const KeyType &key,
 
 
 template <typename KeyType, typename ValueType, class KeyComparator,
-		class KeyEqualityChecker>
-typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
-TreeOpResult BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+    class ValueComparator, class KeyEqualityChecker>
+typename BWTree<KeyType, ValueType, KeyComparator, ValueComparator, KeyEqualityChecker>::
+TreeOpResult BWTree<KeyType, ValueType, KeyComparator, ValueComparator, KeyEqualityChecker>::
 search_leaf_page(const pid_t node_pid, const KeyType &key) {
 
 	Node *head = mapping_table_.get_phy_ptr(node_pid);
@@ -274,10 +276,13 @@ search_leaf_page(const pid_t node_pid, const KeyType &key) {
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator,
-          class KeyEqualityChecker>
-typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
-TreeOpResult BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+    class ValueComparator, class KeyEqualityChecker>
+typename BWTree<KeyType, ValueType, KeyComparator, ValueComparator, KeyEqualityChecker>::
+TreeOpResult BWTree<KeyType, ValueType, KeyComparator, ValueComparator, KeyEqualityChecker>::
 search_leaf_page(Node *head, const KeyType &key) {
+
+  // set of deleted values for this key
+  std::unordered_set<ValueType, std::hash<ValueType>, ValueComparator> deleted_val;
 
   if (head->get_type() == NodeType::removeNode) {
     // we have a remove node delta, end search and try again
@@ -291,7 +296,7 @@ search_leaf_page(Node *head, const KeyType &key) {
 
   bool continue_itr = true;
 
-  TreeOpResult result = get_failed_result();
+  TreeOpResult result = TreeOpResult(true);
 
   // used to iterate the delta chain
   auto node = head;
@@ -303,24 +308,22 @@ search_leaf_page(Node *head, const KeyType &key) {
     case deltaInsert: {
       auto delta_node = static_cast<DeltaInsert *>(node);
 
-      if (key_compare_eq(delta_node->key, key)) {
-        // node has been inserted, prepare result
-        result = make_search_result(delta_node->value);
-
-        continue_itr = false;
+      // check if the key matches and the key,value pair has not been deleted
+      if (key_compare_eq(delta_node->key, key) &&
+            (deleted_val.find(delta_node->val) == deleted_val.end())) {
+        // node has not been deleted, add result
+        result.values.push_back(delta_node->val);
       }
-
       break;
     }
 
     case deltaDelete: {
       auto delta_node = static_cast<DeltaDelete *>(node);
 
+      // check if the key matches the request
       if (key_compare_eq(delta_node->key, key)) {
-        // node has been deleted, fail the search
-        result = make_search_fail_result();
-
-        continue_itr = false;
+        // update the set of delelted values
+        deleted_val.insert(delta_node->val);
       }
       break;
     }
@@ -354,10 +357,9 @@ search_leaf_page(Node *head, const KeyType &key) {
     case leaf: {
       auto leaf_node = static_cast<LeafNode *>(node);
 
+      // search complete
       if (leaf_node->key_values.empty()) {
-        //this shouldn't happen
-        LOG_ERROR("Failed binary search at page");
-        return get_failed_result();
+        return result;
       }
 
       // find the position of the child to the left of nearest
@@ -370,13 +372,17 @@ search_leaf_page(Node *head, const KeyType &key) {
       // check the binary search result
       if (key_compare_eq(match.first, key)) {
         // keys are equal
-        result =  make_search_result(match.second);
-      } else {
-        result = make_search_fail_result();
+
+        // add the non-deleted values to the result
+        for(auto it = match.second.begin(); it != match.second.end(); it++) {
+          // check if not deleted
+          if (deleted_val.find(*it) == deleted_val.end()) {
+            // add value to the result
+            result.values.push_back(*it);
+          }
+        }
       }
-
       continue_itr = false;
-
       break;
     }
     case NodeType::inner: break;
@@ -405,9 +411,9 @@ search_leaf_page(Node *head, const KeyType &key) {
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator,
-		class KeyEqualityChecker>
-typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
-TreeOpResult BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+    class ValueComparator, class KeyEqualityChecker>
+typename BWTree<KeyType, ValueType, KeyComparator, ValueComparator, KeyEqualityChecker>::
+TreeOpResult BWTree<KeyType, ValueType, KeyComparator, ValueComparator, KeyEqualityChecker>::
 update_leaf_delta_chain(const pid_t pid, const KeyType& key,
 												const ValueType& value, const OperationType op_type) {
 
@@ -416,9 +422,9 @@ update_leaf_delta_chain(const pid_t pid, const KeyType& key,
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator,
-          class KeyEqualityChecker>
-typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
-TreeOpResult BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+    class ValueComparator, class KeyEqualityChecker>
+typename BWTree<KeyType, ValueType, KeyComparator, ValueComparator, KeyEqualityChecker>::
+TreeOpResult BWTree<KeyType, ValueType, KeyComparator, ValueComparator, KeyEqualityChecker>::
 update_leaf_delta_chain(Node *head, const pid_t pid,  const KeyType& key,
                         const ValueType& value, const OperationType op_type) {
 
@@ -436,7 +442,7 @@ update_leaf_delta_chain(Node *head, const pid_t pid,  const KeyType& key,
     update = new DeltaInsert(key, value);
   } else {
     // otherwise, it is a delete op
-    update = new DeltaDelete(key);
+    update = new DeltaDelete(key, value);
   }
 
   // try till update succeeds
@@ -473,25 +479,17 @@ update_leaf_delta_chain(Node *head, const pid_t pid,  const KeyType& key,
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator,
-          class KeyEqualityChecker>
-bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
-Search(const KeyType &key, ValueType *value) {
-
+    class ValueComparator, class KeyEqualityChecker>
+std::vector<ValueType> BWTree<KeyType, ValueType, KeyComparator, ValueComparator, KeyEqualityChecker>::
+Search(const KeyType &key) {
   ValueType dummy_val;
   auto result = do_tree_operation(root_, key, dummy_val, OperationType::search_op);
-
-  if (result.status && result.is_valid_value) {
-    // search has succeeded
-    *value = result.value;
-    return true;
-  }
-
-  return false;
+  return result.values;
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator,
-          class KeyEqualityChecker>
-bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+    class ValueComparator, class KeyEqualityChecker>
+bool BWTree<KeyType, ValueType, KeyComparator, ValueComparator, KeyEqualityChecker>::
 Insert(const KeyType &key, const ValueType &value) {
 
   TreeOpResult result = do_tree_operation(root_, key, value, OperationType::insert_op);
@@ -500,8 +498,8 @@ Insert(const KeyType &key, const ValueType &value) {
 
 
 template <typename KeyType, typename ValueType, class KeyComparator,
-          class KeyEqualityChecker>
-bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+    class ValueComparator, class KeyEqualityChecker>
+bool BWTree<KeyType, ValueType, KeyComparator, ValueComparator, KeyEqualityChecker>::
 Delete(const KeyType &key) {
   ValueType dummy_val;
 
@@ -512,8 +510,8 @@ Delete(const KeyType &key) {
 
 
 template <typename KeyType, typename ValueType, class KeyComparator,
-        class KeyEqualityChecker>
-pid_t BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+    class ValueComparator, class KeyEqualityChecker>
+pid_t BWTree<KeyType, ValueType, KeyComparator, ValueComparator, KeyEqualityChecker>::
 getSibling(Node* node){
   while(node->next!= nullptr)
   {
@@ -530,8 +528,8 @@ getSibling(Node* node){
 
 
 template <typename KeyType, typename ValueType, class KeyComparator,
-        class KeyEqualityChecker>
-void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::setSibling(Node* node,pid_t sibling){
+    class ValueComparator, class KeyEqualityChecker>
+void BWTree<KeyType, ValueType, KeyComparator, ValueComparator, KeyEqualityChecker>::setSibling(Node* node,pid_t sibling){
   while(node->next!= nullptr)
   {
     node=node->next;
@@ -548,8 +546,8 @@ void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::setSibling(N
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator,
-        class KeyEqualityChecker>
-std::vector<std::pair<KeyType, pid_t>> BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+    class ValueComparator, class KeyEqualityChecker>
+std::vector<std::pair<KeyType, std::vector<pid_t>>> BWTree<KeyType, ValueType, KeyComparator, ValueComparator, KeyEqualityChecker>::
 getToBeMovedPairsInner(Node* headNodeP){
 //		vector1.insert( vector1.end(), vector2.begin(), vector2.end() );
   //TODO: Most of the consolidation is similar to this, extend this API to implement consolidate
@@ -560,13 +558,13 @@ getToBeMovedPairsInner(Node* headNodeP){
 
   InnerNode* headNodeP1 = static_cast<InnerNode*>(headNodeP);
   //TODO:yet to handle for duplicate keys case
-  std::vector<std::pair<KeyType,pid_t >> wholePairs = headNodeP1->key_values; //TODO: Optimize?
+  std::vector<std::pair<KeyType, std::vector<pid_t> >> wholePairs = headNodeP1->key_values; //TODO: Optimize?
 //		std::vector<KeyType> insertedKeys;
   std::vector<KeyType> deletedPairs;
   pid_t qPID_last_child = headNodeP1->last_child;
   bool pageSplitFlag = false;
   KeyType pageSplitKey;
-  typename std::vector<std::pair<KeyType, pid_t>>::iterator pageSplitIter = wholePairs.end();
+  auto pageSplitIter = wholePairs.end();
 
   //handling deltaInsert, deltaDelete, removeNode
   while(copyHeadNodeP->next != nullptr){ //Assuming last node points to nullptr
@@ -626,20 +624,21 @@ getToBeMovedPairsInner(Node* headNodeP){
                                    return key_compare_eq(element.first,pageSplitKey);} );
   if(pageSplitIter != wholePairs.end())
   {
-    qPID_last_child = pageSplitIter->second;
+    qPID_last_child = pageSplitIter->second.front();
   }
   //TODO: improve this part later, return cleanly:
   (wholePairs.begin()+std::distance(
-          wholePairs.begin(), pageSplitIter)/2)->second=qPID_last_child;
+          wholePairs.begin(), pageSplitIter)/2)->second.front()=qPID_last_child;
 
-  return std::vector<std::pair<KeyType, pid_t>>(wholePairs.begin()+std::distance(
+  return std::vector<std::pair<KeyType, std::vector<pid_t>>>(wholePairs.begin()+std::distance(
           wholePairs.begin(), pageSplitIter)/2, pageSplitIter); //TODO: optimize?
   //TODO: check for boundary cases on pageSplitIter
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator,
-        class KeyEqualityChecker>
-std::vector<std::pair<KeyType, ValueType>> BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+    class ValueComparator, class KeyEqualityChecker>
+std::vector<std::pair<KeyType, ValueType>>
+BWTree<KeyType, ValueType, KeyComparator, ValueComparator, KeyEqualityChecker>::
 getToBeMovedPairsLeaf(Node* headNodeP){
   Node *copyHeadNodeP = headNodeP;
   while(headNodeP->next!= nullptr){
@@ -656,7 +655,7 @@ getToBeMovedPairsLeaf(Node* headNodeP){
     switch (copyHeadNodeP->get_type()){
       case deltaInsert:{
         DeltaInsert* deltains = static_cast<DeltaInsert*>(copyHeadNodeP);
-        wholePairs.push_back(std::pair<KeyType,ValueType>(deltains->key,deltains->value));
+        wholePairs.push_back(std::pair<KeyType,ValueType>(deltains->key,deltains->val));
         break;
       }
       case deltaDelete: {
@@ -677,15 +676,16 @@ getToBeMovedPairsLeaf(Node* headNodeP){
     }
   }
   std::sort(wholePairs.begin(), wholePairs.end(), [&](const std::pair<KeyType, ValueType>& t1, const std::pair<KeyType, ValueType>& t2) {
-      		return less_comparator_(t1.first,t2.first);});
+      		return key_comparator_(t1.first,t2.first);});
 
   return std::vector<std::pair<KeyType, ValueType >>(wholePairs.begin()+std::distance(wholePairs.begin(), wholePairs.end())/2,wholePairs.end()); //TODO: optimize?
 }
 
 
 template <typename KeyType, typename ValueType, class KeyComparator,
-        class KeyEqualityChecker>
-bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::checkIfRemoveDelta(Node* head){
+    class ValueComparator, class KeyEqualityChecker>
+bool BWTree<KeyType, ValueType, KeyComparator, ValueComparator, KeyEqualityChecker>::
+checkIfRemoveDelta(Node* head){
   while(head->next!= nullptr)
   {
     switch(head->get_type())
@@ -701,8 +701,9 @@ bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::checkIfRemov
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator,
-        class KeyEqualityChecker>
-bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::splitPage(pid_t pPID,pid_t rPID,pid_t pParentPID){
+    class ValueComparator, class KeyEqualityChecker>
+bool BWTree<KeyType, ValueType, KeyComparator, ValueComparator, KeyEqualityChecker>::
+splitPage(pid_t pPID,pid_t rPID,pid_t pParentPID){
 
   pid_t qPID;Node* splitNode;
 
@@ -733,9 +734,9 @@ bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::splitPage(pi
     qPID = static_cast<pid_t>(pid_gen_++);
     //TODO: copy vector
     pid_t lastChild;
-    std::vector<std::pair<KeyType, pid_t >> qElemVec = getToBeMovedPairsInner(headNodeP);
+    std::vector<std::pair<KeyType, std::vector<pid_t> >> qElemVec = getToBeMovedPairsInner(headNodeP);
     Kp = qElemVec[0].first;
-    lastChild = qElemVec[0].second;
+    lastChild = qElemVec[0].second.front();
 
     qElemVec.erase(qElemVec.begin()); //TODO: Write this cleanly
     newInnerNode->key_values = qElemVec; //TODO: optimize?
@@ -761,10 +762,8 @@ bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::splitPage(pi
 
   Node* sepDel = new IndexDelta(Kp,Kq,qPID);
   sepDel->set_next(headNodeParentP);
-  if(!mapping_table_.install_node(pParentPID, headNodeParentP, sepDel))
-    return false;
+  return !mapping_table_.install_node(pParentPID, headNodeParentP, sepDel) ? false : true;
 
-  return true;
 }
 
 
@@ -776,8 +775,8 @@ bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::splitPage(pi
 // DONE memory management
 // TODO OPTIMIZATION reuse the nodes
 template <typename KeyType, typename ValueType, class KeyComparator,
-          class KeyEqualityChecker>
-bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+    class ValueComparator, class KeyEqualityChecker>
+bool BWTree<KeyType, ValueType, KeyComparator, ValueComparator, KeyEqualityChecker>::
 merge_page(pid_t pid_l, pid_t pid_r, pid_t pid_parent) {
     return (pid_l > 0 && pid_r > 0 && pid_parent > 0);
 //  Node *ptr_r, *ptr_l, *ptr_parent;
@@ -855,8 +854,8 @@ merge_page(pid_t pid_l, pid_t pid_r, pid_t pid_parent) {
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator,
-    class KeyEqualityChecker>
-void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+    class ValueComparator, class KeyEqualityChecker>
+void BWTree<KeyType, ValueType, KeyComparator, ValueComparator, KeyEqualityChecker>::
 consolidate(Node *node) {
   node->chain_length = 1;
 
@@ -864,8 +863,9 @@ consolidate(Node *node) {
 // go through pid table, delete chain
 // on merge node, delete right chain
 template <typename KeyType, typename ValueType, class KeyComparator,
-          class KeyEqualityChecker>
-bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Cleanup() {
+    class ValueComparator, class KeyEqualityChecker>
+bool BWTree<KeyType, ValueType, KeyComparator, ValueComparator, KeyEqualityChecker>::
+Cleanup() {
 //  std::vector<Node *> delete_queue;
 //  for (pid_t pid = 0; pid < pid_gen_; ++pid) {
 //    Node * node = mapping_table_.get_phy_ptr(pid);
@@ -898,41 +898,43 @@ bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Cleanup() {
 
 // Explicit template instantiations
 
-template class BWTree<IntsKey<1>, ItemPointer, IntsComparator<1>,
-                      IntsEqualityChecker<1>>;
-template class BWTree<IntsKey<2>, ItemPointer, IntsComparator<2>,
-                      IntsEqualityChecker<2>>;
-template class BWTree<IntsKey<3>, ItemPointer, IntsComparator<3>,
-                      IntsEqualityChecker<3>>;
-template class BWTree<IntsKey<4>, ItemPointer, IntsComparator<4>,
-                      IntsEqualityChecker<4>>;
-template class BWTree<GenericKey<4>, ItemPointer, GenericComparator<4>,
-                      GenericEqualityChecker<4>>;
-template class BWTree<GenericKey<8>, ItemPointer, GenericComparator<8>,
-                      GenericEqualityChecker<8>>;
-template class BWTree<GenericKey<12>, ItemPointer, GenericComparator<12>,
-                      GenericEqualityChecker<12>>;
-template class BWTree<GenericKey<16>, ItemPointer, GenericComparator<16>,
-                      GenericEqualityChecker<16>>;
-template class BWTree<GenericKey<24>, ItemPointer, GenericComparator<24>,
-                      GenericEqualityChecker<24>>;
-template class BWTree<GenericKey<32>, ItemPointer, GenericComparator<32>,
-                      GenericEqualityChecker<32>>;
-template class BWTree<GenericKey<48>, ItemPointer, GenericComparator<48>,
-                      GenericEqualityChecker<48>>;
-template class BWTree<GenericKey<64>, ItemPointer, GenericComparator<64>,
-                      GenericEqualityChecker<64>>;
-template class BWTree<GenericKey<96>, ItemPointer, GenericComparator<96>,
-                      GenericEqualityChecker<96>>;
-template class BWTree<GenericKey<128>, ItemPointer, GenericComparator<128>,
-                      GenericEqualityChecker<128>>;
-template class BWTree<GenericKey<256>, ItemPointer, GenericComparator<256>,
-                      GenericEqualityChecker<256>>;
-template class BWTree<GenericKey<512>, ItemPointer, GenericComparator<512>,
-                      GenericEqualityChecker<512>>;
+// Explicit template instantiation
+template class BWTreeIndex<IntsKey<1>, ItemPointer, ItemPointerComparator, IntsComparator<1>,
+    IntsEqualityChecker<1>>;
+template class BWTreeIndex<IntsKey<2>, ItemPointer, ItemPointerComparator, IntsComparator<2>,
+    IntsEqualityChecker<2>>;
+template class BWTreeIndex<IntsKey<3>, ItemPointer, ItemPointerComparator, IntsComparator<3>,
+    IntsEqualityChecker<3>>;
+template class BWTreeIndex<IntsKey<4>, ItemPointer, ItemPointerComparator, IntsComparator<4>,
+    IntsEqualityChecker<4>>;
 
-template class BWTree<TupleKey, ItemPointer, TupleKeyComparator,
-                      TupleKeyEqualityChecker>;
+template class BWTreeIndex<GenericKey<4>, ItemPointer, ItemPointerComparator, GenericComparator<4>,
+    GenericEqualityChecker<4>>;
+template class BWTreeIndex<GenericKey<8>, ItemPointer, ItemPointerComparator, GenericComparator<8>,
+    GenericEqualityChecker<8>>;
+template class BWTreeIndex<GenericKey<12>, ItemPointer, ItemPointerComparator, GenericComparator<12>,
+    GenericEqualityChecker<12>>;
+template class BWTreeIndex<GenericKey<16>, ItemPointer, ItemPointerComparator, GenericComparator<16>,
+    GenericEqualityChecker<16>>;
+template class BWTreeIndex<GenericKey<24>, ItemPointer, ItemPointerComparator, GenericComparator<24>,
+    GenericEqualityChecker<24>>;
+template class BWTreeIndex<GenericKey<32>, ItemPointer, ItemPointerComparator, GenericComparator<32>,
+    GenericEqualityChecker<32>>;
+template class BWTreeIndex<GenericKey<48>, ItemPointer, ItemPointerComparator, GenericComparator<48>,
+    GenericEqualityChecker<48>>;
+template class BWTreeIndex<GenericKey<64>, ItemPointer, ItemPointerComparator, GenericComparator<64>,
+    GenericEqualityChecker<64>>;
+template class BWTreeIndex<GenericKey<96>, ItemPointer, ItemPointerComparator, GenericComparator<96>,
+    GenericEqualityChecker<96>>;
+template class BWTreeIndex<GenericKey<128>, ItemPointer, ItemPointerComparator, GenericComparator<128>,
+    GenericEqualityChecker<128>>;
+template class BWTreeIndex<GenericKey<256>, ItemPointer, ItemPointerComparator, GenericComparator<256>,
+    GenericEqualityChecker<256>>;
+template class BWTreeIndex<GenericKey<512>, ItemPointer, ItemPointerComparator, GenericComparator<512>,
+    GenericEqualityChecker<512>>;
+
+template class BWTreeIndex<TupleKey, ItemPointer, ItemPointerComparator, TupleKeyComparator,
+    TupleKeyEqualityChecker>;
 
 }  // End index namespace
 }  // End peloton namespace

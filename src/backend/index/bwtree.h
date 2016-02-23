@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include <unordered_map>
+#include <unordered_set>
 #include <memory>
 #include <vector>
 #include <atomic>
@@ -28,7 +28,7 @@ namespace index {
 // Look up the stx btree interface for background.
 // peloton/third_party/stx/btree.h
 template <typename KeyType, typename ValueType, class KeyComparator,
-          class KeyEqualityChecker>
+    class ValueComparator, class KeyEqualityChecker>
 class BWTree {
 
  private:
@@ -118,6 +118,7 @@ class BWTree {
     }
   };
 
+
   // lock free mapping table
   LockFreeTable mapping_table_;
 
@@ -128,7 +129,10 @@ class BWTree {
   pid_t root_;
 
   // comparator, assuming the default comparator is lt
-  KeyComparator less_comparator_;
+  KeyComparator key_comparator_;
+
+  // value comparator
+  ValueComparator val_comparator_;
 
   // equality checker
   KeyEqualityChecker eq_checker_;
@@ -157,7 +161,7 @@ class BWTree {
   template <typename K, typename V>
   struct TreeNode : public Node {
     // node's key vector
-    std::vector<std::pair<K, V>> key_values;
+    std::vector<std::pair<K, std::vector<V>>> key_values;
 
     // logical pointer to next leaf on the right
     pid_t sidelink;
@@ -414,16 +418,17 @@ class BWTree {
     // insert key
     KeyType key;
 
-    //insert value
-    ValueType value;
+    // insert value
+    ValueType val;
+
 
     inline DeltaInsert(const KeyType &key, const ValueType& value) {
       // set the type
       this->type = NodeType::deltaInsert;
 
-      // set the key, value and base node
+      // set the key and value
       this->key = key;
-      this->value = value;
+      this->val = val;
     }
 
     void set_next(Node *next_node) {
@@ -446,15 +451,19 @@ class BWTree {
   };
 
   struct DeltaDelete : public Node {
-    //delete key
+    // delete key
     KeyType key;
 
-    inline DeltaDelete(const KeyType &key) {
+    // delete value
+    ValueType val;
+
+    inline DeltaDelete(const KeyType &key, const ValueType &val) {
       // set the base node
       this->type = NodeType::deltaDelete;
 
-      // set the key and base node
+      // set the key and value
       this->key = key;
+      this->val = val;
     }
 
     // sets the next node in the delta chain
@@ -591,7 +600,7 @@ class BWTree {
     bool status;
 
     // value returned, if any
-    ValueType value;
+    std::vector<ValueType> values;
 
     // validity of the value
     bool is_valid_value;
@@ -606,11 +615,6 @@ class BWTree {
       needs_split(false),
       needs_merge(false)
     {}
-
-    inline TreeOpResult(const ValueType value) : status(true), value(value),
-      needs_split(false),
-      needs_merge(false)
-    {}
   };
 
   inline TreeOpResult get_update_success_result() {
@@ -619,10 +623,6 @@ class BWTree {
 
   inline TreeOpResult get_failed_result() {
     return TreeOpResult();
-  }
-
-  inline TreeOpResult make_search_result(ValueType value) {
-    return TreeOpResult(value);
   }
 
   inline TreeOpResult make_search_fail_result() {
@@ -648,17 +648,21 @@ class BWTree {
 
   // Compares two keys and returns true if a <= b
   inline bool key_compare_lte(const KeyType &a, const KeyType &b) {
-    return !less_comparator_(b, a);
+    return !key_comparator_(b, a);
   }
 
   // Compares two keys and returns true if a < b
   inline bool key_compare_lt(const KeyType &a, const KeyType &b) {
-    return less_comparator_(a, b);
+    return key_comparator_(a, b);
   }
 
   // Compares two keys and returns true if a = b
   inline bool key_compare_eq(const KeyType &a, const KeyType &b) {
-    return !less_comparator_(a, b) && !less_comparator_(b, a);
+    return eq_checker_(a, b);
+  }
+
+  inline bool val_eq(const ValueType &a, const ValueType &b) {
+    return val_comparator_(a,b);
   }
 
   //Available modes: Greater than equal to, Greater tham
@@ -727,16 +731,18 @@ class BWTree {
   bool checkIfRemoveDelta(Node* head);
 
   std::vector<std::pair<KeyType, ValueType>> getToBeMovedPairsLeaf(Node* headNodeP);
-  std::vector<std::pair<KeyType, pid_t>> getToBeMovedPairsInner(Node* headNodeP);
+  std::vector<std::pair<KeyType, std::vector<pid_t>>> getToBeMovedPairsInner(Node* headNodeP);
 
  public:
 
-  //BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>();
+  //BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>();`
   //by default, start the pid generator at 1, 0 is NULL page
-  BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker> (
+  BWTree<KeyType, ValueType, KeyComparator, ValueComparator, KeyEqualityChecker> (
     IndexMetadata *metadata)
-    : less_comparator_(metadata),
-      eq_checker_(metadata) {
+    : key_comparator_(metadata),
+      val_comparator_(metadata),
+      eq_checker_()
+  {
     pid_gen_ = NULL_PID + 1;
     root_ = static_cast<pid_t>(pid_gen_++);
 
@@ -760,7 +766,7 @@ class BWTree {
   //bool Insert(__attribute__((unused)) KeyType key,
   //__attribute__((unused)) ValueType value);
   bool Insert(const KeyType &key, const ValueType& value);
-  bool Search(const KeyType& key, ValueType *value);
+  std::vector<ValueType> Search(const KeyType& key);
   bool Delete(const KeyType &key);
   bool Cleanup();
 };
