@@ -38,7 +38,7 @@ index::Index *BuildIndex() {
   std::vector<catalog::Schema *> schemas;
   IndexType index_type = INDEX_TYPE_BTREE;
   // TODO: Uncomment the line below
-  //index_type = INDEX_TYPE_BWTREE;
+  index_type = INDEX_TYPE_BWTREE;
 
   catalog::Column column1(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER),
                           "A", true);
@@ -81,7 +81,7 @@ TEST(IndexTests, BasicTest) {
   std::vector<ItemPointer> locations;
 
   // INDEX
-  std::unique_ptr<index::Index> index(BuildIndex());
+  index::Index *index(BuildIndex());
 
   std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
 
