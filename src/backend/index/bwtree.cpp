@@ -528,7 +528,7 @@ namespace peloton {
 		template <typename KeyType, typename ValueType, class KeyComparator,
 				class KeyEqualityChecker>
 		std::vector<std::pair<KeyType, pid_t>> BWTree::getToBeMovedPairsInner(Node* headNodeP){
-//		vector1.insert( vector1.end(), vector2.begin(), vector2.end() );
+			//vector1.insert( vector1.end(), vector2.begin(), vector2.end() );
 			//TODO: Most of the consolidation is similar to this, extend this API to implement consolidate
 			Node *copyHeadNodeP = headNodeP;
 			while(headNodeP->next!= nullptr){
@@ -538,7 +538,7 @@ namespace peloton {
 			InnerNode* headNodeP1 = static_cast<InnerNode*>(headNodeP);
 			//TODO:yet to handle for duplicate keys case
 			std::vector<std::pair<KeyType, pid_t >> wholePairs = headNodeP1->key_values; //TODO: Optimize?
-//		std::vector<KeyType> insertedKeys;
+
 			std::vector<KeyType> deletedPairs;
 			pid_t qPID_last_child = headNodeP1->last_child;
 			bool pageSplitFlag = false;
