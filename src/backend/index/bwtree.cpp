@@ -87,11 +87,24 @@ do_tree_operation(Node* head, const KeyType &key,
     consolidate(head);
   }
 
+	// store result from recursion, if any
+	TreeOpResult result = get_failed_result();
+
+	// check if we are already at leaf level
+	if (head->is_leaf()){
+		if (op_type == OperationType::search_op) {
+			result = search_leaf_page(head, key);
+		} else {
+			// insert/delete operation; try to update
+			// delta chain and fetch result
+			result = update_leaf_delta_chain(head, head->pid, key, value, op_type);
+		}
+
+		return result;
+	}
+
   // flag to indicate if iteration should be continued
   bool continue_itr = true;
-
-  // store result from recursion, if any
-  TreeOpResult result = get_failed_result();
 
   // pointer for iterating
   auto node = head;
@@ -247,21 +260,22 @@ do_tree_operation(Node* head, const KeyType &key,
   return result;
 }
 
+
 template <typename KeyType, typename ValueType, class KeyComparator,
-          class KeyEqualityChecker>
+		class KeyEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
 TreeOpResult BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
 search_leaf_page(const pid_t node_pid, const KeyType &key) {
 
-  Node *head = mapping_table_.get_phy_ptr(node_pid);
-  return search_leaf_page_phy(head, key);
-};
+	Node *head = mapping_table_.get_phy_ptr(node_pid);
+	return search_leaf_page(head, key);
+}
 
 template <typename KeyType, typename ValueType, class KeyComparator,
           class KeyEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
 TreeOpResult BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
-search_leaf_page_phy(Node *head, const KeyType &key) {
+search_leaf_page(Node *head, const KeyType &key) {
 
   if (head->get_type() == NodeType::removeNode) {
     // we have a remove node delta, end search and try again
@@ -328,7 +342,7 @@ search_leaf_page_phy(Node *head, const KeyType &key) {
       // splitKey <= key?
       if (key_compare_lte(delta_node->splitKey, key )) {
         // continue search on R
-        result = search_leaf_page_phy(delta_node->deleting_node, key);
+        result = search_leaf_page(delta_node->deleting_node, key);
 
         continue_itr = false;
       }
@@ -380,7 +394,8 @@ search_leaf_page_phy(Node *head, const KeyType &key) {
   }
 
   result.needs_merge = false;
-  if (head->record_count < merge_threshold_) {
+	// don't merge if root is a leaf node, despite merge threshold
+  if (head->record_count < merge_threshold_ && !head->pid == root_) {
     result.needs_merge = true;
   }
 
@@ -388,13 +403,22 @@ search_leaf_page_phy(Node *head, const KeyType &key) {
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator,
-          class KeyEqualityChecker>
+		class KeyEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
 TreeOpResult BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
 update_leaf_delta_chain(const pid_t pid, const KeyType& key,
-                        const ValueType& value, const OperationType op_type) {
+												const ValueType& value, const OperationType op_type) {
 
-  Node *head = mapping_table_.get_phy_ptr(pid);
+	Node *head = mapping_table_.get_phy_ptr(pid);
+	return update_leaf_delta_chain(head, pid, key, value, op_type);
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator,
+          class KeyEqualityChecker>
+typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+TreeOpResult BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+update_leaf_delta_chain(Node *head, const pid_t pid,  const KeyType& key,
+                        const ValueType& value, const OperationType op_type) {
 
   if (head->get_type() == NodeType::removeNode) {
     return get_failed_result();
@@ -437,7 +461,9 @@ update_leaf_delta_chain(const pid_t pid, const KeyType& key,
   }
 
   result.needs_merge = false;
-  if (head->record_count < merge_threshold_) {
+
+	// don't merge if we are at root
+  if (head->record_count < merge_threshold_ && !head->pid == root_) {
     result.needs_merge = true;
   }
 

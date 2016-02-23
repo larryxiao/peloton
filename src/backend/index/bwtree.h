@@ -68,6 +68,8 @@ class BWTree {
 
     int level;
 
+    pid_t pid;
+
     virtual void set_next(Node *) {}
 
     inline bool is_leaf() {
@@ -156,9 +158,6 @@ class BWTree {
   struct TreeNode : public Node {
     // node's key vector
     std::vector<std::pair<K, V>> key_values;
-
-    // self pid
-    pid_t pid;
 
     // logical pointer to next leaf on the right
     pid_t sidelink;
@@ -256,11 +255,15 @@ class BWTree {
 
       // add logical pointer to the provided new node
       this->new_node = new_node;
+
     }
 
     void set_next(Node *next_node) {
       // next node in the delta chain
       this->next = next_node;
+
+      // set self pid
+      this->pid = next_node->pid;
 
       // chain has grown
       this->chain_length = next_node->chain_length + 1;
@@ -302,6 +305,9 @@ class BWTree {
     void set_next(Node *next_node) {
       // next node in the delta chain
       this->next = next_node;
+
+      // set self pid
+      this->pid = next_node->pid;
 
       // chain has grown
       this->chain_length = next_node->chain_length + 1;
@@ -348,6 +354,9 @@ class BWTree {
       // next node in the delta chain
       this->next = next_node;
 
+      // set self pid
+      this->pid = next_node->pid;
+
       // chain has grown
       this->chain_length = next_node->chain_length + 1;
 
@@ -386,6 +395,9 @@ class BWTree {
       // next node in the delta chain
       this->next = next_node;
 
+      // set self pid
+      this->pid = next_node->pid;
+
       // chain has grown
       this->chain_length = next_node->chain_length + 1;
 
@@ -417,6 +429,9 @@ class BWTree {
     void set_next(Node *next_node) {
       this->next = next_node;
 
+      // set self pid
+      this->pid = next_node->pid;
+
       // chain has grown
       this->chain_length = next_node->chain_length + 1;
 
@@ -445,6 +460,9 @@ class BWTree {
     // sets the next node in the delta chain
     void set_next(Node *next_node) {
       this->next = next_node;
+
+      // set self pid
+      this->pid = next_node->pid;
 
       // chain has grown
       this->chain_length = next_node->chain_length + 1;
@@ -486,6 +504,9 @@ class BWTree {
     void set_next(Node *next_node) {
       this->next = next_node;
 
+      // set self pid
+      this->pid = next_node->pid;
+
       // chain has grown
       this->chain_length = next_node->chain_length + 1;
 
@@ -523,6 +544,9 @@ class BWTree {
       // next node in the delta chain
       this->next = next_node;
 
+      // set self pid
+      this->pid = next_node->pid;
+
       // chain has grown
       this->chain_length = next_node->chain_length + 1;
 
@@ -544,6 +568,9 @@ class BWTree {
     void set_next(Node *next_node) {
       // set the next node
       this->next = next_node;
+
+      // set self pid
+      this->pid = next_node->pid;
 
       // the delta chain has grown
       this->chain_length = next_node->chain_length + 1;
@@ -666,17 +693,25 @@ class BWTree {
                                  const ValueType& value,
                                  const OperationType op_type);
 
+  // Search leaf page and return the found value, if exists. Try SMOs /
+  // Consolidation, if necessary
+  TreeOpResult search_leaf_page(Node *head, const KeyType& key);
+
   // Wrapper for the above function
   TreeOpResult search_leaf_page(const pid_t pid, const KeyType& key);
 
-  // Search leaf page and return the found value, if exists. Try SMOs /
-  // Consolidation, if necessary
-  TreeOpResult search_leaf_page_phy(Node *head, const KeyType& key);
 
 
   // Update the leaf delta chain during insert/delta. Try SMOs /
   // Consolidation, if necessary
   TreeOpResult update_leaf_delta_chain(const pid_t pid, const KeyType& key,
+                                       const ValueType& value,
+                                       const OperationType op_type);
+
+  // Update the leaf delta chain during insert/delta. Try SMOs /
+  // Consolidation, if necessary
+  TreeOpResult update_leaf_delta_chain(Node *head, const pid_t pid,
+                                       const KeyType& key,
                                        const ValueType& value,
                                        const OperationType op_type);
 
