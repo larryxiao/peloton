@@ -81,7 +81,7 @@ TEST(IndexTests, BasicTest) {
   std::vector<ItemPointer> locations;
 
   // INDEX
-  index::Index *index(BuildIndex());
+  std::unique_ptr<index::Index> index(BuildIndex());
 
   std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
 
