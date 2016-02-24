@@ -17,10 +17,15 @@
 #include <vector>
 #include <atomic>
 #include <bits/atomic_base.h>
-#include "index_key.h"
+#include <backend/common/types.h>
+#include <ostream>
+#include "index.h"
 
 //Null page id
 #define NULL_PID 0
+
+// turn on or off debug mode
+//#define DEBUG
 
 namespace peloton {
 namespace index {
@@ -56,6 +61,9 @@ class BWTree {
     //type of this node
     NodeType type;
 
+    // print helper
+    //    virtual std::ostream& stream_write(std::ostream& ) const{}
+
    public:
     //ptr to the next node in delta chain
     Node* next;
@@ -79,6 +87,18 @@ class BWTree {
     inline NodeType get_type() {
       return type;
     }
+
+//    friend std::ostream& operator<<(std::ostream& os, const Node& node) {
+//       return node.print_node(os);
+//    }
+//
+//    inline std::ostream& print_node(std::ostream& os) const {
+//      return  os << "PID:" << pid << std::endl
+//              << "Type:" << type << std::endl
+//              << "Chain length:" << chain_length << std::endl
+//              << "Record count:" << record_count << std::endl
+//              << "Level:" << level << std::end;
+//    }
 
     virtual ~Node() {}
 
@@ -118,6 +138,17 @@ class BWTree {
     }
   };
 
+  class ItemPointerComparator {
+  public:
+    ItemPointerComparator(){};
+
+    bool operator ()(const ValueType& v1, const ValueType& v2) const {
+      auto p1 = static_cast<ItemPointer>(v1);
+      auto p2 = static_cast<ItemPointer>(v2);
+      return p1.block == p2.block && p1.offset == p2.offset;
+    }
+  };
+
   // lock free mapping table
   LockFreeTable mapping_table_;
 
@@ -128,10 +159,13 @@ class BWTree {
   pid_t root_;
 
   // comparator, assuming the default comparator is lt
-  KeyComparator less_comparator_;
+  KeyComparator key_comparator_;
 
   // equality checker
   KeyEqualityChecker eq_checker_;
+
+  // value comparator
+  ItemPointerComparator val_comparator_;
 
   // Logical pointer to head leaf page
   pid_t head_leaf_ptr_;
@@ -165,8 +199,8 @@ class BWTree {
   };
 
   // leaf node of the bw-tree, has KeyType and corresp.
-  // ValueType of record
-  struct LeafNode : public TreeNode<KeyType, ValueType> {
+  // vector of ValueType of record
+  struct LeafNode : public TreeNode<KeyType, std::vector<ValueType>> {
     //leaf nodes are always level 0
     inline LeafNode(const pid_t self, const pid_t nextleaf) {
       // doubly linked list of leaves
@@ -446,15 +480,20 @@ class BWTree {
   };
 
   struct DeltaDelete : public Node {
-    //delete key
+    // delete key
     KeyType key;
 
-    inline DeltaDelete(const KeyType &key) {
+    // delete value
+    ValueType value;
+
+    inline DeltaDelete(const KeyType &key, const ValueType &val) {
       // set the base node
       this->type = NodeType::deltaDelete;
 
-      // set the key and base node
+      // set the key and value
       this->key = key;
+
+      this->value = val;
     }
 
     // sets the next node in the delta chain
@@ -590,8 +629,8 @@ class BWTree {
     // status of the operation
     bool status;
 
-    // value returned, if any
-    ValueType value;
+    // values returned, if any
+    std::vector<ValueType> values;
 
     // validity of the value
     bool is_valid_value;
@@ -606,11 +645,6 @@ class BWTree {
       needs_split(false),
       needs_merge(false)
     {}
-
-    inline TreeOpResult(const ValueType value) : status(true), value(value),
-      needs_split(false),
-      needs_merge(false)
-    {}
   };
 
   inline TreeOpResult get_update_success_result() {
@@ -620,11 +654,7 @@ class BWTree {
   inline TreeOpResult get_failed_result() {
     return TreeOpResult();
   }
-
-  inline TreeOpResult make_search_result(ValueType value) {
-    return TreeOpResult(value);
-  }
-
+  
   inline TreeOpResult make_search_fail_result() {
     return TreeOpResult(true);
   }
@@ -648,20 +678,25 @@ class BWTree {
 
   // Compares two keys and returns true if a <= b
   inline bool key_compare_lte(const KeyType &a, const KeyType &b) {
-    return !less_comparator_(b, a);
+    return !key_comparator_(b, a);
   }
 
   // Compares two keys and returns true if a < b
   inline bool key_compare_lt(const KeyType &a, const KeyType &b) {
-    return less_comparator_(a, b);
+    return key_comparator_(a, b);
   }
 
   // Compares two keys and returns true if a = b
   inline bool key_compare_eq(const KeyType &a, const KeyType &b) {
-    return !less_comparator_(a, b) && !less_comparator_(b, a);
+    return eq_checker_(a, b);
   }
 
-  //Available modes: Greater than equal to, Greater tham
+  // compare two values for equality
+  inline bool val_eq(const ValueType &a, const ValueType &b) {
+    return val_comparator_(a,b);
+  }
+
+  // Available modes: Greater than equal to, Greater tham
   enum NodeSearchMode {
     GTE, GT
   };
@@ -721,13 +756,13 @@ class BWTree {
   // Merge page operation for node underflows
   bool merge_page(pid_t pid_l, pid_t pid_r, pid_t pid_parent);
 
-  void setSibling(Node* node,pid_t sideNode);
-  pid_t getSibling(Node* node);
-  bool splitPage(pid_t pPID,pid_t rPID,pid_t pParentPID);
-  bool checkIfRemoveDelta(Node* head);
-
-  std::vector<std::pair<KeyType, ValueType>> getToBeMovedPairsLeaf(Node* headNodeP);
-  std::vector<std::pair<KeyType, pid_t>> getToBeMovedPairsInner(Node* headNodeP);
+  //  void setSibling(Node* node,pid_t sideNode);
+  //  pid_t getSibling(Node* node);
+  //  bool splitPage(pid_t pPID,pid_t rPID,pid_t pParentPID);
+  //  bool checkIfRemoveDelta(Node* head);
+  //
+  //  std::vector<std::pair<KeyType, std::vector<ValueType>>> getToBeMovedPairsLeaf(Node* headNodeP);
+  //  std::vector<std::pair<KeyType, std::vector<pid_t>>> getToBeMovedPairsInner(Node* headNodeP);
 
  public:
 
@@ -735,7 +770,7 @@ class BWTree {
   //by default, start the pid generator at 1, 0 is NULL page
   BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker> (
     IndexMetadata *metadata)
-    : less_comparator_(metadata),
+    : key_comparator_(metadata),
       eq_checker_(metadata) {
     pid_gen_ = NULL_PID + 1;
     root_ = static_cast<pid_t>(pid_gen_++);
@@ -760,9 +795,14 @@ class BWTree {
   //bool Insert(__attribute__((unused)) KeyType key,
   //__attribute__((unused)) ValueType value);
   bool Insert(const KeyType &key, const ValueType& value);
-  bool Search(const KeyType& key, ValueType *value);
-  bool Delete(const KeyType &key);
+  std::vector<ValueType> Search(const KeyType& key);
+  bool Delete(const KeyType &key, const ValueType &val);
   bool Cleanup();
+
+#ifdef DEBUG
+  // print tree for debugging
+  void print_tree(const pid_t& pid);
+#endif
 };
 
 }  // End index namespace

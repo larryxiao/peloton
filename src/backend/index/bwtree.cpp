@@ -10,7 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <backend/common/logger.h>
 #include "backend/index/bwtree.h"
+#include "index_key.h"
+
 #define TODO
 
 namespace peloton {
@@ -279,6 +282,9 @@ typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
 TreeOpResult BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
 search_leaf_page(Node *head, const KeyType &key) {
 
+  // TODO: convert to unordered set
+  std::vector<ValueType> deleted_val;
+
   if (head->get_type() == NodeType::removeNode) {
     // we have a remove node delta, end search and try again
     return get_failed_result();
@@ -291,7 +297,7 @@ search_leaf_page(Node *head, const KeyType &key) {
 
   bool continue_itr = true;
 
-  TreeOpResult result = get_failed_result();
+  TreeOpResult result;
 
   // used to iterate the delta chain
   auto node = head;
@@ -302,25 +308,29 @@ search_leaf_page(Node *head, const KeyType &key) {
 
     case deltaInsert: {
       auto delta_node = static_cast<DeltaInsert *>(node);
-
       if (key_compare_eq(delta_node->key, key)) {
-        // node has been inserted, prepare result
-        result = make_search_result(delta_node->value);
-
-        continue_itr = false;
+        bool found_flag = false;
+        // check if the key matches and the key,value pair has not been deleted
+        for(auto it = deleted_val.begin(); it != deleted_val.end(); it++){
+          if(val_eq(*it, delta_node->value)){
+            // the value has been deleted, break
+            found_flag = true;
+          }
+        }
+        if (!found_flag)
+          // the value has not been deleted, add result
+          result.values.push_back(delta_node->value);
       }
-
       break;
     }
 
     case deltaDelete: {
       auto delta_node = static_cast<DeltaDelete *>(node);
 
+      // check if the key matches the request
       if (key_compare_eq(delta_node->key, key)) {
-        // node has been deleted, fail the search
-        result = make_search_fail_result();
-
-        continue_itr = false;
+        // update the set of delelted values
+        deleted_val.push_back(delta_node->value);
       }
       break;
     }
@@ -354,10 +364,9 @@ search_leaf_page(Node *head, const KeyType &key) {
     case leaf: {
       auto leaf_node = static_cast<LeafNode *>(node);
 
+      // search complete
       if (leaf_node->key_values.empty()) {
-        //this shouldn't happen
-        LOG_ERROR("Failed binary search at page");
-        return get_failed_result();
+        return result;
       }
 
       // find the position of the child to the left of nearest
@@ -370,13 +379,21 @@ search_leaf_page(Node *head, const KeyType &key) {
       // check the binary search result
       if (key_compare_eq(match.first, key)) {
         // keys are equal
-        result =  make_search_result(match.second);
-      } else {
-        result = make_search_fail_result();
+        // add the non-deleted values to the result
+        for (auto it = match.second.begin(); it != match.second.end(); it++) {
+          // check if not deleted
+          for (auto del_it = deleted_val.begin(); del_it != deleted_val.end(); del_it++){
+            if(val_eq(*del_it, *it)){
+              // value has been deleted, break
+              break;
+            }
+          }
+          // value hasn't been deleted, add to the result
+          result.values.push_back(*it);
+        }
       }
 
       continue_itr = false;
-
       break;
     }
     case NodeType::inner: break;
@@ -386,6 +403,7 @@ search_leaf_page(Node *head, const KeyType &key) {
     case NodeType::mergeInner: break;
     case NodeType::removeNode: break;
     }
+
     // go to next node
     node = node->next;
   }
@@ -401,384 +419,379 @@ search_leaf_page(Node *head, const KeyType &key) {
     result.needs_merge = true;
   }
 
+  result.status = true;
+
   return result;
 }
 
-template <typename KeyType, typename ValueType, class KeyComparator,
-		class KeyEqualityChecker>
-typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
-TreeOpResult BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
-update_leaf_delta_chain(const pid_t pid, const KeyType& key,
-												const ValueType& value, const OperationType op_type) {
+  template <typename KeyType, typename ValueType, class KeyComparator,
+      class KeyEqualityChecker>
+  typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+  TreeOpResult BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+  update_leaf_delta_chain(const pid_t pid, const KeyType& key,
+                          const ValueType& value, const OperationType op_type) {
 
-	Node *head = mapping_table_.get_phy_ptr(pid);
-	return update_leaf_delta_chain(head, pid, key, value, op_type);
-}
-
-template <typename KeyType, typename ValueType, class KeyComparator,
-          class KeyEqualityChecker>
-typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
-TreeOpResult BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
-update_leaf_delta_chain(Node *head, const pid_t pid,  const KeyType& key,
-                        const ValueType& value, const OperationType op_type) {
-
-  if (head->get_type() == NodeType::removeNode) {
-    return get_failed_result();
+    Node *head = mapping_table_.get_phy_ptr(pid);
+    return update_leaf_delta_chain(head, pid, key, value, op_type);
   }
 
-  if (head->chain_length > consolidate_threshold_leaf_) {
-    consolidate(head);
-  }
-
-  Node *update = nullptr;
-
-  if (op_type == OperationType::insert_op) {
-    update = new DeltaInsert(key, value);
-  } else {
-    // otherwise, it is a delete op
-    update = new DeltaDelete(key);
-  }
-
-  // try till update succeeds
-  do {
-    // get latest head value
-    head = mapping_table_.get_phy_ptr(pid);
+  template <typename KeyType, typename ValueType, class KeyComparator,
+      class KeyEqualityChecker>
+  typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+  TreeOpResult BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+  update_leaf_delta_chain(Node *head, const pid_t pid,  const KeyType& key,
+                          const ValueType& value, const OperationType op_type) {
 
     if (head->get_type() == NodeType::removeNode) {
       return get_failed_result();
     }
 
-    // link to delta chain
-    update->set_next(head);
-  } while (!mapping_table_.install_node(pid, head, update));
-
-  // set head as the new node we installed
-  head = update;
-
-  TreeOpResult result = get_update_success_result();
-
-  result.needs_split = false;
-  if (head->record_count > split_threshold_) {
-    result.needs_split = true;
-  }
-
-  result.needs_merge = false;
-
-	// don't merge if we are at root
-  if (head->record_count < merge_threshold_ && !head->pid == root_) {
-    result.needs_merge = true;
-  }
-
-  return result;
-}
-
-template <typename KeyType, typename ValueType, class KeyComparator,
-          class KeyEqualityChecker>
-bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
-Search(const KeyType &key, ValueType *value) {
-
-  ValueType dummy_val;
-  auto result = do_tree_operation(root_, key, dummy_val, OperationType::search_op);
-
-  if (result.status && result.is_valid_value) {
-    // search has succeeded
-    *value = result.value;
-    return true;
-  }
-
-  return false;
-}
-
-template <typename KeyType, typename ValueType, class KeyComparator,
-          class KeyEqualityChecker>
-bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
-Insert(const KeyType &key, const ValueType &value) {
-
-  TreeOpResult result = do_tree_operation(root_, key, value, OperationType::insert_op);
-  return result.status;
-}
-
-
-template <typename KeyType, typename ValueType, class KeyComparator,
-          class KeyEqualityChecker>
-bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
-Delete(const KeyType &key) {
-  ValueType dummy_val;
-
-  TreeOpResult result = do_tree_operation(root_, key, dummy_val, OperationType::delete_op);
-
-  return result.status;
-}
-
-
-template <typename KeyType, typename ValueType, class KeyComparator,
-        class KeyEqualityChecker>
-pid_t BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
-getSibling(Node* node){
-  while(node->next!= nullptr)
-  {
-    node=node->next;
-  }
-  if(node->is_leaf()){
-    TreeNode<KeyType,ValueType>* node_treenode = static_cast<TreeNode<KeyType,ValueType>*>(node);
-    return node_treenode->sidelink;}
-  else{
-    TreeNode<KeyType,pid_t >* node_treenode = static_cast<TreeNode<KeyType,pid_t >*>(node);
-    return node_treenode->sidelink;
-  }
-}
-
-
-template <typename KeyType, typename ValueType, class KeyComparator,
-        class KeyEqualityChecker>
-void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::setSibling(Node* node,pid_t sibling){
-  while(node->next!= nullptr)
-  {
-    node=node->next;
-  }
-  if(node->is_leaf()) {
-    TreeNode<KeyType,ValueType>* node_treenode = static_cast<TreeNode<KeyType,ValueType>*>(node);
-    node_treenode->sidelink = sibling;
-  }
-  else{
-    TreeNode<KeyType,pid_t >* node_treenode = static_cast<TreeNode<KeyType,pid_t >*>(node);
-    node_treenode->sidelink = sibling;
-  }
-
-}
-
-template <typename KeyType, typename ValueType, class KeyComparator,
-        class KeyEqualityChecker>
-std::vector<std::pair<KeyType, pid_t>> BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
-getToBeMovedPairsInner(Node* headNodeP){
-//		vector1.insert( vector1.end(), vector2.begin(), vector2.end() );
-  //TODO: Most of the consolidation is similar to this, extend this API to implement consolidate
-  Node *copyHeadNodeP = headNodeP;
-  while(headNodeP->next!= nullptr){
-    headNodeP=headNodeP->next;
-  }
-
-  InnerNode* headNodeP1 = static_cast<InnerNode*>(headNodeP);
-  //TODO:yet to handle for duplicate keys case
-  std::vector<std::pair<KeyType,pid_t >> wholePairs = headNodeP1->key_values; //TODO: Optimize?
-//		std::vector<KeyType> insertedKeys;
-  std::vector<KeyType> deletedPairs;
-  pid_t qPID_last_child = headNodeP1->last_child;
-  bool pageSplitFlag = false;
-  KeyType pageSplitKey;
-  typename std::vector<std::pair<KeyType, pid_t>>::iterator pageSplitIter = wholePairs.end();
-
-  //handling deltaInsert, deltaDelete, removeNode
-  while(copyHeadNodeP->next != nullptr){ //Assuming last node points to nullptr
-    switch (copyHeadNodeP->get_type()){
-      case indexDelta: {
-        //means that there is a split in the child and that we need to insert Kp and with pointer to child
-        IndexDelta *curNode = static_cast<IndexDelta *>(copyHeadNodeP);
-        int last_flag = 0;
-        for (auto it = wholePairs.begin(); it != wholePairs.end(); ++it) {
-          //TODO: what if the key is already present in the wholrePairs
-          if (!key_compare_lt(curNode->low, it->first)) {
-            //not at this position
-            continue;
-          }
-          //curNode->low
-          wholePairs.insert(it, std::pair<KeyType, pid_t>((it - 1)->first, curNode->new_node));
-          (it - 1)->first = curNode->low;
-          last_flag = 1;
-          break;
-        }
-        if (last_flag == 0) {
-          wholePairs.insert(wholePairs.end(), std::pair<KeyType, pid_t>(curNode->low, qPID_last_child));
-          qPID_last_child = curNode->new_node;
-        }
-        break;
-      }
-      case NodeType::deleteIndex:
-        //TODO: yet to handle
-        break;
-      case NodeType::deltaSplitInner: {
-        DeltaSplitInner *curNodeSplt = static_cast<DeltaSplitInner *>(copyHeadNodeP);
-        if (pageSplitFlag) {
-          //TODO: what if the page split key is being deleted?
-          if (key_compare_lt(curNodeSplt->splitKey, pageSplitKey)) {
-            pageSplitKey = curNodeSplt->splitKey;
-          }
-        }
-        else {
-          pageSplitKey = curNodeSplt->splitKey;
-          pageSplitFlag = true;
-        }
-        break;
-      }
-      case NodeType::mergeInner:
-        //TODO: yet to handle
-        break;
-      case NodeType::removeNode:
-        break;
-      default:
-        break;
+    if (head->chain_length > consolidate_threshold_leaf_) {
+      consolidate(head);
     }
-    copyHeadNodeP=copyHeadNodeP->next;
-  }
 
-  pageSplitIter = std::find_if(wholePairs.begin(), wholePairs.end(),
-                               [&](const std::pair<KeyType,pid_t >& element){
-                                   return key_compare_eq(element.first,pageSplitKey);} );
-  if(pageSplitIter != wholePairs.end())
-  {
-    qPID_last_child = pageSplitIter->second;
-  }
-  //TODO: improve this part later, return cleanly:
-  (wholePairs.begin()+std::distance(
-          wholePairs.begin(), pageSplitIter)/2)->second=qPID_last_child;
+    Node *update = nullptr;
 
-  return std::vector<std::pair<KeyType, pid_t>>(wholePairs.begin()+std::distance(
-          wholePairs.begin(), pageSplitIter)/2, pageSplitIter); //TODO: optimize?
-  //TODO: check for boundary cases on pageSplitIter
-}
+    if (op_type == OperationType::insert_op) {
+      update = new DeltaInsert(key, value);
+    } else {
+      // otherwise, it is a delete op
+      update = new DeltaDelete(key, value);
+    }
 
-template <typename KeyType, typename ValueType, class KeyComparator,
-        class KeyEqualityChecker>
-std::vector<std::pair<KeyType, ValueType>> BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
-getToBeMovedPairsLeaf(Node* headNodeP){
-  Node *copyHeadNodeP = headNodeP;
-  while(headNodeP->next!= nullptr){
-    headNodeP=headNodeP->next;
-  }
+    // try till update succeeds
+    do {
+      // get latest head value
+      head = mapping_table_.get_phy_ptr(pid);
 
-  TreeNode<KeyType,ValueType>* headNodeP1 = static_cast<TreeNode<KeyType,ValueType>*>(headNodeP);
-  //TODO:yet to handle for duplicate keys case
-  std::vector<std::pair<KeyType, ValueType>> wholePairs = headNodeP1->key_values; //TODO: Optimize?
-  std::vector<KeyType> deletedPairs;
-
-  //handling deltaInsert, deltaDelete, removeNode
-  while(copyHeadNodeP->next != nullptr){ //Assuming last node points to nullptr
-    switch (copyHeadNodeP->get_type()){
-      case deltaInsert:{
-        DeltaInsert* deltains = static_cast<DeltaInsert*>(copyHeadNodeP);
-        wholePairs.push_back(std::pair<KeyType,ValueType>(deltains->key,deltains->value));
-        break;
+      if (head->get_type() == NodeType::removeNode) {
+        return get_failed_result();
       }
-      case deltaDelete: {
-        DeltaDelete *deltadel = static_cast<DeltaDelete *>(copyHeadNodeP);
-        deletedPairs.push_back(deltadel->key);
-        break;
-      }
-      default:break;
+
+      // link to delta chain
+      update->set_next(head);
+    } while (!mapping_table_.install_node(pid, head, update));
+
+    // set head as the new node we installed
+    head = update;
+
+    TreeOpResult result = get_update_success_result();
+
+    result.needs_split = false;
+    if (head->record_count > split_threshold_) {
+      result.needs_split = true;
     }
-    copyHeadNodeP=copyHeadNodeP->next;
-  }
 
-  for(auto const& elem: deletedPairs){	//TODO: optimize?
-    auto it = std::find_if(wholePairs.begin(), wholePairs.end(), [&](const std::pair<KeyType,ValueType>& element){ return key_compare_eq(element.first,elem);} );
+    result.needs_merge = false;
 
-    if(it != wholePairs.end()){
-      wholePairs.erase(it);
+    // don't merge if we are at root
+    if (head->record_count < merge_threshold_ && !head->pid == root_) {
+      result.needs_merge = true;
     }
-  }
-  std::sort(wholePairs.begin(), wholePairs.end(), [&](const std::pair<KeyType, ValueType>& t1, const std::pair<KeyType, ValueType>& t2) {
-      		return less_comparator_(t1.first,t2.first);});
 
-  return std::vector<std::pair<KeyType, ValueType >>(wholePairs.begin()+std::distance(wholePairs.begin(), wholePairs.end())/2,wholePairs.end()); //TODO: optimize?
-}
-
-
-template <typename KeyType, typename ValueType, class KeyComparator,
-        class KeyEqualityChecker>
-bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::checkIfRemoveDelta(Node* head){
-  while(head->next!= nullptr)
-  {
-    switch(head->get_type())
-    {
-      case removeNode:
-        return true;
-      default:
-        break;
-    }
-    head=head->next;
-  }
-  return false;
-}
-
-template <typename KeyType, typename ValueType, class KeyComparator,
-        class KeyEqualityChecker>
-bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::splitPage(pid_t pPID,pid_t rPID,pid_t pParentPID){
-
-  pid_t qPID;Node* splitNode;
-
-  Node *headNodeP = mapping_table_.get_phy_ptr(pPID); //get the head node of the deltachain
-  Node *headNodeParentP = mapping_table_.get_phy_ptr(pParentPID);
-
-  if(checkIfRemoveDelta(headNodeP) || checkIfRemoveDelta(headNodeParentP))
-    return false;
-
-  KeyType Kp,Kq;
-
-  if(headNodeP->is_leaf())
-  {
-    LeafNode* newLeafNode = new LeafNode(pPID,rPID); // P->R was there before
-    qPID = static_cast<pid_t>(pid_gen_++);
-    const std::vector<std::pair<KeyType, ValueType>>& qElemVec = getToBeMovedPairsLeaf(headNodeP);
-    newLeafNode->key_values = qElemVec; //TODO: optimize?
-    Kp = qElemVec[0].first;
-    newLeafNode->record_count = qElemVec.size();
-    Kq = qElemVec[newLeafNode->record_count-1].first;// TODO: Kq is max among all of P keys before split, if there is something greater than Kq coming
-    // TODO: for insert then deltaInsert is created on top of Kp
-    mapping_table_.insert_new_pid(qPID, newLeafNode);
-    splitNode = new DeltaSplitLeaf(Kp, qPID, headNodeP->record_count-newLeafNode->record_count);
-  }
-  else
-  {
-    InnerNode* newInnerNode = new InnerNode(pPID,headNodeP->level,rPID);
-    qPID = static_cast<pid_t>(pid_gen_++);
-    //TODO: copy vector
-    pid_t lastChild;
-    std::vector<std::pair<KeyType, pid_t >> qElemVec = getToBeMovedPairsInner(headNodeP);
-    Kp = qElemVec[0].first;
-    lastChild = qElemVec[0].second;
-
-    qElemVec.erase(qElemVec.begin()); //TODO: Write this cleanly
-    newInnerNode->key_values = qElemVec; //TODO: optimize?
-    newInnerNode->last_child = lastChild;
-    newInnerNode->record_count = qElemVec.size();
-
-    Kq = qElemVec[newInnerNode->record_count-1].first;//TODO: check if right?
-    // Kq is max among all of P keys before split, if there is something greater than Kq coming
-    // for insert then deltaInsert is created on top of Kp
-
-    mapping_table_.insert_new_pid(qPID, newInnerNode);
-    splitNode = new DeltaSplitInner(Kp, qPID, headNodeP->record_count-newInnerNode->record_count-1);//TODO: check if -1 is required as Kp is also to be removed
+    return result;
   }
 
-  splitNode->set_next(headNodeP);
-  if(!mapping_table_.install_node(pPID, headNodeP, splitNode))
-    return false;
+  template <typename KeyType, typename ValueType, class KeyComparator,
+      class KeyEqualityChecker>
+  std::vector<ValueType> BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+  Search(const KeyType &key) {
+    ValueType dummy_val;
+    auto result = do_tree_operation(root_, key, dummy_val, OperationType::search_op);
+#ifdef DEBUG
+		print_tree(root_);
+#endif
+    return result.values;
+  }
 
-  //need to handle any specific delta record nodes?1
+  template <typename KeyType, typename ValueType, class KeyComparator,
+      class KeyEqualityChecker>
+  bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+  Insert(const KeyType &key, const ValueType &value) {
 
-  //what if P disppears or the parent disappears, or R disappears
-  setSibling(headNodeP,NULL_PID);
-
-  Node* sepDel = new IndexDelta(Kp,Kq,qPID);
-  sepDel->set_next(headNodeParentP);
-  if(!mapping_table_.install_node(pParentPID, headNodeParentP, sepDel))
-    return false;
-
-  return true;
-}
+    TreeOpResult result = do_tree_operation(root_, key, value, OperationType::insert_op);
+    return result.status;
+  }
 
 
-    // step 1 marks start of merge, if fail on step 1 and see a RemoveNodeDelta,
+  template <typename KeyType, typename ValueType, class KeyComparator,
+      class KeyEqualityChecker>
+  bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+  Delete(const KeyType &key, const ValueType &val) {
+
+    TreeOpResult result = do_tree_operation(root_, key, val, OperationType::delete_op);
+
+    return result.status;
+  }
+
+
+  //  template <typename KeyType, typename ValueType, class KeyComparator,
+  //      class KeyEqualityChecker>
+  //  pid_t BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+  //  getSibling(Node* node){
+  //    while(node->next!= nullptr)
+  //    {
+  //      node=node->next;
+  //    }
+  //    if(node->is_leaf()){
+  //      TreeNode<KeyType,ValueType>* node_treenode = static_cast<TreeNode<KeyType,ValueType>*>(node);
+  //      return node_treenode->sidelink;}
+  //    else{
+  //      TreeNode<KeyType,pid_t >* node_treenode = static_cast<TreeNode<KeyType,pid_t >*>(node);
+  //      return node_treenode->sidelink;
+  //    }
+  //  }
+  //
+  //
+  //  template <typename KeyType, typename ValueType, class KeyComparator,
+  //      class KeyEqualityChecker>
+  //  void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::setSibling(Node* node,pid_t sibling){
+  //    while(node->next!= nullptr)
+  //    {
+  //      node=node->next;
+  //    }
+  //    if(node->is_leaf()) {
+  //      TreeNode<KeyType,ValueType>* node_treenode = static_cast<TreeNode<KeyType,ValueType>*>(node);
+  //      node_treenode->sidelink = sibling;
+  //    }
+  //    else{
+  //      TreeNode<KeyType,pid_t >* node_treenode = static_cast<TreeNode<KeyType,pid_t >*>(node);
+  //      node_treenode->sidelink = sibling;
+  //    }
+  //
+  //  }
+  //
+  //  template <typename KeyType, typename ValueType, class KeyComparator,
+  //      class KeyEqualityChecker>
+  //  std::vector<std::pair<KeyType, std::vector<pid_t>>> BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+  //  getToBeMovedPairsInner(Node* headNodeP){
+  ////		vector1.insert( vector1.end(), vector2.begin(), vector2.end() );
+  //    //TODO: Most of the consolidation is similar to this, extend this API to implement consolidate
+  //    Node *copyHeadNodeP = headNodeP;
+  //    while(headNodeP->next!= nullptr){
+  //      headNodeP=headNodeP->next;
+  //    }
+  //
+  //    InnerNode* headNodeP1 = static_cast<InnerNode*>(headNodeP);
+  //    //TODO:yet to handle for duplicate keys case
+  //    std::vector<std::pair<KeyType, std::vector<pid_t> >> wholePairs = headNodeP1->key_values; //TODO: Optimize?
+  ////		std::vector<KeyType> insertedKeys;
+  //    std::vector<KeyType> deletedPairs;
+  //    pid_t qPID_last_child = headNodeP1->last_child;
+  //    bool pageSplitFlag = false;
+  //    KeyType pageSplitKey;
+  //    auto pageSplitIter = wholePairs.end();
+  //
+  //    //handling deltaInsert, deltaDelete, removeNode
+  //    while(copyHeadNodeP->next != nullptr){ //Assuming last node points to nullptr
+  //      switch (copyHeadNodeP->get_type()){
+  //        case indexDelta: {
+  //          //means that there is a split in the child and that we need to insert Kp and with pointer to child
+  //          IndexDelta *curNode = static_cast<IndexDelta *>(copyHeadNodeP);
+  //          int last_flag = 0;
+  //          for (auto it = wholePairs.begin(); it != wholePairs.end(); ++it) {
+  //            //TODO: what if the key is already present in the wholrePairs
+  //            if (!key_compare_lt(curNode->low, it->first)) {
+  //              //not at this position
+  //              continue;
+  //            }
+  //            //curNode->low
+  //            wholePairs.insert(it, std::make_pair((it - 1)->first, curNode->new_node));
+  //            (it - 1)->first = curNode->low;
+  //            last_flag = 1;
+  //            break;
+  //          }
+  //          if (last_flag == 0) {
+  //            wholePairs.insert(wholePairs.end(), std::pair<KeyType, pid_t>(curNode->low, qPID_last_child));
+  //            qPID_last_child = curNode->new_node;
+  //          }
+  //          break;
+  //        }
+  //        case NodeType::deleteIndex:
+  //          //TODO: yet to handle
+  //          break;
+  //        case NodeType::deltaSplitInner: {
+  //          DeltaSplitInner *curNodeSplt = static_cast<DeltaSplitInner *>(copyHeadNodeP);
+  //          if (pageSplitFlag) {
+  //            //TODO: what if the page split key is being deleted?
+  //            if (key_compare_lt(curNodeSplt->splitKey, pageSplitKey)) {
+  //              pageSplitKey = curNodeSplt->splitKey;
+  //            }
+  //          }
+  //          else {
+  //            pageSplitKey = curNodeSplt->splitKey;
+  //            pageSplitFlag = true;
+  //          }
+  //          break;
+  //        }
+  //        case NodeType::mergeInner:
+  //          //TODO: yet to handle
+  //          break;
+  //        case NodeType::removeNode:
+  //          break;
+  //        default:
+  //          break;
+  //      }
+  //      copyHeadNodeP=copyHeadNodeP->next;
+  //    }
+  //
+  //    pageSplitIter = std::find_if(wholePairs.begin(), wholePairs.end(),
+  //                                 [&](const std::pair<KeyType,pid_t >& element){
+  //                                   return key_compare_eq(element.first,pageSplitKey);} );
+  //    if(pageSplitIter != wholePairs.end())
+  //    {
+  //      qPID_last_child = pageSplitIter->second.front();
+  //    }
+  //    //TODO: improve this part later, return cleanly:
+  //    (wholePairs.begin()+std::distance(
+  //        wholePairs.begin(), pageSplitIter)/2)->second.front()=qPID_last_child;
+  //
+  //    return std::vector<std::pair<KeyType, std::vector<pid_t>>>(wholePairs.begin()+std::distance(
+  //        wholePairs.begin(), pageSplitIter)/2, pageSplitIter); //TODO: optimize?
+  //    //TODO: check for boundary cases on pageSplitIter
+  //  }
+  //
+  //  template <typename KeyType, typename ValueType, class KeyComparator,
+  //      class KeyEqualityChecker>
+  //  std::vector<std::pair<KeyType, std::vector<ValueType>>> BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+  //  getToBeMovedPairsLeaf(Node* headNodeP){
+  //    Node *copyHeadNodeP = headNodeP;
+  //    while(headNodeP->next!= nullptr){
+  //      headNodeP=headNodeP->next;
+  //    }
+  //
+  //    TreeNode<KeyType,ValueType>* headNodeP1 = static_cast<TreeNode<KeyType,ValueType>*>(headNodeP);
+  //    //TODO:yet to handle for duplicate keys case
+  //    auto wholePairs = headNodeP1->key_values; //TODO: Optimize?
+  //    std::vector<KeyType> deletedPairs;
+  //
+  //    //handling deltaInsert, deltaDelete, removeNode
+  //    while(copyHeadNodeP->next != nullptr){ //Assuming last node points to nullptr
+  //      switch (copyHeadNodeP->get_type()){
+  //        case deltaInsert:{
+  //          DeltaInsert* deltains = static_cast<DeltaInsert*>(copyHeadNodeP);
+  //          wholePairs.push_back(std::make_pair(deltains->key,deltains->value));
+  //          break;
+  //        }
+  //        case deltaDelete: {
+  //          DeltaDelete *deltadel = static_cast<DeltaDelete *>(copyHeadNodeP);
+  //          deletedPairs.push_back(deltadel->key);
+  //          break;
+  //        }
+  //        default:break;
+  //      }
+  //      copyHeadNodeP=copyHeadNodeP->next;
+  //    }
+  //
+  //    for(auto const& elem: deletedPairs){	//TODO: optimize?
+  //      auto it = std::find_if(wholePairs.begin(), wholePairs.end(), [&](const std::pair<KeyType,ValueType>& element){ return key_compare_eq(element.first,elem);} );
+  //
+  //      if(it != wholePairs.end()){
+  //        wholePairs.erase(it);
+  //      }
+  //    }
+  //    std::sort(wholePairs.begin(), wholePairs.end(), [&](const std::pair<KeyType, ValueType>& t1, const std::pair<KeyType, ValueType>& t2) {
+  //      return key_comparator_(t1.first,t2.first);});
+  //
+  //    return std::vector<std::pair<KeyType, std::vector<ValueType>>>
+  //        (wholePairs.begin()+std::distance(wholePairs.begin(), wholePairs.end())/2,wholePairs.end()); //TODO: optimize?
+  //  }
+  //
+  //
+  //  template <typename KeyType, typename ValueType, class KeyComparator,
+  //      class KeyEqualityChecker>
+  //  bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::checkIfRemoveDelta(Node* head){
+  //    while(head->next!= nullptr)
+  //    {
+  //      switch(head->get_type())
+  //      {
+  //        case removeNode:
+  //          return true;
+  //        default:
+  //          break;
+  //      }
+  //      head=head->next;
+  //    }
+  //    return false;
+  //  }
+  //
+  //  template <typename KeyType, typename ValueType, class KeyComparator,
+  //      class KeyEqualityChecker>
+  //  bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::splitPage(pid_t pPID,pid_t rPID,pid_t pParentPID){
+  //
+  //    pid_t qPID;Node* splitNode;
+  //
+  //    Node *headNodeP = mapping_table_.get_phy_ptr(pPID); //get the head node of the deltachain
+  //    Node *headNodeParentP = mapping_table_.get_phy_ptr(pParentPID);
+  //
+  //    if(checkIfRemoveDelta(headNodeP) || checkIfRemoveDelta(headNodeParentP))
+  //      return false;
+  //
+  //    KeyType Kp,Kq;
+  //
+  //    if(headNodeP->is_leaf())
+  //    {
+  //      LeafNode* newLeafNode = new LeafNode(pPID,rPID); // P->R was there before
+  //      qPID = static_cast<pid_t>(pid_gen_++);
+  //      const std::vector<std::pair<KeyType, std::vector<ValueType>>>& qElemVec = getToBeMovedPairsLeaf(headNodeP);
+  //      newLeafNode->key_values = qElemVec; //TODO: optimize?
+  //      Kp = qElemVec[0].first;
+  //      newLeafNode->record_count = qElemVec.size();
+  //      Kq = qElemVec[newLeafNode->record_count-1].first;// TODO: Kq is max among all of P keys before split, if there is something greater than Kq coming
+  //      // TODO: for insert then deltaInsert is created on top of Kp
+  //      mapping_table_.insert_new_pid(qPID, newLeafNode);
+  //      splitNode = new DeltaSplitLeaf(Kp, qPID, headNodeP->record_count-newLeafNode->record_count);
+  //    }
+  //    else
+  //    {
+  //      InnerNode* newInnerNode = new InnerNode(pPID,headNodeP->level,rPID);
+  //      qPID = static_cast<pid_t>(pid_gen_++);
+  //      //TODO: copy vector
+  //      pid_t lastChild;
+  //      std::vector<std::pair<KeyType, std::vector<pid_t> >> qElemVec = getToBeMovedPairsInner(headNodeP);
+  //      Kp = qElemVec[0].first;
+  //      lastChild = qElemVec[0].second.front();
+  //
+  //      qElemVec.erase(qElemVec.begin()); //TODO: Write this cleanly
+  //      newInnerNode->key_values = qElemVec; //TODO: optimize?
+  //      newInnerNode->last_child = lastChild;
+  //      newInnerNode->record_count = qElemVec.size();
+  //
+  //      Kq = qElemVec[newInnerNode->record_count-1].first;//TODO: check if right?
+  //      // Kq is max among all of P keys before split, if there is something greater than Kq coming
+  //      // for insert then deltaInsert is created on top of Kp
+  //
+  //      mapping_table_.insert_new_pid(qPID, newInnerNode);
+  //      splitNode = new DeltaSplitInner(Kp, qPID, headNodeP->record_count-newInnerNode->record_count-1);//TODO: check if -1 is required as Kp is also to be removed
+  //    }
+  //
+  //    splitNode->set_next(headNodeP);
+  //    if(!mapping_table_.install_node(pPID, headNodeP, splitNode))
+  //      return false;
+  //
+  //    //need to handle any specific delta record nodes?1
+  //
+  //    //what if P disppears or the parent disappears, or R disappears
+  //    setSibling(headNodeP,NULL_PID);
+  //
+  //    Node* sepDel = new IndexDelta(Kp,Kq,qPID);
+  //    sepDel->set_next(headNodeParentP);
+  //
+  //    return !mapping_table_.install_node(pParentPID, headNodeParentP, sepDel) ? false : true;
+  //  }
+
+
+  // step 1 marks start of merge, if fail on step 1 and see a RemoveNodeDelta,
 // abort itself
 // step 2 and step 3 should retry until succeed
 // TODO key range
 // DONE failure case
 // DONE memory management
 // TODO OPTIMIZATION reuse the nodes
-template <typename KeyType, typename ValueType, class KeyComparator,
-          class KeyEqualityChecker>
-bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
-merge_page(pid_t pid_l, pid_t pid_r, pid_t pid_parent) {
+  template <typename KeyType, typename ValueType, class KeyComparator,
+      class KeyEqualityChecker>
+  bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+  merge_page(pid_t pid_l, pid_t pid_r, pid_t pid_parent) {
     return (pid_l > 0 && pid_r > 0 && pid_parent > 0);
 //  Node *ptr_r, *ptr_l, *ptr_parent;
 //  bool leaf = ptr_r->is_leaf();
@@ -852,20 +865,20 @@ merge_page(pid_t pid_l, pid_t pid_r, pid_t pid_parent) {
 //  } while (!mapping_table_.install_node(pid_parent, ptr_parent,
 //                                        (Node *) index_term_delete_delta));
 //  return true;
-}
+  }
 
-template <typename KeyType, typename ValueType, class KeyComparator,
-    class KeyEqualityChecker>
-void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
-consolidate(Node *node) {
-  node->chain_length = 1;
+  template <typename KeyType, typename ValueType, class KeyComparator,
+      class KeyEqualityChecker>
+  void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+  consolidate(Node *node) {
+    node->chain_length = 1;
 
-}
+  }
 // go through pid table, delete chain
 // on merge node, delete right chain
-template <typename KeyType, typename ValueType, class KeyComparator,
-          class KeyEqualityChecker>
-bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Cleanup() {
+  template <typename KeyType, typename ValueType, class KeyComparator,
+      class KeyEqualityChecker>
+  bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Cleanup() {
 //  std::vector<Node *> delete_queue;
 //  for (pid_t pid = 0; pid < pid_gen_; ++pid) {
 //    Node * node = mapping_table_.get_phy_ptr(pid);
@@ -891,48 +904,58 @@ bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Cleanup() {
 //    }
 //    delete node;
 //  }
-  Node *node = mapping_table_.get_phy_ptr(root_);
-  delete node;
-  return true;
-}
+    Node *node = mapping_table_.get_phy_ptr(root_);
+    delete node;
+    return true;
+  }
+
+#ifdef DEBUG
+template <typename KeyType, typename ValueType, class KeyComparator,
+    class KeyEqualityChecker>
+  void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+  print_tree(const pid_t& pid) {
+    Node *head = mapping_table_.get_phy_ptr(pid);
+    std::cout << *head << std::endl;
+  };
+#endif
 
 // Explicit template instantiations
 
-template class BWTree<IntsKey<1>, ItemPointer, IntsComparator<1>,
-                      IntsEqualityChecker<1>>;
-template class BWTree<IntsKey<2>, ItemPointer, IntsComparator<2>,
-                      IntsEqualityChecker<2>>;
-template class BWTree<IntsKey<3>, ItemPointer, IntsComparator<3>,
-                      IntsEqualityChecker<3>>;
-template class BWTree<IntsKey<4>, ItemPointer, IntsComparator<4>,
-                      IntsEqualityChecker<4>>;
-template class BWTree<GenericKey<4>, ItemPointer, GenericComparator<4>,
-                      GenericEqualityChecker<4>>;
-template class BWTree<GenericKey<8>, ItemPointer, GenericComparator<8>,
-                      GenericEqualityChecker<8>>;
-template class BWTree<GenericKey<12>, ItemPointer, GenericComparator<12>,
-                      GenericEqualityChecker<12>>;
-template class BWTree<GenericKey<16>, ItemPointer, GenericComparator<16>,
-                      GenericEqualityChecker<16>>;
-template class BWTree<GenericKey<24>, ItemPointer, GenericComparator<24>,
-                      GenericEqualityChecker<24>>;
-template class BWTree<GenericKey<32>, ItemPointer, GenericComparator<32>,
-                      GenericEqualityChecker<32>>;
-template class BWTree<GenericKey<48>, ItemPointer, GenericComparator<48>,
-                      GenericEqualityChecker<48>>;
-template class BWTree<GenericKey<64>, ItemPointer, GenericComparator<64>,
-                      GenericEqualityChecker<64>>;
-template class BWTree<GenericKey<96>, ItemPointer, GenericComparator<96>,
-                      GenericEqualityChecker<96>>;
-template class BWTree<GenericKey<128>, ItemPointer, GenericComparator<128>,
-                      GenericEqualityChecker<128>>;
-template class BWTree<GenericKey<256>, ItemPointer, GenericComparator<256>,
-                      GenericEqualityChecker<256>>;
-template class BWTree<GenericKey<512>, ItemPointer, GenericComparator<512>,
-                      GenericEqualityChecker<512>>;
+    template class BWTree<IntsKey<1>, ItemPointer, IntsComparator<1>,
+        IntsEqualityChecker<1>>;
+    template class BWTree<IntsKey<2>, ItemPointer, IntsComparator<2>,
+        IntsEqualityChecker<2>>;
+    template class BWTree<IntsKey<3>, ItemPointer, IntsComparator<3>,
+        IntsEqualityChecker<3>>;
+    template class BWTree<IntsKey<4>, ItemPointer, IntsComparator<4>,
+        IntsEqualityChecker<4>>;
+    template class BWTree<GenericKey<4>, ItemPointer, GenericComparator<4>,
+        GenericEqualityChecker<4>>;
+    template class BWTree<GenericKey<8>, ItemPointer, GenericComparator<8>,
+        GenericEqualityChecker<8>>;
+    template class BWTree<GenericKey<12>, ItemPointer, GenericComparator<12>,
+        GenericEqualityChecker<12>>;
+    template class BWTree<GenericKey<16>, ItemPointer, GenericComparator<16>,
+        GenericEqualityChecker<16>>;
+    template class BWTree<GenericKey<24>, ItemPointer, GenericComparator<24>,
+        GenericEqualityChecker<24>>;
+    template class BWTree<GenericKey<32>, ItemPointer, GenericComparator<32>,
+        GenericEqualityChecker<32>>;
+    template class BWTree<GenericKey<48>, ItemPointer, GenericComparator<48>,
+        GenericEqualityChecker<48>>;
+    template class BWTree<GenericKey<64>, ItemPointer, GenericComparator<64>,
+        GenericEqualityChecker<64>>;
+    template class BWTree<GenericKey<96>, ItemPointer, GenericComparator<96>,
+        GenericEqualityChecker<96>>;
+    template class BWTree<GenericKey<128>, ItemPointer, GenericComparator<128>,
+        GenericEqualityChecker<128>>;
+    template class BWTree<GenericKey<256>, ItemPointer, GenericComparator<256>,
+        GenericEqualityChecker<256>>;
+    template class BWTree<GenericKey<512>, ItemPointer, GenericComparator<512>,
+        GenericEqualityChecker<512>>;
 
-template class BWTree<TupleKey, ItemPointer, TupleKeyComparator,
-                      TupleKeyEqualityChecker>;
+    template class BWTree<TupleKey, ItemPointer, TupleKeyComparator,
+        TupleKeyEqualityChecker>;
 
-}  // End index namespace
+  }  // End index namespace
 }  // End peloton namespace
