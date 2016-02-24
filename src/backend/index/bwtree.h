@@ -18,10 +18,14 @@
 #include <atomic>
 #include <bits/atomic_base.h>
 #include <backend/common/types.h>
+#include <ostream>
 #include "index.h"
 
 //Null page id
 #define NULL_PID 0
+
+// turn on or off debug mode
+//#define DEBUG
 
 namespace peloton {
 namespace index {
@@ -57,6 +61,9 @@ class BWTree {
     //type of this node
     NodeType type;
 
+    // print helper
+    //    virtual std::ostream& stream_write(std::ostream& ) const{}
+
    public:
     //ptr to the next node in delta chain
     Node* next;
@@ -80,6 +87,18 @@ class BWTree {
     inline NodeType get_type() {
       return type;
     }
+
+//    friend std::ostream& operator<<(std::ostream& os, const Node& node) {
+//       return node.print_node(os);
+//    }
+//
+//    inline std::ostream& print_node(std::ostream& os) const {
+//      return  os << "PID:" << pid << std::endl
+//              << "Type:" << type << std::endl
+//              << "Chain length:" << chain_length << std::endl
+//              << "Record count:" << record_count << std::endl
+//              << "Level:" << level << std::end;
+//    }
 
     virtual ~Node() {}
 
@@ -172,7 +191,7 @@ class BWTree {
   template <typename K, typename V>
   struct TreeNode : public Node {
     // node's key vector
-    std::vector<std::pair<K, std::vector<V>>> key_values;
+    std::vector<std::pair<K, V>> key_values;
 
     // logical pointer to next leaf on the right
     pid_t sidelink;
@@ -180,8 +199,8 @@ class BWTree {
   };
 
   // leaf node of the bw-tree, has KeyType and corresp.
-  // ValueType of record
-  struct LeafNode : public TreeNode<KeyType, ValueType> {
+  // vector of ValueType of record
+  struct LeafNode : public TreeNode<KeyType, std::vector<ValueType>> {
     //leaf nodes are always level 0
     inline LeafNode(const pid_t self, const pid_t nextleaf) {
       // doubly linked list of leaves
@@ -779,6 +798,11 @@ class BWTree {
   std::vector<ValueType> Search(const KeyType& key);
   bool Delete(const KeyType &key, const ValueType &val);
   bool Cleanup();
+
+#ifdef DEBUG
+  // print tree for debugging
+  void print_tree(const pid_t& pid);
+#endif
 };
 
 }  // End index namespace

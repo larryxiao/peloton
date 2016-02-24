@@ -191,7 +191,7 @@ do_tree_operation(Node* head, const KeyType &key,
       auto child_pos = node_key_search(inner_node, key);
 
       // extract child pid from they key value pair
-      pid_t child_pid = inner_node->key_values[child_pos].second[0];
+      pid_t child_pid = inner_node->key_values[child_pos].second;
       // check the node's level
 
       if (inner_node->level == 1) {
@@ -223,7 +223,7 @@ do_tree_operation(Node* head, const KeyType &key,
         pid_t right = child_pid;
 
         // what we are merging with
-        pid_t left = inner_node->key_values[child_pos - 1].second[0];
+        pid_t left = inner_node->key_values[child_pos - 1].second;
 
         // Merge
         merge_page(left, right, inner_node->pid);
@@ -498,6 +498,9 @@ search_leaf_page(Node *head, const KeyType &key) {
   Search(const KeyType &key) {
     ValueType dummy_val;
     auto result = do_tree_operation(root_, key, dummy_val, OperationType::search_op);
+#ifdef DEBUG
+		print_tree(root_);
+#endif
     return result.values;
   }
 
@@ -905,6 +908,16 @@ search_leaf_page(Node *head, const KeyType &key) {
     delete node;
     return true;
   }
+
+#ifdef DEBUG
+template <typename KeyType, typename ValueType, class KeyComparator,
+    class KeyEqualityChecker>
+  void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+  print_tree(const pid_t& pid) {
+    Node *head = mapping_table_.get_phy_ptr(pid);
+    std::cout << *head << std::endl;
+  };
+#endif
 
 // Explicit template instantiations
 
