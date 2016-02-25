@@ -415,7 +415,9 @@ search_leaf_page(Node *head, const KeyType &key) {
 
   result.needs_merge = false;
 	// don't merge if root is a leaf node, despite merge threshold
-  if (head->record_count < merge_threshold_ && !head->pid == root_) {
+  pid_t root_pid = root_.load(std::memory_order_relaxed);
+
+  if (head->record_count < merge_threshold_ && !head->pid == root_pid) {
     result.needs_merge = true;
   }
 
@@ -430,7 +432,6 @@ search_leaf_page(Node *head, const KeyType &key) {
   TreeOpResult BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
   update_leaf_delta_chain(const pid_t pid, const KeyType& key,
                           const ValueType& value, const OperationType op_type) {
-
     Node *head = mapping_table_.get_phy_ptr(pid);
     return update_leaf_delta_chain(head, pid, key, value, op_type);
   }
@@ -497,9 +498,10 @@ search_leaf_page(Node *head, const KeyType &key) {
   std::vector<ValueType> BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
   Search(const KeyType &key) {
     ValueType dummy_val;
-    auto result = do_tree_operation(root_, key, dummy_val, OperationType::search_op);
+    pid_t root_pid = root_.load(std::memory_order_relaxed);
+    auto result = do_tree_operation(root_pid, key, dummy_val, OperationType::search_op);
 #ifdef DEBUG
-		print_tree(root_);
+		print_tree(root_pid);
 #endif
     return result.values;
   }
@@ -508,8 +510,8 @@ search_leaf_page(Node *head, const KeyType &key) {
       class KeyEqualityChecker>
   bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
   Insert(const KeyType &key, const ValueType &value) {
-
-    TreeOpResult result = do_tree_operation(root_, key, value, OperationType::insert_op);
+    pid_t root_pid = root_.load(std::memory_order_relaxed);
+    TreeOpResult result = do_tree_operation(root_pid, key, value, OperationType::insert_op);
     return result.status;
   }
 
@@ -518,8 +520,8 @@ search_leaf_page(Node *head, const KeyType &key) {
       class KeyEqualityChecker>
   bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
   Delete(const KeyType &key, const ValueType &val) {
-
-    TreeOpResult result = do_tree_operation(root_, key, val, OperationType::delete_op);
+    pid_t root_pid = root_.load(std::memory_order_relaxed);
+    TreeOpResult result = do_tree_operation(root_pid, key, val, OperationType::delete_op);
 
     return result.status;
   }
@@ -669,7 +671,7 @@ search_leaf_page(Node *head, const KeyType &key) {
       switch (copyHeadNodeP->get_type()){
         case deltaInsert:{
           DeltaInsert* deltains = static_cast<DeltaInsert*>(copyHeadNodeP);
-          auto it = std::find_if(wholePairs.begin(),wholePairs.end(), [&](const std::pair<KeyType,ValueType>& element){
+          auto it = std::find_if(wholePairs.begin(),wholePairs.end(), [&](const std::pair<KeyType,std::vector<ValueType>>& element){
               return key_compare_eq(element.first,deltains->key);
           });
           if(it != wholePairs.end()){
@@ -691,9 +693,12 @@ search_leaf_page(Node *head, const KeyType &key) {
     }
 
     for(auto const& elem: deletedPairs){	//TODO: optimize?
-      auto it = std::find_if(wholePairs.begin(), wholePairs.end(), [&](const std::pair<KeyType,ValueType>& element){
-          if(key_compare_eq(element.first, elem.first))
-            return val_eq(element.second,elem.second);
+      auto it = std::find_if(wholePairs.begin(), wholePairs.end(), [&](const std::pair<KeyType,std::vector<ValueType>>& element) {
+          if (key_compare_eq(element.first, elem.first)){
+            auto it2 = std::find_if(element.second.begin(), element.second.end(),
+                                    [&](const ValueType &element1) { return val_eq(element1, elem.second);});
+            return it2!=element.second.end();
+          }
           else
             return false;
       });
@@ -738,21 +743,31 @@ search_leaf_page(Node *head, const KeyType &key) {
   bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::splitPage(pid_t pPID,pid_t rPID,pid_t pParentPID){
 
     pid_t qPID;Node* splitNode;
+    KeyType Kp,Kq;
 
     Node *headNodeP = mapping_table_.get_phy_ptr(pPID); //get the head node of the deltachain
+    Node *headNodeParentP;
+    Node* sepDel;
+    pid_t root_pid = root_.load(std::memory_order_relaxed);
 
-    Node *headNodeParentP = mapping_table_.get_phy_ptr(pParentPID);
-
-    if(checkIfRemoveDelta(headNodeP) || checkIfRemoveDelta(headNodeParentP))
+    if(checkIfRemoveDelta(headNodeP))
       return false;
 
-    KeyType Kp,Kq;
+    //if the node to be split is the root
+    if(pPID == root_pid) //TODO: do I need to check for the parent too, like nullPID?
+    {
+      //so basically we need to split the current node into 2 and have a new parent
+      //there are 2 cases, if the root node is leaf or not
+      headNodeParentP = mapping_table_.get_phy_ptr(pParentPID);
+      if(checkIfRemoveDelta(headNodeParentP))
+        return false;
+    }
 
     if(headNodeP->is_leaf())
     {
       LeafNode* newLeafNode = new LeafNode(pPID,rPID); // P->R was there before
       qPID = static_cast<pid_t>(pid_gen_++);
-      const std::vector<std::pair<KeyType, std::vector<ValueType>>>& qElemVec = getToBeMovedPairsLeaf(headNodeP);
+      std::vector<std::pair<KeyType, std::vector<ValueType>>> qElemVec = getToBeMovedPairsLeaf(headNodeP);
       newLeafNode->key_values = qElemVec; //TODO: optimize?
       Kp = qElemVec[0].first;
       newLeafNode->record_count = qElemVec.size();
@@ -762,7 +777,7 @@ search_leaf_page(Node *head, const KeyType &key) {
       mapping_table_.insert_new_pid(qPID, newLeafNode);
       splitNode = new DeltaSplitLeaf(Kp, qPID, headNodeP->record_count-newLeafNode->record_count);
     } else {
-      InnerNode* newInnerNode = new InnerNode(pPID,headNodeP->level,rPID);
+      InnerNode* newInnerNode = new InnerNode(pPID,headNodeP->level,rPID,NULL_PID);
       qPID = static_cast<pid_t>(pid_gen_++);
       //TODO: copy vector
       pid_t lastChild;
@@ -788,15 +803,37 @@ search_leaf_page(Node *head, const KeyType &key) {
     if(!mapping_table_.install_node(pPID, headNodeP, splitNode))
       return false;
 
+    //TODO: Check if retries required?
+
     //need to handle any specific delta record nodes?1
 
     //what if P disppears or the parent disappears, or R disappears
-    setSibling(headNodeP,NULL_PID);
+    setSibling(headNodeP,NULL_PID); //TODO: check validity
 
-    Node* sepDel = new IndexDelta(Kp,Kq,qPID);
-    sepDel->set_next(headNodeParentP);
+    if(pPID == root_pid) //TODO: Is this case handled: what if root_ is updated during this execution? Do we still use root_pid
+    {
+      InnerNode* newInnerNode = new InnerNode(pPID,headNodeP->level+1,NULL_PID, NULL_PID);  //totally new level
+      pid_t newRoot = static_cast<pid_t>(pid_gen_++);
 
-    return mapping_table_.install_node(pParentPID, headNodeParentP, sepDel);
+      std::vector<std::pair<KeyType, pid_t >> qElemVec = std::vector<std::pair<KeyType, pid_t >>{std::pair<KeyType,pid_t >(Kp,pPID)};
+
+      newInnerNode->key_values = qElemVec; //TODO: optimize?
+      newInnerNode->last_child = qPID;
+      newInnerNode->record_count = qElemVec.size();
+
+      mapping_table_.insert_new_pid(newRoot, newInnerNode); //TODO: should I try retry here? (And in all other cases)
+      //TODO: Check if any inconsistencies can pop in because of non-atomic updates in this scope
+
+      //atomically update the parameter
+      return std::atomic_compare_exchange_weak_explicit(
+              &root_, &root_pid, newRoot,
+              std::memory_order_release, std::memory_order_relaxed); //TODO: Check if retry needed
+    }
+    else{
+      sepDel = new IndexDelta(Kp,Kq,qPID);
+      sepDel->set_next(headNodeParentP);
+      return mapping_table_.install_node(pParentPID, headNodeParentP, sepDel);
+    }
   }
 
 
@@ -923,7 +960,10 @@ search_leaf_page(Node *head, const KeyType &key) {
 //    }
 //    delete node;
 //  }
-    Node *node = mapping_table_.get_phy_ptr(root_);
+//
+
+    pid_t root_pid = root_.load(std::memory_order_relaxed);
+    Node *node = mapping_table_.get_phy_ptr(root_pid);
     delete node;
     return true;
   }

@@ -156,7 +156,7 @@ class BWTree {
   std::atomic_ushort pid_gen_;
 
   // logical pointer to root
-  pid_t root_;
+  std::atomic<pid_t> root_;
 
   // comparator, assuming the default comparator is lt
   KeyComparator key_comparator_;
@@ -239,7 +239,7 @@ class BWTree {
     pid_t last_child;
 
     inline InnerNode(const pid_t self, int level,
-                     const pid_t adj_node) {
+                     const pid_t adj_node, const pid_t last_child_pid) {
       this->type = NodeType::inner;
 
       this->pid = self;
@@ -258,6 +258,8 @@ class BWTree {
 
       // no records intially
       this->record_count = 0;
+
+      this->last_child = last_child_pid;
     }
 
     void set_next(Node *next_node) {
@@ -773,10 +775,10 @@ class BWTree {
     : key_comparator_(metadata),
       eq_checker_(metadata) {
     pid_gen_ = NULL_PID + 1;
-    root_ = static_cast<pid_t>(pid_gen_++);
+    root_.store(static_cast<pid_t>(pid_gen_++), std::memory_order_release);
 
     //insert the chain into the mapping table
-    mapping_table_.insert_new_pid(root_, new LeafNode(root_, NULL_PID));
+    mapping_table_.insert_new_pid(root_.load(std::memory_order_relaxed), new LeafNode(root_, NULL_PID));
 
     //update the leaf pointers
     head_leaf_ptr_ = root_;
