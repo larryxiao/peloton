@@ -25,7 +25,7 @@
 #define NULL_PID 0
 
 // turn on or off debug mode
-//#define DEBUG
+#define DEBUG
 
 namespace peloton {
 namespace index {
@@ -56,13 +56,21 @@ class BWTree {
   };
 
   struct Node {
+  private:
+    // used for debug
+    const char *node_names_[11] =
+        {
+          "leaf", "inner", "indexDelta", "deleteIndex", "deltaSplitInner",
+              "mergeInner", "deltaInsert", "deltaDelete", "deltaSplitLeaf",
+              "mergeLeaf", "removeNode"
+        };
 
    protected:
-    //type of this node
+    // type of this node
     NodeType type;
 
     // print helper
-    //    virtual std::ostream& stream_write(std::ostream& ) const{}
+    //  virtual std::ostream& stream_write(std::ostream& ) const {}
 
    public:
     //ptr to the next node in delta chain
@@ -88,17 +96,17 @@ class BWTree {
       return type;
     }
 
-//    friend std::ostream& operator<<(std::ostream& os, const Node& node) {
-//       return node.print_node(os);
-//    }
-//
-//    inline std::ostream& print_node(std::ostream& os) const {
-//      return  os << "PID:" << pid << std::endl
-//              << "Type:" << type << std::endl
-//              << "Chain length:" << chain_length << std::endl
-//              << "Record count:" << record_count << std::endl
-//              << "Level:" << level << std::end;
-//    }
+    friend std::ostream& operator<<(std::ostream& os, const Node& node) {
+       return node.print_node(os);
+    }
+
+    inline std::ostream& print_node(std::ostream& os) const {
+      return  os << "PID: " << pid << std::endl
+              << "Type: " << node_names_[type] << std::endl
+              << "Chain length: " << chain_length << std::endl
+              << "Record count: " << record_count << std::endl
+              << "Level: " << level << std::endl;
+    }
 
     virtual ~Node() {}
 
@@ -804,6 +812,8 @@ class BWTree {
 #ifdef DEBUG
   // print tree for debugging
   void print_tree(const pid_t& pid);
+  // Print a node
+  void print_node(Node *node);
 #endif
 };
 
