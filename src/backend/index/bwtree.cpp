@@ -879,35 +879,36 @@ search_leaf_page(Node *head, const KeyType &key) {
   template <typename KeyType, typename ValueType, class KeyComparator,
       class KeyEqualityChecker>
   bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Cleanup() {
-  // std::vector<Node *> delete_queue;
-  // for (pid_t pid = 0; pid < pid_gen_; ++pid) {
-  //   Node * node = mapping_table_.get_phy_ptr(pid);
-  //   if (node == nullptr)
-  //     continue;
-  //   Node * next = node->next;
-  //   while (next != nullptr) {
-  //     if (node->get_type() == NodeType::mergeInner ||
-  //         node->get_type() == NodeType::mergeLeaf) {
-  //     	MergeInner *mnode = static_cast<MergeInner *>(node);
-  //       delete_queue.insert((Node*) mnode->deleting_node);
-  //     }
-  //     delete node;
-  //     node = next;
-  //     next = next->next;
-  //   }
-  //   delete node;
-  // }
-  // for (auto node = delete_queue.begin(); node != delete_queue.end(); node++) {
-  //   Node * next = node->next;
-  //   while (next != nullptr) {
-  //     delete node;
-  //     node = next;
-  //     next = next->next;
-  //   }
-  //   delete node;
-  // }
-  //   Node *node = mapping_table_.get_phy_ptr(root_);
-  //   delete node;
+  std::vector<Node *> delete_queue;
+  for (pid_t pid = 0; pid < pid_gen_; ++pid) {
+    Node * node = mapping_table_.get_phy_ptr(pid);
+    if (node == nullptr)
+      continue;
+    Node * next = node->next;
+    while (next != nullptr) {
+      if (node->get_type() == NodeType::mergeInner ||
+          node->get_type() == NodeType::mergeLeaf) {
+      	MergeInner *mnode = static_cast<MergeInner *>(node);
+        delete_queue.push_back((Node*) mnode->deleting_node);
+      }
+      delete node;
+      node = next;
+      next = next->next;
+    }
+    delete node;
+  }
+  for (auto itr = delete_queue.begin(); itr != delete_queue.end(); itr++) {
+  	Node * node = *itr;
+    Node * next = node->next;
+    while (next != nullptr) {
+      delete node;
+      node = next;
+      next = next->next;
+    }
+    delete node;
+  }
+    Node *node = mapping_table_.get_phy_ptr(root_);
+    delete node;
     return true;
   }
 
