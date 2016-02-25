@@ -723,7 +723,13 @@ search_leaf_page(Node *head, const KeyType &key) {
 
   template <typename KeyType, typename ValueType, class KeyComparator,
       class KeyEqualityChecker>
-  bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::checkIfRemoveDelta(Node* head){
+  bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+  checkIfRemoveDelta(Node* head){
+    if(head == nullptr)
+    {
+      return true;
+    }
+
     while(head->next!= nullptr)
     {
       switch(head->get_type())
@@ -746,7 +752,7 @@ search_leaf_page(Node *head, const KeyType &key) {
     KeyType Kp,Kq;
 
     Node *headNodeP = mapping_table_.get_phy_ptr(pPID); //get the head node of the deltachain
-    Node *headNodeParentP;
+    Node *headNodeParentP = nullptr;
     Node* sepDel;
     pid_t root_pid = root_.load(std::memory_order_relaxed);
 
@@ -754,7 +760,7 @@ search_leaf_page(Node *head, const KeyType &key) {
       return false;
 
     //if the node to be split is the root
-    if(pPID == root_pid) //TODO: do I need to check for the parent too, like nullPID?
+    if(pPID != root_pid) //TODO: do I need to check for the parent too, like nullPID?
     {
       //so basically we need to split the current node into 2 and have a new parent
       //there are 2 cases, if the root node is leaf or not
