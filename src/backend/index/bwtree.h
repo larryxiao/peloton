@@ -649,6 +649,12 @@ class BWTree {
 
     bool needs_merge;
 
+    // pid of the node requiring split/merge
+    pid_t split_merge_pid;
+
+    // sibling involved in split/merge
+    pid_t split_merge_sibling_pid;
+
     inline TreeOpResult(__attribute__((__unused__))
                         const bool status = false) :
       is_valid_value(false),

@@ -215,6 +215,31 @@ do_tree_operation(Node* head, const KeyType &key,
         continue_itr = false;
       }
 
+      if(result.needs_split) {
+        // find the position of the child to the left of nearest
+        // greater key
+        auto child_pos = node_key_search(inner_node, key);
+
+        // extract child pid from they key value pair
+        pid_t child_pid = inner_node->key_values[child_pos].second;
+
+        // store sibling's pid as null pid initially
+        pid_t sibling_pid = NULL_PID;
+
+        // check if we came from the right place
+        if( result.split_merge_pid == child_pid ) {
+          // check if we can get a sibling
+          auto keyval_size = inner_node->key_values.size();
+          if(child_pos < keyval_size - 1) {
+            sibling_pid = inner_node->key_values[child_pos+1].second;
+          } else if(child_pid == keyval_size) {
+            sibling_pid = inner_node->last_child;
+          }
+        }
+         // invoke split page
+        splitPage(child_pid, sibling_pid, inner_node->pid);
+      }
+
       // check if child node has requested for merge
       if (result.needs_merge) {
         // TODO: Handle leftmost edge case, see WIKI
@@ -481,6 +506,8 @@ search_leaf_page(Node *head, const KeyType &key) {
     result.needs_split = false;
     if (head->record_count > split_threshold_) {
       result.needs_split = true;
+      // TODO: assuming sibling pid isn't required
+      result.split_merge_pid = head->pid;
     }
 
     result.needs_merge = false;
@@ -488,6 +515,8 @@ search_leaf_page(Node *head, const KeyType &key) {
     // don't merge if we are at root
     if (head->record_count < merge_threshold_ && !head->pid == root_) {
       result.needs_merge = true;
+      // TODO: assuming sibling pid isn't required
+      result.split_merge_pid = head->pid;
     }
 
     return result;
