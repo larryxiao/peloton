@@ -909,13 +909,117 @@ search_leaf_page(Node *head, const KeyType &key) {
     return true;
   }
 
+
 #ifdef DEBUG
 template <typename KeyType, typename ValueType, class KeyComparator,
     class KeyEqualityChecker>
-  void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
-  print_tree(const pid_t& pid) {
-    Node *head = mapping_table_.get_phy_ptr(pid);
-    std::cout << *head << std::endl;
+void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+print_node(Node *node) {
+  std::cout << "----------------" << std::endl;
+  std::cout << *node;
+};
+
+template <typename KeyType, typename ValueType, class KeyComparator,
+    class KeyEqualityChecker>
+void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+print_tree(const pid_t& pid) {
+  std::cout << "----Printing tree----" << std::endl;
+  Node *head = mapping_table_.get_phy_ptr(pid);
+
+  while (head->next) {
+    // traverse tree
+
+    // print current node
+    print_node(head);
+    switch(head->get_type()) {
+
+      case NodeType::leaf: {
+        auto leaf = static_cast<LeafNode *>(head);
+        for (int i=0; i<leaf->key_values.size(); i++){
+          std::cout << "KeyCount:" << i <<
+          "\nValues:" << std::endl;
+          for(auto &value : leaf->key_values[i].second) {
+            std::cout << "(" << ((ItemPointer)value).block
+            << "," << ((ItemPointer)value).offset
+            << ")\t";
+          }
+          std::cout << std::endl;
+        }
+        break;
+      }
+      case NodeType::inner: {
+        auto inner = static_cast<InnerNode *>(head);
+        for(int i=0; i < inner->key_values.size(); i++){
+          std::cout << "KeyCount:" << i;
+          print_tree(inner->key_values[i].second);
+        }
+        break;
+      }
+
+      case NodeType::indexDelta: {
+        auto delta = static_cast<IndexDelta *>(head);
+        std::cout << "New Index Delta Node:" << delta->new_node <<
+        std::endl;
+        break;
+      }
+      case NodeType::deleteIndex: {
+        auto delta = static_cast<DeleteIndex *>(head);
+        std::cout << "Shortcut to merge Node:" << delta->merge_node <<
+        std::endl;
+        break;
+      }
+      case NodeType::deltaSplitInner: {
+        auto delta = static_cast<DeltaSplitInner *>(head);
+        std::cout << "Shortcut to new node:" << delta->new_node <<
+        std::endl;
+        break;
+      }
+      case NodeType::mergeInner: {
+        auto delta = static_cast<MergeInner *>(head);
+        std::cout << "Shortcut to deleting node:" << delta->deleting_node <<
+        std::endl;
+        break;
+      }
+      case NodeType::deltaInsert: {
+        auto delta = static_cast<DeltaInsert *>(head);
+        std::cout << "Delta Inserted value:" << "("
+        << ((ItemPointer)delta->value).block
+        << "," << ((ItemPointer)delta->value).offset
+        << ")" << std::endl;
+        break;
+      }
+      case NodeType::deltaDelete: {
+        auto delta = static_cast<DeltaDelete *>(head);
+        std::cout << "Delta deleted value:" << "(" <<
+        ((ItemPointer)delta->value).block
+        << "," << ((ItemPointer)delta->value).offset
+        << ")" << std::endl;
+        break;
+      }
+      case NodeType::deltaSplitLeaf: {
+        auto delta = static_cast<DeltaSplitLeaf *>(head);
+        std::cout << "Pointer to new child:" << delta->new_child <<
+        std::endl;
+        break;
+      }
+      case NodeType::mergeLeaf: {
+        auto delta = static_cast<MergeLeaf *>(head);
+        std::cout << "Pointer to deleting node:" <<
+        delta->deleting_node <<
+        std::endl;
+        break;
+      }
+      case NodeType::removeNode: {
+        break;
+      }
+    }
+    std::cout << "----------------" << std::endl;
+    // descend the delta chain
+    head = head->next;
+  }
+
+  std::cout << "----Finished Printing tree----" << std::endl;
+
   };
 #endif
 
