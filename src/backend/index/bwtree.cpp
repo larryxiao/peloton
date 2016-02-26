@@ -103,187 +103,201 @@ do_tree_operation(Node* head, const KeyType &key,
 			// insert/delete operation; try to update
 			// delta chain and fetch result
 			result = update_leaf_delta_chain(head, head->pid, key, value, op_type);
-		}
-
-		return result;
-	}
-
-  // flag to indicate if iteration should be continued
-  bool continue_itr = true;
-
-  // pointer for iterating
-  auto node = head;
-
-  //iterate through the delta chain, based on case
-  while (continue_itr && node != nullptr) {
-    // Note: explicitly set continue_itr state only if it goes to false
-
-    // switch on the type
-    switch (node->get_type()) {
-    case indexDelta: {
-      // cast the node
-      auto delta_node = static_cast<IndexDelta *>(node);
-      // Kp <= key, key < Kq?
-      if (key_compare_lte(delta_node->low, key) &&
-          key_compare_lt(key, delta_node->high)) {
-        // recurse into shortcut pointer
-        result = do_tree_operation(delta_node->new_node,
-                                   key, value, op_type);
-        // don't iterate anymore
-        continue_itr = false;
-      }
-      break;
-    }
-
-    case deleteIndex: {
-      auto delta_node = static_cast<DeleteIndex *>(node);
-      // Kp <= key, key < Kq?
-      if (key_compare_lte(delta_node->low, key) &&
-          key_compare_lt(key, delta_node->high)) {
-        // recurse into shortcut pointer
-        result = do_tree_operation(delta_node->merge_node, key,
-                                   value, op_type);
-        // don't iterate anymore
-        continue_itr = false;
-      }
-      break;
-    }
-
-    case deltaSplitInner: {
-      auto delta_node = static_cast<DeltaSplitInner *>(node);
-      // splitkey <= Key?
-      if (key_compare_lte(delta_node->splitKey, key)) {
-        // recurse into new node
-        result = do_tree_operation(delta_node->new_node, key, value,
-                                   op_type);
-        // don't iterate anymore
-        continue_itr = false;
-      }
-
-      break;
-    }
-
-    case mergeInner: {
-      auto delta_node = static_cast<MergeInner *>(node);
-      // splitkey <= key?
-      if (key_compare_lte(delta_node->splitKey, key)) {
-        // recurse into node to be deleted
-        result = do_tree_operation(delta_node->deleting_node, key,
-                                   value, op_type);
-        // don't iterate anymore
-        continue_itr = false;
-      }
-
-      break;
-    }
-
-    case inner: {
-      auto inner_node = static_cast<InnerNode *>(node);
-
-      if (inner_node->key_values.empty()) {
-        //this shouldn't happen
-        LOG_ERROR("Failed binary search at page");
-        return get_failed_result();
-      }
-
-      // find the position of the child to the left of nearest
-      // greater key
-      auto child_pos = node_key_search(inner_node, key);
-
-      // extract child pid from they key value pair
-      pid_t child_pid = inner_node->key_values[child_pos].second;
-      // check the node's level
-
-      if (inner_node->level == 1) {
-        // next level is leaf, execute leaf operation
-        if (op_type == OperationType::search_op) {
-          // search the leaf page and get result
-          result = search_leaf_page(child_pid, key);
-          // don't iterate anymore
-          continue_itr = false;
-        } else {
-          // insert/delete operation; try to update
-          // delta chain and fetch result
-          result = update_leaf_delta_chain(child_pid, key, value, op_type);
-          // don't iterate anymore
-          continue_itr = false;
-        }
-      } else {
-        // otherwise recurse into child node
-        result = do_tree_operation(child_pid, key, value, op_type);
-        //don't iterate anymore
-        continue_itr = false;
-      }
-
       if(result.needs_split) {
-        // find the position of the child to the left of nearest
-        // greater key
-        auto child_pos = node_key_search(inner_node, key);
+        // creates first inner node
+        splitPage(head->pid, NULL_PID, NULL_PID);
+#ifdef DEBUG
+				pid_t root_pid = root_.load(std::memory_order_relaxed);
+        print_tree(root_pid);
+#endif
+      }
+		}
+	} else {
 
-        // extract child pid from they key value pair
-        pid_t child_pid = inner_node->key_values[child_pos].second;
+    // flag to indicate if iteration should be continued
+    bool continue_itr = true;
 
-        // store sibling's pid as null pid initially
-        pid_t sibling_pid = NULL_PID;
+    // pointer for iterating
+    auto node = head;
 
-        // check if we came from the right place
-        if( result.split_merge_pid == child_pid ) {
-          // check if we can get a sibling
-          auto keyval_size = inner_node->key_values.size();
-          if(child_pos < keyval_size - 1) {
-            sibling_pid = inner_node->key_values[child_pos+1].second;
-          } else if(child_pid == keyval_size) {
-            sibling_pid = inner_node->last_child;
+    //iterate through the delta chain, based on case
+    while (continue_itr && node != nullptr) {
+      // Note: explicitly set continue_itr state only if it goes to false
+
+      // switch on the type
+      switch (node->get_type()) {
+        case indexDelta: {
+          // cast the node
+          auto delta_node = static_cast<IndexDelta *>(node);
+          // Kp <= key, key < Kq?
+          if (key_compare_lte(delta_node->low, key) &&
+              key_compare_lt(key, delta_node->high)) {
+            // recurse into shortcut pointer
+            result = do_tree_operation(delta_node->new_node,
+                                       key, value, op_type);
+            // don't iterate anymore
+            continue_itr = false;
           }
+          break;
         }
-         // invoke split page
-        splitPage(child_pid, sibling_pid, inner_node->pid);
+
+        case deleteIndex: {
+          auto delta_node = static_cast<DeleteIndex *>(node);
+          // Kp <= key, key < Kq?
+          if (key_compare_lte(delta_node->low, key) &&
+              key_compare_lt(key, delta_node->high)) {
+            // recurse into shortcut pointer
+            result = do_tree_operation(delta_node->merge_node, key,
+                                       value, op_type);
+            // don't iterate anymore
+            continue_itr = false;
+          }
+          break;
+        }
+
+        case deltaSplitInner: {
+          auto delta_node = static_cast<DeltaSplitInner *>(node);
+          // splitkey <= Key?
+          if (key_compare_lte(delta_node->splitKey, key)) {
+            // recurse into new node
+            result = do_tree_operation(delta_node->new_node, key, value,
+                                       op_type);
+            // don't iterate anymore
+            continue_itr = false;
+          }
+
+          break;
+        }
+
+        case mergeInner: {
+          auto delta_node = static_cast<MergeInner *>(node);
+          // splitkey <= key?
+          if (key_compare_lte(delta_node->splitKey, key)) {
+            // recurse into node to be deleted
+            result = do_tree_operation(delta_node->deleting_node, key,
+                                       value, op_type);
+            // don't iterate anymore
+            continue_itr = false;
+          }
+
+          break;
+        }
+
+        case inner: {
+          auto inner_node = static_cast<InnerNode *>(node);
+
+          if (inner_node->key_values.empty()) {
+            //this shouldn't happen
+            LOG_ERROR("Failed binary search at page");
+            return get_failed_result();
+          }
+
+          // find the position of the child to the left of nearest
+          // greater key
+          auto child_pos = node_key_search(inner_node, key);
+
+          pid_t child_pid = NULL_PID;
+
+          if(child_pos < inner_node->key_values.size()) {
+            // extract child pid from they key value pair
+            child_pid = inner_node->key_values[child_pos].second;
+          } else {
+            child_pid = inner_node->last_child;
+          }
+
+          // check the node's level
+
+          if (inner_node->level == 1) {
+            // next level is leaf, execute leaf operation
+            if (op_type == OperationType::search_op) {
+              // search the leaf page and get result
+              result = search_leaf_page(child_pid, key);
+              // don't iterate anymore
+              continue_itr = false;
+            } else {
+              // insert/delete operation; try to update
+              // delta chain and fetch result
+              result = update_leaf_delta_chain(child_pid, key, value, op_type);
+              // don't iterate anymore
+              continue_itr = false;
+            }
+          } else {
+            // otherwise recurse into child node
+            result = do_tree_operation(child_pid, key, value, op_type);
+            //don't iterate anymore
+            continue_itr = false;
+          }
+
+          if(result.needs_split) {
+            // find the position of the child to the left of nearest
+            // greater key
+            auto child_pos = node_key_search(inner_node, key);
+
+            // extract child pid from they key value pair
+            pid_t child_pid = inner_node->key_values[child_pos].second;
+
+            // store sibling's pid as null pid initially
+            pid_t sibling_pid = NULL_PID;
+
+            // check if we came from the right place
+            if( result.split_merge_pid == child_pid ) {
+              // check if we can get a sibling
+              auto keyval_size = inner_node->key_values.size();
+              if(child_pos < keyval_size - 1) {
+                sibling_pid = inner_node->key_values[child_pos+1].second;
+              } else if(child_pid == keyval_size) {
+                sibling_pid = inner_node->last_child;
+              }
+            }
+            // invoke split page
+            splitPage(child_pid, sibling_pid, inner_node->pid);
+          }
+
+          // check if child node has requested for merge
+          if (result.needs_merge) {
+            // TODO: Handle leftmost edge case, see WIKI
+
+            // where we came from
+            pid_t right = child_pid;
+
+            // what we are merging with
+            pid_t left = inner_node->key_values[child_pos - 1].second;
+
+            // Merge
+            merge_page(left, right, inner_node->pid);
+          }
+          break;
+        }
+
+        case leaf:
+        case mergeLeaf:
+        case removeNode:
+        case deltaDelete:
+        case deltaInsert:
+        case deltaSplitLeaf:
+        LOG_ERROR("Invalid cases reached at inner");
+          break;
       }
 
-      // check if child node has requested for merge
-      if (result.needs_merge) {
-        // TODO: Handle leftmost edge case, see WIKI
-
-        // where we came from
-        pid_t right = child_pid;
-
-        // what we are merging with
-        pid_t left = inner_node->key_values[child_pos - 1].second;
-
-        // Merge
-        merge_page(left, right, inner_node->pid);
-      }
-      break;
+      // move to the next node
+      node = node->next;
     }
 
-    case leaf:
-    case mergeLeaf:
-    case removeNode:
-    case deltaDelete:
-    case deltaInsert:
-    case deltaSplitLeaf:
-      LOG_ERROR("Invalid cases reached at inner");
-      break;
+    result.needs_split = false;
+
+    if (head->record_count > split_threshold_) {
+      // TODO:split this node
+      result.needs_split = true;
     }
 
-    // move to the next node
-    node = node->next;
+    result.needs_merge = false;
+
+    if (head-> record_count < merge_threshold_) {
+      // merge this node
+      result.needs_merge = true;
+    }
   }
 
-
-  result.needs_split = false;
-
-  if (head->record_count > split_threshold_) {
-    // TODO:split this node
-    result.needs_split = true;
-  }
-
-  result.needs_merge = false;
-
-  if (head-> record_count < merge_threshold_) {
-    // merge this node
-    result.needs_merge = true;
-  }
 
   // return the result from lower levels.
   // or failure
@@ -436,6 +450,8 @@ search_leaf_page(Node *head, const KeyType &key) {
   result.needs_split = false;
   if (head->record_count > split_threshold_) {
     result.needs_split = true;
+    // TODO: assuming sibling pid isn't required
+    result.split_merge_pid = head->pid;
   }
 
   result.needs_merge = false;
@@ -444,6 +460,8 @@ search_leaf_page(Node *head, const KeyType &key) {
 
   if (head->record_count < merge_threshold_ && !head->pid == root_pid) {
     result.needs_merge = true;
+    // TODO: assuming sibling pid isn't required
+    result.split_merge_pid = head->pid;
   }
 
   result.status = true;
@@ -800,8 +818,8 @@ search_leaf_page(Node *head, const KeyType &key) {
 
     if(headNodeP->is_leaf())
     {
-      LeafNode* newLeafNode = new LeafNode(pPID,rPID); // P->R was there before
       qPID = static_cast<pid_t>(pid_gen_++);
+      LeafNode* newLeafNode = new LeafNode(qPID,rPID); // P->R was there before
       std::vector<std::pair<KeyType, std::vector<ValueType>>> qElemVec = getToBeMovedPairsLeaf(headNodeP);
       newLeafNode->key_values = qElemVec; //TODO: optimize?
       Kp = qElemVec[0].first;
@@ -812,8 +830,8 @@ search_leaf_page(Node *head, const KeyType &key) {
       mapping_table_.insert_new_pid(qPID, newLeafNode);
       splitNode = new DeltaSplitLeaf(Kp, qPID, headNodeP->record_count-newLeafNode->record_count);
     } else {
-      InnerNode* newInnerNode = new InnerNode(pPID,headNodeP->level,rPID,NULL_PID);
       qPID = static_cast<pid_t>(pid_gen_++);
+      InnerNode* newInnerNode = new InnerNode(qPID,headNodeP->level,rPID,NULL_PID);
       //TODO: copy vector
       pid_t lastChild;
       std::vector<std::pair<KeyType, pid_t >> qElemVec = getToBeMovedPairsInner(headNodeP);
@@ -847,8 +865,9 @@ search_leaf_page(Node *head, const KeyType &key) {
 
     if(pPID == root_pid) //TODO: Is this case handled: what if root_ is updated during this execution? Do we still use root_pid
     {
-      InnerNode* newInnerNode = new InnerNode(pPID,headNodeP->level+1,NULL_PID, NULL_PID);  //totally new level
       pid_t newRoot = static_cast<pid_t>(pid_gen_++);
+      InnerNode* newInnerNode = new InnerNode(newRoot,headNodeP->level+1,NULL_PID, NULL_PID);  //totally new level
+
 
       std::vector<std::pair<KeyType, pid_t >> qElemVec = std::vector<std::pair<KeyType, pid_t >>{std::pair<KeyType,pid_t >(Kp,pPID)};
 
@@ -1021,7 +1040,7 @@ print_tree(const pid_t& pid) {
   std::cout << "----Printing tree----" << std::endl;
   Node *head = mapping_table_.get_phy_ptr(pid);
 
-  while (head->next) {
+  while (head) {
     // traverse tree
 
     // print current node
@@ -1031,12 +1050,12 @@ print_tree(const pid_t& pid) {
       case NodeType::leaf: {
         auto leaf = static_cast<LeafNode *>(head);
         for (unsigned long i=0; i<leaf->key_values.size(); i++){
-          std::cout << "KeyCount:" << i <<
+          std::cout << "KeyIdx:" << i <<
           "\nValues:" << std::endl;
           for(auto &value : leaf->key_values[i].second) {
             std::cout << "(" << ((ItemPointer)value).block
             << "," << ((ItemPointer)value).offset
-            << ")\t";
+            << ") ";
           }
           std::cout << std::endl;
         }
@@ -1045,9 +1064,11 @@ print_tree(const pid_t& pid) {
       case NodeType::inner: {
         auto inner = static_cast<InnerNode *>(head);
         for(unsigned long i=0; i < inner->key_values.size(); i++){
-          std::cout << "KeyCount:" << i;
+          std::cout << "KeyIdx:" << i << std::endl;
           print_tree(inner->key_values[i].second);
         }
+        std::cout << "RightMostChild:" << std::endl;
+        print_tree(inner->last_child);
         break;
       }
 
@@ -1055,24 +1076,28 @@ print_tree(const pid_t& pid) {
         auto delta = static_cast<IndexDelta *>(head);
         std::cout << "New Index Delta Node:" << delta->new_node <<
         std::endl;
+        print_tree(delta->new_node);
         break;
       }
       case NodeType::deleteIndex: {
         auto delta = static_cast<DeleteIndex *>(head);
         std::cout << "Shortcut to merge Node:" << delta->merge_node <<
         std::endl;
+        print_tree(delta->merge_node);
         break;
       }
       case NodeType::deltaSplitInner: {
         auto delta = static_cast<DeltaSplitInner *>(head);
         std::cout << "Shortcut to new node:" << delta->new_node <<
         std::endl;
+        print_tree(delta->new_node);
         break;
       }
       case NodeType::mergeInner: {
         auto delta = static_cast<MergeInner *>(head);
         std::cout << "Shortcut to deleting node:" << delta->deleting_node <<
         std::endl;
+        print_tree(delta->deleting_node->pid);
         break;
       }
       case NodeType::deltaInsert: {
@@ -1095,6 +1120,7 @@ print_tree(const pid_t& pid) {
         auto delta = static_cast<DeltaSplitLeaf *>(head);
         std::cout << "Pointer to new child:" << delta->new_child <<
         std::endl;
+        print_tree(delta->new_child);
         break;
       }
       case NodeType::mergeLeaf: {
@@ -1102,6 +1128,7 @@ print_tree(const pid_t& pid) {
         std::cout << "Pointer to deleting node:" <<
         delta->deleting_node <<
         std::endl;
+        print_tree(delta->deleting_node->pid);
         break;
       }
       case NodeType::removeNode: {
