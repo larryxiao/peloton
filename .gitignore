@@ -158,3 +158,4 @@ third_party/nanomsg
 
 *.tar
 handin/
+out

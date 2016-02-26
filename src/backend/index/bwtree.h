@@ -652,9 +652,6 @@ class BWTree {
     // pid of the node requiring split/merge
     pid_t split_merge_pid;
 
-    // sibling involved in split/merge
-    pid_t split_merge_sibling_pid;
-
     inline TreeOpResult(__attribute__((__unused__))
                         const bool status = false) :
       is_valid_value(false),
@@ -805,7 +802,7 @@ class BWTree {
 
     merge_threshold_ = 3;
 
-    split_threshold_ = 100;
+    split_threshold_ = 4;
   }
 
   //bool Insert(__attribute__((unused)) KeyType key,
