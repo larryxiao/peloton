@@ -329,6 +329,7 @@ class BWTree {
     KeyType low;
     KeyType high;
 
+    // TODO remove this
     // shortcut pointer to the merged node
     pid_t merge_node;
 

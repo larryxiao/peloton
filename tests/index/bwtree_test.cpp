@@ -5,7 +5,13 @@
 #include "backend/index/index_factory.h"
 #include "backend/storage/tuple.h"
 
-#include "backend/index/bwtree.h"
+// access private members
+#define protected public
+ #define private public
+  #include "backend/index/bwtree.h"
+ #undef protected
+#undef private
+
 #include "backend/index/index_key.h"
 
 namespace peloton {
@@ -14,17 +20,19 @@ namespace test {
 catalog::Schema *key_schema = nullptr;
 catalog::Schema *tuple_schema = nullptr;
 
-#define KeyType IntsKey<1>
+#define KeyType index::IntsKey<1>
 #define ValueType ItemPointer
-#define KeyComparator IntsComparator<1>
-#define KeyEqualityChecker IntsEqualityChecker<1>
+#define KeyComparator index::IntsComparator<1>
+#define KeyEqualityChecker index::IntsEqualityChecker<1>
 
 ItemPointer item0(120, 5);
 ItemPointer item1(120, 7);
 ItemPointer item2(123, 19);
 
+typedef index::BWTree<KeyType, ValueType, KeyComparator,KeyEqualityChecker> BWTree;
+
 // get a simple bwtree
-BTreeIndex *BuildBWTree() {
+BWTree *BuildBWTree() {
   // Build tuple and key schema
   std::vector<catalog::Column> columns;
   std::vector<catalog::Schema *> schemas;
@@ -55,9 +63,8 @@ BTreeIndex *BuildBWTree() {
     tuple_schema, key_schema, unique_keys);
 
   // Build bwtree
-  BWTree *bwtree = new BWTree<KeyType, ValueType, KeyComparator,
-  KeyEqualityChecker> bwtree(metadata);
-  EXPECT_TRUE(index != NULL);
+  BWTree *bwtree = new BWTree(index_metadata);
+  EXPECT_TRUE(bwtree != NULL);
 
   return bwtree;
 }
@@ -67,15 +74,15 @@ TEST(MergeTest, SimpleMergeLeaf) {
   auto pool = TestingHarness::GetInstance().GetTestingPool();
 
   // init with a tree
-  std::unique_ptr<BTreeIndex> bwtree(BuildBWTree());
+  std::unique_ptr<BWTree> bwtree(BuildBWTree());
 
   // build a dummy tree
-  pid_t newRoot = static_cast<pid_t>(pid_gen_++);
-  pid_t leafRight = static_cast<pid_t>(pid_gen_++);
-  pid_t leafLeft = static_cast<pid_t>(pid_gen_++);
-  InnerNode* newInnerNode = new InnerNode(newRoot, 1, NULL_PID, NULL_PID);
-  InnerNode* newLeafLeft = new LeafNode(leafLeft, leafRight);
-  InnerNode* newLeafRight = new LeafNode(leafRight, NULL_PID);
+  pid_t newRoot = static_cast<pid_t>(10);
+  pid_t leafRight = static_cast<pid_t>(11);
+  pid_t leafLeft = static_cast<pid_t>(12);
+  BWTree::InnerNode* newInnerNode = new BWTree::InnerNode(newRoot, 1, NULL_PID, NULL_PID);
+  BWTree::LeafNode* newLeafLeft = new BWTree::LeafNode(leafLeft, leafRight);
+  BWTree::LeafNode* newLeafRight = new BWTree::LeafNode(leafRight, NULL_PID);
 
   // keys
   std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
@@ -88,13 +95,13 @@ TEST(MergeTest, SimpleMergeLeaf) {
 
   // value vector
   std::vector<std::pair<KeyType, pid_t >> rootVec = 
-    std::vector<std::pair<KeyType, pid_t >> {std::pair<KeyType, pid_t >(key0, leafLeft),
-      std::pair<KeyType, pid_t >(key2, leafRight)};
+    std::vector<std::pair<KeyType, pid_t >> {std::pair<KeyType, pid_t >(key0.get(), leafLeft),
+      std::pair<KeyType, pid_t >(key2.get(), leafRight)};
   std::vector<std::pair<KeyType, ValueType >> leftVec =
-      std::vector<std::pair<KeyType, ValueType >> {std::pair<KeyType, ValueType >(key0, item0),
-        std::pair<KeyType, ValueType >(key1, item1)};
+      std::vector<std::pair<KeyType, ValueType >> {std::pair<KeyType, ValueType >(key0.get(), item0),
+        std::pair<KeyType, ValueType >(key1.get(), item1)};
   std::vector<std::pair<KeyType, ValueType >> rightVec =
-        std::vector<std::pair<KeyType, ValueType >> {std::pair<KeyType, ValueType >(key2, item2)};
+        std::vector<std::pair<KeyType, ValueType >> {std::pair<KeyType, ValueType >(key2.get(), item2)};
 
   newInnerNode->key_values = rootVec;
   newInnerNode->record_count = rootVec.size();
@@ -118,7 +125,12 @@ TEST(MergeTest, SimpleMergeLeaf) {
   EXPECT_EQ(current_root->type, BWTree::NodeType::deleteIndex);
   EXPECT_EQ(current_left->type, BWTree::NodeType::mergeLeaf);
   EXPECT_EQ(current_right->type, BWTree::NodeType::removeNode);
-  // TODO node fields
+  // node fields
+  EXPECT_EQ(static_cast<BWTree::MergeLeaf *>current_left->splitKey, key0.get());
+  EXPECT_EQ(static_cast<BWTree::MergeLeaf *>current_left->deleting_node, newLeafRight);
+  // EXPECT_EQ(static_cast<BWTree::MergeLeaf *>current_left->record_count, );
+  EXPECT_EQ(static_cast<BWTree::DeleteIndex *>current_root->low, key0.get());
+  EXPECT_EQ(static_cast<BWTree::DeleteIndex *>current_root->high, key2.get());
 }
 
 TEST(MergeTest, SimpleMergeInner) {

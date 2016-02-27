@@ -4,7 +4,10 @@
 # INDEX
 ######################################################################
 
-check_PROGRAMS += index_test
+check_PROGRAMS += index_test bwtree_test
 
 index_test_SOURCES = index/index_test.cpp \
+                     harness.cpp
+
+bwtree_test_SOURCES = index/bwtree_test.cpp \
                      harness.cpp
