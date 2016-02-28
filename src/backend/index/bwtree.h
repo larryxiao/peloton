@@ -84,6 +84,10 @@ class BWTree {
 
     int level;
 
+    // used by non-leaf nodes to track
+    // presence of index delta
+    bool has_index_delta;
+
     pid_t pid;
 
     virtual void set_next(Node *) {}
@@ -246,8 +250,17 @@ class BWTree {
     // pointer to the (n+1)th child, for n keys
     pid_t last_child;
 
+    // highest key stored at this inner node
+    KeyType kmax;
+
+    // if kmax is infinity
+    bool is_kmax_inf;
+
+    // sets the maximum key
     inline InnerNode(const pid_t self, int level,
-                     const pid_t adj_node, const pid_t last_child_pid) {
+                     const pid_t adj_node,
+                     const pid_t last_child_pid,
+                     const KeyType& kmax) {
       this->type = NodeType::inner;
 
       this->pid = self;
@@ -268,6 +281,40 @@ class BWTree {
       this->record_count = 0;
 
       this->last_child = last_child_pid;
+
+      this->has_index_delta = false;
+
+      this->kmax = kmax;
+    }
+
+    // sets the maximum key as infinity
+    inline InnerNode(const pid_t self, int level,
+                     const pid_t adj_node,
+                     const pid_t last_child_pid) {
+      this->type = NodeType::inner;
+
+      this->pid = self;
+
+      // inner node is always at the end of a delta chain
+      this->next = nullptr;
+
+      // set the sidelink
+      this->sidelink = adj_node;
+
+      // intialize chain length
+      this->chain_length = 1;
+
+      // intialize the level
+      this->level = level;
+
+      // no records intially
+      this->record_count = 0;
+
+      this->last_child = last_child_pid;
+
+      this->has_index_delta = false;
+
+      this->is_kmax_inf = true;
     }
 
     void set_next(Node *next_node) {
@@ -284,6 +331,9 @@ class BWTree {
     KeyType low;
     KeyType high;
 
+    // chack if high key is infinity
+    bool is_high_inf;
+
     // shortcut pointer to the new node
     pid_t new_node;
 
@@ -296,6 +346,25 @@ class BWTree {
       //low and high key ranges
       this->low = low;
       this->high = high;
+
+      this->is_high_inf = false;
+
+      // add logical pointer to the provided new node
+      this->new_node = new_node;
+
+    }
+
+    // used to set infinite key
+    inline IndexDelta(const KeyType& low, const pid_t new_node) {
+
+      // set the node's type
+      this->type = NodeType::indexDelta;
+
+      // low and high key ranges
+      this->low = low;
+
+      // sets the key as infinity
+      this->is_high_inf = true;
 
       // add logical pointer to the provided new node
       this->new_node = new_node;
@@ -317,6 +386,9 @@ class BWTree {
 
       // level remains the same
       this->level = next_node->level;
+
+      // just installed an index delta
+      this->has_index_delta = true;
     }
 
     ~IndexDelta(){};
@@ -361,6 +433,8 @@ class BWTree {
 
       // level remains the same
       this->level = next_node->level;
+
+      this->has_index_delta = next_node->has_index_delta;
     }
 
     ~DeleteIndex(){};
@@ -406,6 +480,8 @@ class BWTree {
 
       // level remains the same
       this->level = next_node->level;
+
+      this->has_index_delta = next_node->has_index_delta;
     }
 
     ~DeltaSplitInner(){};
@@ -447,6 +523,8 @@ class BWTree {
 
       // level remains the same
       this->level = next_node->level;
+
+      this->has_index_delta = next_node->has_index_delta;
     }
 
     ~MergeInner(){};
@@ -629,6 +707,8 @@ class BWTree {
 
       // level remains the same
       this->level = next_node->level;
+
+      this->has_index_delta = next_node->has_index_delta;
     }
 
     ~RemoveNode(){};
@@ -645,9 +725,15 @@ class BWTree {
     // validity of the value
     bool is_valid_value;
 
-    bool needs_split;
+    bool has_split;
 
-    bool needs_merge;
+    bool has_merge;
+
+    KeyType kp;
+    // the upper bound
+    KeyType kq;
+
+    bool is_kq_inf;
 
     // pid of the node requiring split/merge
     pid_t split_merge_pid;
@@ -655,11 +741,51 @@ class BWTree {
     inline TreeOpResult(__attribute__((__unused__))
                         const bool status = false) :
       is_valid_value(false),
-      needs_split(false),
-      needs_merge(false)
+      has_split(false),
+      has_merge(false)
     {}
   };
 
+  // used by child node to check if SMO has finished on parent
+  struct TreeState {
+    // pid of parent
+    pid_t parent_pid;
+
+    // check if the parent has an index delta node
+    bool has_index_delta;
+
+    // key range upper bound
+    KeyType kq;
+
+    // should kq be considered as infinity?
+    bool is_kq_inf;
+
+    // the split key
+    KeyType kp;
+
+    // should kp considered as negative infinity?
+    bool is_kp_inf;
+  };
+
+  // stores the result of a consolidate operation
+  struct ConsolidateResult {
+    // consolidate passed or failed?
+    bool status;
+
+    // did the node split during consolidate
+    bool has_split;
+
+    // did the node split during merge
+    bool has_merge;
+
+    // split key
+    KeyType kp;
+
+    // node created by split
+    pid_t split_child_pid;
+
+
+  };
   inline TreeOpResult get_update_success_result() {
     return TreeOpResult(true);
   }
@@ -734,12 +860,14 @@ class BWTree {
   // with leaf node operation passed as a function pointer
   TreeOpResult do_tree_operation(Node* head, const KeyType& key,
                                  const ValueType& value,
-                                 const OperationType op_type);
+                                 const OperationType op_type,
+                                 const TreeState &state);
 
   // Wrapper for the above function that looks up pid from mapping table
   TreeOpResult do_tree_operation(const pid_t node_pid, const KeyType& key,
                                  const ValueType& value,
-                                 const OperationType op_type);
+                                 const OperationType op_type,
+                                 const TreeState &state);
 
   // Search leaf page and return the found value, if exists. Try SMOs /
   // Consolidation, if necessary
@@ -749,22 +877,26 @@ class BWTree {
   TreeOpResult search_leaf_page(const pid_t pid, const KeyType& key);
 
 
-
   // Update the leaf delta chain during insert/delta. Try SMOs /
   // Consolidation, if necessary
   TreeOpResult update_leaf_delta_chain(const pid_t pid, const KeyType& key,
                                        const ValueType& value,
-                                       const OperationType op_type);
+                                       const OperationType op_type,
+                                       const TreeState &state);
 
   // Update the leaf delta chain during insert/delta. Try SMOs /
   // Consolidation, if necessary
   TreeOpResult update_leaf_delta_chain(Node *head, const pid_t pid,
                                        const KeyType& key,
                                        const ValueType& value,
-                                       const OperationType op_type);
+                                       const OperationType op_type,
+                                       const TreeState &state);
 
-  // consolidation skeleton, starting from the given physical pointer
-  void consolidate(Node * node);
+  // consolidation leaf node delta chain
+  ConsolidateResult consolidate_leaf(Node *node);
+
+  // consolidate inner node delta chain
+  ConsolidateResult consolidate_inner(Node *node);
 
   // Merge page operation for node underflows
   bool merge_page(pid_t pid_l, pid_t pid_r, pid_t pid_parent);
