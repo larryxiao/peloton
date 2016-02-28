@@ -19,6 +19,7 @@ namespace test {
 
 catalog::Schema *key_schema = nullptr;
 catalog::Schema *tuple_schema = nullptr;
+index::IndexMetadata *index_metadata = nullptr;
 
 #define KeyType index::IntsKey<1>
 #define ValueType ItemPointer
@@ -30,6 +31,7 @@ ItemPointer item1(120, 7);
 ItemPointer item2(123, 19);
 
 typedef index::BWTree<KeyType, ValueType, KeyComparator,KeyEqualityChecker> BWTree;
+typedef unsigned int pid_t; // there are two different definition of pid_t, from postgres and peloton
 
 // get a simple bwtree
 BWTree *BuildBWTree() {
@@ -58,7 +60,7 @@ BWTree *BuildBWTree() {
   const bool unique_keys = false;
 
   // what is oid_t? (125)
-  index::IndexMetadata *index_metadata = new index::IndexMetadata(
+  index_metadata = new index::IndexMetadata(
     "test_index", 125, index_type, INDEX_CONSTRAINT_TYPE_DEFAULT,
     tuple_schema, key_schema, unique_keys);
 
@@ -72,6 +74,7 @@ BWTree *BuildBWTree() {
 TEST(MergeTest, SimpleMergeLeaf) {
   // init storage
   auto pool = TestingHarness::GetInstance().GetTestingPool();
+  KeyComparator comparator(index_metadata);
 
   // init with a tree
   std::unique_ptr<BWTree> bwtree(BuildBWTree());
@@ -93,15 +96,23 @@ TEST(MergeTest, SimpleMergeLeaf) {
   key1->SetValue(0, ValueFactory::GetIntegerValue(10), pool);
   key2->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
 
+  KeyType key0_literal, key1_literal, key2_literal;
+  key0_literal.SetFromKey(key0.get());
+  key1_literal.SetFromKey(key1.get());
+  key2_literal.SetFromKey(key2.get());
+  std::vector<ValueType> items0 = std::vector<ValueType>{item0};
+  std::vector<ValueType> items1 = std::vector<ValueType>{item1};
+  std::vector<ValueType> items2 = std::vector<ValueType>{item2};
+
   // value vector
   std::vector<std::pair<KeyType, pid_t >> rootVec = 
-    std::vector<std::pair<KeyType, pid_t >> {std::pair<KeyType, pid_t >(key0.get(), leafLeft),
-      std::pair<KeyType, pid_t >(key2.get(), leafRight)};
-  std::vector<std::pair<KeyType, ValueType >> leftVec =
-      std::vector<std::pair<KeyType, ValueType >> {std::pair<KeyType, ValueType >(key0.get(), item0),
-        std::pair<KeyType, ValueType >(key1.get(), item1)};
-  std::vector<std::pair<KeyType, ValueType >> rightVec =
-        std::vector<std::pair<KeyType, ValueType >> {std::pair<KeyType, ValueType >(key2.get(), item2)};
+    std::vector<std::pair<KeyType, pid_t >> {std::pair<KeyType, pid_t >(key0_literal, leafLeft),
+      std::pair<KeyType, pid_t >(key2_literal, leafRight)};
+  std::vector<std::pair<KeyType, std::vector<ValueType> >> leftVec =
+      std::vector<std::pair<KeyType, std::vector<ValueType> >> {std::pair<KeyType, std::vector<ValueType> >(key0_literal, items0),
+        std::pair<KeyType, std::vector<ValueType> >(key1_literal, items1)};
+  std::vector<std::pair<KeyType, std::vector<ValueType> >> rightVec =
+        std::vector<std::pair<KeyType, std::vector<ValueType> >> {std::pair<KeyType, std::vector<ValueType> >(key2_literal, items2)};
 
   newInnerNode->key_values = rootVec;
   newInnerNode->record_count = rootVec.size();
@@ -118,19 +129,19 @@ TEST(MergeTest, SimpleMergeLeaf) {
   bwtree->merge_page(leafLeft, leafRight, newRoot);
   // check result
   // check for remove node delta, node merge delta, index term delete delta
-  Node* current_root = bwtree->mapping_table_.get_phy_ptr(newRoot);
-  Node* current_left = bwtree->mapping_table_.get_phy_ptr(leafLeft);
-  Node* current_right = bwtree->mapping_table_.get_phy_ptr(leafRight);
+  BWTree::Node* current_root = bwtree->mapping_table_.get_phy_ptr(newRoot);
+  BWTree::Node* current_left = bwtree->mapping_table_.get_phy_ptr(leafLeft);
+  BWTree::Node* current_right = bwtree->mapping_table_.get_phy_ptr(leafRight);
   // node type
   EXPECT_EQ(current_root->type, BWTree::NodeType::deleteIndex);
   EXPECT_EQ(current_left->type, BWTree::NodeType::mergeLeaf);
   EXPECT_EQ(current_right->type, BWTree::NodeType::removeNode);
   // node fields
-  EXPECT_EQ(static_cast<BWTree::MergeLeaf *>current_left->splitKey, key0.get());
-  EXPECT_EQ(static_cast<BWTree::MergeLeaf *>current_left->deleting_node, newLeafRight);
-  // EXPECT_EQ(static_cast<BWTree::MergeLeaf *>current_left->record_count, );
-  EXPECT_EQ(static_cast<BWTree::DeleteIndex *>current_root->low, key0.get());
-  EXPECT_EQ(static_cast<BWTree::DeleteIndex *>current_root->high, key2.get());
+  EXPECT_TRUE(comparator(static_cast<BWTree::MergeLeaf *>(current_left)->splitKey, key0_literal));
+  EXPECT_EQ(static_cast<BWTree::MergeLeaf *>(current_left)->deleting_node, newLeafRight);
+  // EXPECT_EQ(static_cast<BWTree::MergeLeaf *>(current_left)->record_count, );
+  EXPECT_TRUE(comparator(static_cast<BWTree::DeleteIndex *>(current_root)->low, key0_literal));
+  EXPECT_TRUE(comparator(static_cast<BWTree::DeleteIndex *>(current_root)->high, key2_literal));
 }
 
 TEST(MergeTest, SimpleMergeInner) {
