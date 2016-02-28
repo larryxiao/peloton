@@ -47,7 +47,7 @@ bool BWTreeIndex<KeyType, ValueType, KeyComparator,
   // Add your implementation here
   KeyType index_key;
   index_key.SetFromKey(key);
-  container.Insert(index_key, location);
+  while(!container.Insert(index_key, location));
   return true;
 }
 
