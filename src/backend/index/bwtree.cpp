@@ -879,13 +879,13 @@ search_leaf_page(Node *head, const KeyType &key) {
 // DONE failure case
 // DONE memory management
 // TODO OPTIMIZATION reuse the nodes
-  template <typename KeyType, typename ValueType, class KeyComparator,
-      class KeyEqualityChecker>
-  bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
-  merge_page(pid_t pid_l, pid_t pid_r, pid_t pid_parent) {
-    return (pid_l > 0 && pid_r > 0 && pid_parent > 0);
+template <typename KeyType, typename ValueType, class KeyComparator,
+    class KeyEqualityChecker>
+bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+merge_page(pid_t pid_l, pid_t pid_r, pid_t pid_parent) {
+  assert(pid_l > 0 && pid_r > 0 && pid_parent > 0);
   Node *ptr_r, *ptr_l, *ptr_parent;
-  bool leaf = ptr_r->is_leaf();
+  bool leaf;
   RemoveNode *remove_node_delta = nullptr;
   Node *node_merge_delta = nullptr;
   DeleteIndex *index_term_delete_delta = nullptr;
@@ -894,6 +894,7 @@ search_leaf_page(Node *head, const KeyType &key) {
   // create remove node delta node
   do {
     ptr_r = mapping_table_.get_phy_ptr(pid_r);
+    leaf = ptr_r->is_leaf();
     if (remove_node_delta != nullptr) {
       delete remove_node_delta;
     }
@@ -956,7 +957,7 @@ search_leaf_page(Node *head, const KeyType &key) {
   } while (!mapping_table_.install_node(pid_parent, ptr_parent,
                                         (Node *) index_term_delete_delta));
   return true;
-  }
+}
 
   template <typename KeyType, typename ValueType, class KeyComparator,
       class KeyEqualityChecker>
