@@ -1047,8 +1047,10 @@ search_leaf_page(Node *head, const KeyType &key) {
 
   template <typename KeyType, typename ValueType, class KeyComparator,
       class KeyEqualityChecker>
+  typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
   ConsolidateResult BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
   consolidate_leaf(Node *node) {
+    node->chain_length++;
     ConsolidateResult result;
     result.status = false;
     return result;
@@ -1056,8 +1058,10 @@ search_leaf_page(Node *head, const KeyType &key) {
 
   template <typename KeyType, typename ValueType, class KeyComparator,
       class KeyEqualityChecker>
+  typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
   ConsolidateResult BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
   consolidate_inner(Node *node) {
+    node->chain_length++;
     ConsolidateResult result;
     result.status = false;
     return result;
