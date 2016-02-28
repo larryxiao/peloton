@@ -125,20 +125,31 @@ TEST(MergeTest, SimpleMergeLeaf) {
   bwtree->mapping_table_.insert_new_pid(leafLeft, newLeafLeft);
   bwtree->mapping_table_.insert_new_pid(leafRight, newLeafRight);
   bwtree->root_.store(newRoot, std::memory_order_release); // install new root
+
+// check initial state
+  BWTree::Node* previous_root = bwtree->mapping_table_.get_phy_ptr(newRoot);
+  BWTree::Node* previous_left = bwtree->mapping_table_.get_phy_ptr(leafLeft);
+  BWTree::Node* previous_right = bwtree->mapping_table_.get_phy_ptr(leafRight);
+
+  EXPECT_EQ(BWTree::NodeType::inner, previous_root->type);
+  EXPECT_EQ(BWTree::NodeType::leaf, previous_left->type);
+  EXPECT_EQ(BWTree::NodeType::leaf, previous_right->type);
+
   // call merge
   bwtree->merge_page(leafLeft, leafRight, newRoot);
-  // check result
+
+// check result after merge
   // check for remove node delta, node merge delta, index term delete delta
   BWTree::Node* current_root = bwtree->mapping_table_.get_phy_ptr(newRoot);
   BWTree::Node* current_left = bwtree->mapping_table_.get_phy_ptr(leafLeft);
   BWTree::Node* current_right = bwtree->mapping_table_.get_phy_ptr(leafRight);
   // node type
-  EXPECT_EQ(current_root->type, BWTree::NodeType::deleteIndex);
-  EXPECT_EQ(current_left->type, BWTree::NodeType::mergeLeaf);
-  EXPECT_EQ(current_right->type, BWTree::NodeType::removeNode);
+  EXPECT_EQ(BWTree::NodeType::deleteIndex, current_root->type);
+  EXPECT_EQ(BWTree::NodeType::mergeLeaf, current_left->type);
+  EXPECT_EQ(BWTree::NodeType::removeNode, current_right->type);
   // node fields
-  EXPECT_TRUE(comparator(static_cast<BWTree::MergeLeaf *>(current_left)->splitKey, key0_literal));
-  EXPECT_EQ(static_cast<BWTree::MergeLeaf *>(current_left)->deleting_node, newLeafRight);
+  EXPECT_TRUE(comparator(static_cast<BWTree::MergeLeaf *>(current_left)->splitKey, key2_literal));
+  EXPECT_EQ(newLeafRight, static_cast<BWTree::MergeLeaf *>(current_left)->deleting_node);
   // EXPECT_EQ(static_cast<BWTree::MergeLeaf *>(current_left)->record_count, );
   EXPECT_TRUE(comparator(static_cast<BWTree::DeleteIndex *>(current_root)->low, key0_literal));
   EXPECT_TRUE(comparator(static_cast<BWTree::DeleteIndex *>(current_root)->high, key2_literal));
