@@ -730,10 +730,12 @@ search_leaf_page(Node *head, const KeyType &key) {
           }
           break;
         }
-        case NodeType::deleteIndex:
+        case deleteIndex:{
+
           //TODO: yet to handle
           break;
-        case NodeType::deltaSplitInner: {
+        }
+        case deltaSplitInner: {
           DeltaSplitInner *curNodeSplt = static_cast<DeltaSplitInner *>(copyHeadNodeP);
           if (pageSplitFlag) {
             //TODO: what if the page split key is being deleted?
@@ -747,31 +749,34 @@ search_leaf_page(Node *head, const KeyType &key) {
           }
           break;
         }
-        case NodeType::mergeInner:
+        case mergeInner:{
           //TODO: yet to handle
           break;
-        case NodeType::removeNode:
+        }
+        case removeNode: {
           break;
+        }
+        case inner:{
+          pageSplitIter = std::find_if(wholePairs.begin(), wholePairs.end(),
+                                       [&](const std::pair<KeyType,pid_t >& element){
+                                           return key_compare_eq(element.first,pageSplitKey);} );
+          if(pageSplitIter != wholePairs.end())
+          {
+            qPID_last_child = pageSplitIter->second;
+          }
+          //TODO: improve this part later, return cleanly:
+          (wholePairs.begin()+std::distance(
+                  wholePairs.begin(), pageSplitIter)/2)->second=qPID_last_child;
+
+          return std::vector<std::pair<KeyType, pid_t>>(wholePairs.begin()+std::distance(
+                  wholePairs.begin(), pageSplitIter)/2, pageSplitIter); //TODO: optimize?
+          //TODO: check for boundary cases on pageSplitIter
+        }
         default:
           break;
       }
       copyHeadNodeP=copyHeadNodeP->next;
     }
-
-    pageSplitIter = std::find_if(wholePairs.begin(), wholePairs.end(),
-                                 [&](const std::pair<KeyType,pid_t >& element){
-                                   return key_compare_eq(element.first,pageSplitKey);} );
-    if(pageSplitIter != wholePairs.end())
-    {
-      qPID_last_child = pageSplitIter->second;
-    }
-    //TODO: improve this part later, return cleanly:
-    (wholePairs.begin()+std::distance(
-        wholePairs.begin(), pageSplitIter)/2)->second=qPID_last_child;
-
-    return std::vector<std::pair<KeyType, pid_t>>(wholePairs.begin()+std::distance(
-        wholePairs.begin(), pageSplitIter)/2, pageSplitIter); //TODO: optimize?
-    //TODO: check for boundary cases on pageSplitIter
   }
 
   template <typename KeyType, typename ValueType, class KeyComparator,
@@ -789,7 +794,7 @@ search_leaf_page(Node *head, const KeyType &key) {
     std::vector<std::pair<KeyType,ValueType>> deletedPairs;
 
     //handling deltaInsert, deltaDelete, removeNode
-    while(copyHeadNodeP->next != nullptr){ //Assuming last node points to nullptr
+    while(copyHeadNodeP != nullptr){ //Assuming last node points to nullptr
       switch (copyHeadNodeP->get_type()){
         case deltaInsert:{
           DeltaInsert* deltains = static_cast<DeltaInsert*>(copyHeadNodeP);
@@ -809,37 +814,45 @@ search_leaf_page(Node *head, const KeyType &key) {
           deletedPairs.push_back(std::pair<KeyType,ValueType>(deltadel->key,deltadel->value));
           break;
         }
+        case deltaSplitLeaf:{
+
+        }
+        case mergeLeaf:{
+
+        }
+        case leaf:{
+          for(auto const& elem: deletedPairs){	//TODO: optimize?
+            auto it = std::find_if(wholePairs.begin(), wholePairs.end(), [&](const std::pair<KeyType,std::vector<ValueType>>& element) {
+                if (key_compare_eq(element.first, elem.first)){
+                  auto it2 = std::find_if(element.second.begin(), element.second.end(),
+                                          [&](const ValueType &element1) { return val_eq(element1, elem.second);});
+                  return it2!=element.second.end();
+                }
+                else
+                  return false;
+            });
+
+            if(it != wholePairs.end()){
+              wholePairs.erase(it);
+            }
+            else{
+              assert(false);//basically its not supposed to come here
+            }
+          }
+
+          std::sort(wholePairs.begin(), wholePairs.end(), [&](const std::pair<KeyType, std::vector<ValueType>>& t1,
+                                                              const std::pair<KeyType, std::vector<ValueType>>& t2) {
+              return key_comparator_(t1.first,t2.first);
+          });
+
+          return std::vector<std::pair<KeyType, std::vector<ValueType>>>
+                  (wholePairs.begin()+std::distance(wholePairs.begin(), wholePairs.end())/2,wholePairs.end()); //TODO: optimize?
+        }
         default:break;
       }
       copyHeadNodeP=copyHeadNodeP->next;
     }
 
-    for(auto const& elem: deletedPairs){	//TODO: optimize?
-      auto it = std::find_if(wholePairs.begin(), wholePairs.end(), [&](const std::pair<KeyType,std::vector<ValueType>>& element) {
-          if (key_compare_eq(element.first, elem.first)){
-            auto it2 = std::find_if(element.second.begin(), element.second.end(),
-                                    [&](const ValueType &element1) { return val_eq(element1, elem.second);});
-            return it2!=element.second.end();
-          }
-          else
-            return false;
-      });
-
-      if(it != wholePairs.end()){
-        wholePairs.erase(it);
-      }
-      else{
-        assert(false);//basically its not supposed to come here
-      }
-    }
-
-    std::sort(wholePairs.begin(), wholePairs.end(), [&](const std::pair<KeyType, std::vector<ValueType>>& t1,
-                                                        const std::pair<KeyType, std::vector<ValueType>>& t2) {
-        return key_comparator_(t1.first,t2.first);
-    });
-
-    return std::vector<std::pair<KeyType, std::vector<ValueType>>>
-        (wholePairs.begin()+std::distance(wholePairs.begin(), wholePairs.end())/2,wholePairs.end()); //TODO: optimize?
   }
 
 
