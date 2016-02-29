@@ -884,15 +884,21 @@ search_leaf_page(Node *head, const KeyType &key) {
         return false;
     }
 
+    //TODO: assuming overflowThreshold > 2 , if thats not the case need to handle it explicitly
+    assert(split_threshold_>2);
+
     if(headNodeP->is_leaf())
     {
       qPID = static_cast<pid_t>(pid_gen_++);
       LeafNode* newLeafNode = new LeafNode(qPID,rPID); // P->R was there before
       std::vector<std::pair<KeyType, std::vector<ValueType>>> qElemVec = getToBeMovedPairsLeaf(headNodeP);
       newLeafNode->key_values = qElemVec; //TODO: optimize?
-      Kp = qElemVec[0].first;
-      newLeafNode->record_count = qElemVec.size();
-      Kq = qElemVec[newLeafNode->record_count-1].first;
+
+      Kp = qElemVec[0].first; // <= Kp goes left, >Kp goes right
+      qElemVec.erase(qElemVec.begin());
+
+      newLeafNode->record_count = qElemVec.size()-1;
+      Kq = qElemVec[qElemVec.size()-1].first;
       // TODO: Kq is max among all of P keys before split, if there is something greater than Kq coming
       // TODO: for insert then deltaInsert is created on top of Kp
       mapping_table_.insert_new_pid(qPID, newLeafNode);
@@ -935,7 +941,6 @@ search_leaf_page(Node *head, const KeyType &key) {
     {
       pid_t newRoot = static_cast<pid_t>(pid_gen_++);
       InnerNode* newInnerNode = new InnerNode(newRoot,headNodeP->level+1,NULL_PID, NULL_PID);  //totally new level
-
 
       std::vector<std::pair<KeyType, pid_t >> qElemVec = std::vector<std::pair<KeyType, pid_t >>{std::pair<KeyType,pid_t >(Kp,pPID)};
 
