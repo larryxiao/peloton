@@ -157,7 +157,11 @@ class BWTree {
     bool operator ()(const ValueType& v1, const ValueType& v2) const {
       auto p1 = static_cast<ItemPointer>(v1);
       auto p2 = static_cast<ItemPointer>(v2);
-      return p1.block == p2.block && p1.offset == p2.offset;
+      // block and offset comparision ordering
+      if (p1.block == p2.block){
+        return (p1.offset < p2.offset);
+      }
+      return (p1.block < p2.block);
     }
   };
 
@@ -729,8 +733,11 @@ class BWTree {
 
     bool has_merge;
 
+    // used to inform split key to parent
     KeyType kp;
     // the upper bound
+
+    // used to inform Kq to parent in case of index delta
     KeyType kq;
 
     bool is_kq_inf;
@@ -783,7 +790,6 @@ class BWTree {
 
     // node created by split
     pid_t split_child_pid;
-
 
   };
   inline TreeOpResult get_update_success_result() {

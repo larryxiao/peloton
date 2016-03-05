@@ -217,10 +217,12 @@ do_tree_operation(Node* head, const KeyType &key,
 
           pid_t child_pid = NULL_PID;
 
-          // continue in sibling
-          if(child_pos > inner_node->key_values.size()){
+          // if kmax is not infinity and search key > kmax
+          // go to right sibling inner node
+          if (!inner_node->is_kmax_inf &&
+              key_compare_lt(inner_node->kmax, key)){
             // check if sibling is null
-            if(inner_node->sidelink == NULL_PID){
+            if(inner_node->sidelink != NULL_PID){
               // go to sibling
               op_result = do_tree_operation(inner_node->sidelink, key, value,
                                             op_type, state);
@@ -235,12 +237,11 @@ do_tree_operation(Node* head, const KeyType &key,
               child_pid = inner_node->key_values[child_pos].second;
               child_state.kq = inner_node->key_values[child_pos].first;
             } else if(child_pos == inner_node->key_values.size()) {
+              // otherwise, use the last child pointer
               child_pid = inner_node->last_child;
               child_state.is_kq_inf = true;
             }
-
             // check the node's level
-
             if (inner_node->level == 1) {
               // next level is leaf, execute leaf operation
               if (op_type == OperationType::search_op) {
@@ -264,7 +265,6 @@ do_tree_operation(Node* head, const KeyType &key,
               continue_itr = false;
             }
           }
-
           break;
         }
 
@@ -360,10 +360,10 @@ typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
 TreeOpResult BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
 search_leaf_page(Node *head, const KeyType &key) {
 
+  TreeOpResult result;
+
   // TODO: convert to unordered set
   std::set<ValueType, ItemPointerComparator> deleted_val;
-
-  TreeOpResult result;
 
   // search always succeeds
   result.status = true;
@@ -374,8 +374,16 @@ search_leaf_page(Node *head, const KeyType &key) {
     if (cons_result.status && result.has_split){
       // split has happened, inform parent on return
       result.has_split = true;
+
+      // TODO: set other consolidate result
     }
   }
+
+//  KeyType k;
+//  key_compare_eq(key, k);
+//  ValueType value;
+//  result.values.push_back(value);
+//  return result;
 
   bool continue_itr = true;
 
@@ -383,7 +391,6 @@ search_leaf_page(Node *head, const KeyType &key) {
   auto node = head;
 
   while (continue_itr && node != nullptr) {
-
     switch (node->get_type()) {
 
     case deltaInsert: {

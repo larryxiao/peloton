@@ -76,34 +76,34 @@ index::Index *BuildIndex() {
 }
 
 
-//TEST(IndexTests, BasicTest) {
-//  auto pool = TestingHarness::GetInstance().GetTestingPool();
-//  std::vector<ItemPointer> locations;
-//
-//  // INDEX
-//  std::unique_ptr<index::Index> index(BuildIndex());
-//
-//  std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
-//
-//  key0->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
-//
-//  key0->SetValue(1, ValueFactory::GetStringValue("a"), pool);
-//
-//  // INSERT
-//  index->InsertEntry(key0.get(), item0);
-//
-//  locations = index->ScanKey(key0.get());
-//  EXPECT_EQ(locations.size(), 1);
-//  EXPECT_EQ(locations[0].block, item0.block);
-//
-//  // DELETE
-//  index->DeleteEntry(key0.get(), item0);
-//
-//  locations = index->ScanKey(key0.get());
-//  EXPECT_EQ(locations.size(), 0);
-//
-//  delete tuple_schema;
-//}
+TEST(IndexTests, BasicTest) {
+  auto pool = TestingHarness::GetInstance().GetTestingPool();
+  std::vector<ItemPointer> locations;
+
+  // INDEX
+  std::unique_ptr<index::Index> index(BuildIndex());
+
+  std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
+
+  key0->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
+
+  key0->SetValue(1, ValueFactory::GetStringValue("a"), pool);
+
+  // INSERT
+  index->InsertEntry(key0.get(), item0);
+
+  locations = index->ScanKey(key0.get());
+  EXPECT_EQ(locations.size(), 1);
+  EXPECT_EQ(locations[0].block, item0.block);
+
+  // DELETE
+  index->DeleteEntry(key0.get(), item0);
+
+  locations = index->ScanKey(key0.get());
+  EXPECT_EQ(locations.size(), 0);
+
+  delete tuple_schema;
+}
 
 // INSERT HELPER FUNCTION
 void InsertTest(index::Index *index, VarlenPool *pool, size_t scale_factor){
