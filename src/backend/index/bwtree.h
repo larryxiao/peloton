@@ -904,6 +904,12 @@ namespace peloton {
             // consolidate inner node delta chain
             ConsolidateResult consolidate_inner(Node *node);
 
+            // splitpage inner
+            DeltaSplitInner* splitPageInner(InnerNode *node);
+
+            // splitpage leaf
+            DeltaSplitLeaf* splitPageLeaf(LeafNode *node, const std::vector<std::pair<KeyType,std::vector<ValueType>>>& wholePairs);
+
             // Merge page operation for node underflows
             bool merge_page(pid_t pid_l, pid_t pid_r, pid_t pid_parent);
 
@@ -938,7 +944,7 @@ namespace peloton {
 
               consolidate_threshold_leaf_ = 8;
 
-              merge_threshold_ = 3;
+              merge_threshold_ = 2;
 
               split_threshold_ = 4;
             }
