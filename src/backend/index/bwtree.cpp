@@ -1064,41 +1064,29 @@ namespace peloton {
 
           Node *copyHeadNodeP = node;
           Node *secondcopyHeadNodeP = node;
-          bool has_split_delta = false;
-          KeyType split_key;
-          pid_t split_child_right;
+//          bool has_split_delta = false;
+//          KeyType split_key;
+//          pid_t split_child_right;
           while(node->next!= nullptr){
             node=node->next;
             //there can be only one split delta
-            if(node->get_type() == deltaSplitLeaf){
-              DeltaSplitLeaf* delSplit = static_cast<DeltaSplitLeaf*>(node);
-              has_split_delta =  true;
-              split_key = delSplit->splitKey;
-              split_child_right = delSplit->new_child;
-            }
+//            if(node->get_type() == deltaSplitLeaf){
+//              DeltaSplitLeaf* delSplit = static_cast<DeltaSplitLeaf*>(node);
+//              has_split_delta =  true;
+//              split_key = delSplit->splitKey;
+////              split_child_right = delSplit->new_child;
+//            }
           }
 
           if(checkIfRemoveDelta(node)) //TODO: Should I do this here?
           {
             return result;
-          };
+          }
 
-          TreeNode<KeyType,std::vector<ValueType>>* headNodeP1 = static_cast<TreeNode<KeyType,std::vector<ValueType>>*>(node);
+          LeafNode* headNodeP1 = static_cast<LeafNode*>(node);
           //TODO:yet to handle for duplicate keys case
 
-          std::vector<std::pair<KeyType,std::vector<ValueType>>> wholePairs;
-          if(has_split_delta)
-          {
-            for(auto it = headNodeP1->key_values.begin(); it != headNodeP1->key_values.end(); ++it){
-              if(key_compare_lte(it->first,split_key))
-                wholePairs.push_back(*it);
-              else
-                break;
-            }
-          }
-          else{
-            wholePairs = headNodeP1->key_values;
-          }
+          auto wholePairs = headNodeP1->key_values; //if split then discarded values wont be there
 
           std::vector<std::pair<KeyType,ValueType>> deletedPairs;
           std::vector<std::pair<KeyType,ValueType>> insertedPairs;
@@ -1114,10 +1102,10 @@ namespace peloton {
               case deltaInsert:{
                 DeltaInsert* deltains = static_cast<DeltaInsert*>(copyHeadNodeP);
 
-                if(has_split_delta){
-                  if(!key_compare_lte(deltains->key,split_key))
-                    break;
-                }
+//                if(has_split_delta){
+//                  if(!key_compare_lte(deltains->key,split_key))
+//                    break;
+//                }
 
                 auto it = std::find_if(deletedPairs.begin(),deletedPairs.end(), [&](const std::pair<KeyType,ValueType>& element){
                     return key_compare_eq(element.first,deltains->key) && val_eq(element.second, deltains->value);
@@ -1132,10 +1120,10 @@ namespace peloton {
               }
               case deltaDelete: {
                 DeltaDelete *deltadel = static_cast<DeltaDelete *>(copyHeadNodeP);
-                if(has_split_delta){
-                  if(!key_compare_lte(deltadel->key,split_key))
-                    break;
-                }
+//                if(has_split_delta){
+//                  if(!key_compare_lte(deltadel->key,split_key))
+//                    break;
+//                }
 
                 auto it = std::find_if(wholePairs.begin(),wholePairs.end(), [&](const std::pair<KeyType,std::vector<ValueType>>& element){
                     return key_compare_eq(element.first,deltadel->key);
@@ -1175,8 +1163,7 @@ namespace peloton {
               it->second.push_back(elem.second);
             }
             else{
-              wholePairs.push_back(std::pair<KeyType,std::vector<ValueType>>(
-                      elem.first,std::vector<ValueType>{elem.second}));
+              wholePairs.push_back(std::make_pair(elem.first,std::vector<ValueType>{elem.second}));
             }
           }
 
@@ -1190,7 +1177,7 @@ namespace peloton {
           LeafNode* newLeafNode = new LeafNode(copyHeadNodeP->pid, (static_cast<LeafNode*>(copyHeadNodeP))->sidelink); //TODO: Set neighbor pid here
 
           // split threshold checking
-          if(wholePairs.size()>split_threshold_){
+          if(wholePairs.size()>(unsigned)split_threshold_){
             //call split
             //split should just be sent half the key_values,
             //other half will be stored here itself
@@ -1209,7 +1196,7 @@ namespace peloton {
             //TODO set: result.kp and result.split_child_pid
           }
             //merge threshold checking
-          else if(wholePairs.size()<merge_threshold_){
+          else if(wholePairs.size()<(unsigned)merge_threshold_){
             //call merge
             result.has_merge = true;
           }
@@ -1254,7 +1241,6 @@ namespace peloton {
           DeltaSplitLeaf* splitNode = new DeltaSplitLeaf(Kp, qPID, node->record_count);
           splitNode->set_next(node);
 
-          newLeafNode->sidelink = node->sidelink;
           node->sidelink=qPID;
 
           return splitNode;
@@ -1271,44 +1257,33 @@ namespace peloton {
 
           Node *copyHeadNodeP = node;
           Node *secondcopyHeadNodeP = node;
-          bool has_split_delta = false;
-          KeyType split_key;
-          pid_t split_child_right;
+
+//          bool has_split_delta = false;
+//          KeyType split_key;
+//          pid_t split_child_right;
+
           while(node->next!= nullptr){
             node=node->next;
             //there can be only one split delta
-            if(node->get_type() == deltaSplitLeaf){
-              DeltaSplitLeaf* delSplit = static_cast<DeltaSplitLeaf*>(node);
-              has_split_delta =  true;
-              split_key = delSplit->splitKey;
-              split_child_right = delSplit->new_child;
-            }
+//            if(node->get_type() == deltaSplitInner){
+//              DeltaSplitInner* delSplit = static_cast<DeltaSplitInner*>(node);
+//              has_split_delta =  true;
+//              split_key = delSplit->splitKey;
+//              split_child_right = delSplit->new_node;
+//            }
           }
 
           if(checkIfRemoveDelta(node)) //TODO: Should I do this here?
           {
             return result;
-          };
-
-          TreeNode<KeyType,std::vector<ValueType>>* headNodeP1 = static_cast<TreeNode<KeyType,std::vector<ValueType>>*>(node);
-          //TODO:yet to handle for duplicate keys case
-
-          std::vector<std::pair<KeyType,std::vector<ValueType>>> wholePairs;
-          if(has_split_delta)
-          {
-            for(auto it = headNodeP1->key_values.begin(); it != headNodeP1->key_values.end(); ++it){
-              if(key_compare_lte(it->first,split_key))
-                wholePairs.push_back(*it);
-              else
-                break;
-            }
-          }
-          else{
-            wholePairs = headNodeP1->key_values;
           }
 
-          std::vector<std::pair<KeyType,ValueType>> deletedPairs;
-          std::vector<std::pair<KeyType,ValueType>> insertedPairs;
+          InnerNode* headNodeP1 = static_cast<InnerNode*>(node);
+          //TODO: yet to handle for duplicate keys case
+
+          pid_t qPID_last_child = headNodeP1->last_child;
+
+          auto wholePairs = headNodeP1->key_values;
 
           //IMPORTANT ASSUMPTION: Any delta corresponding to the the new_child being pointed by the splitdelta, will not go to this node
           //handling deltaInsert, deltaDelete, removeNode
@@ -1318,114 +1293,91 @@ namespace peloton {
                 //TODO: Check if we have to do something before returning
                 return result;
               }
-              case deltaInsert:{
-                DeltaInsert* deltains = static_cast<DeltaInsert*>(copyHeadNodeP);
-
-                if(has_split_delta){
-                  if(!key_compare_lte(deltains->key,split_key))
-                    break;
+              case indexDelta:{
+                IndexDelta *curNode = static_cast<IndexDelta*>(copyHeadNodeP);
+                int last_flag = 0;
+                for (auto it = wholePairs.begin(); it != wholePairs.end(); ++it) {
+                  //TODO: what if the key is already present in the wholePairs
+                  if (!key_compare_lt(curNode->low, it->first)) {
+                    //not at this position
+                    continue;
+                  }
+                  //TODO: Edge cases possible here, check when merge is implemented
+                  wholePairs.insert(it, std::pair<KeyType, pid_t>(curNode->low, it->second));
+                  (it+1)->second = curNode->new_node;
+                  last_flag = 1;
+                  break;
                 }
-
-                auto it = std::find_if(deletedPairs.begin(),deletedPairs.end(), [&](const std::pair<KeyType,ValueType>& element){
-                    return key_compare_eq(element.first,deltains->key) && val_eq(element.second, deltains->value);
-                });
-
-                if(it == deletedPairs.end())
-                  insertedPairs.push_back(std::pair<KeyType,ValueType>
-                                                  (deltains->key,deltains->value));
-
-//                (&(it->second))->push_back(deltains->value); //TODO: check correctness
+                if(last_flag == 0) {
+                  wholePairs.push_back(std::pair<KeyType, pid_t>(curNode->low, qPID_last_child));
+                  qPID_last_child = curNode->new_node;
+                }
                 break;
               }
-              case deltaDelete: {
-                DeltaDelete *deltadel = static_cast<DeltaDelete *>(copyHeadNodeP);
-                if(has_split_delta){
-                  if(!key_compare_lte(deltadel->key,split_key))
-                    break;
-                }
-
-                auto it = std::find_if(wholePairs.begin(),wholePairs.end(), [&](const std::pair<KeyType,std::vector<ValueType>>& element){
-                    return key_compare_eq(element.first,deltadel->key);
-                });
-
-                if(it != wholePairs.end()){
-                  while(true) {
-                    auto itValVec = std::find_if(it->second.begin(), it->second.end(), [&](const ValueType &elementV) {
-                        return val_eq(elementV, deltadel->value);
-                    });
-                    if (itValVec != it->second.end()) {
-                      it->second.erase(itValVec);
-                    }
-                    else{
-                      //remove the key with empty vector
-                      if (it->second.empty())
-                        wholePairs.erase(it);
-                      break;
-                    }
-                  }
-                }
-                deletedPairs.push_back(std::pair<KeyType,ValueType>(deltadel->key,deltadel->value));
-
+              case deleteIndex:{
+                break;
+              }
+              case deltaSplitInner:{
+                break;
+              }
+              case mergeInner:{
                 break;
               }
               default:break;
             }
             copyHeadNodeP=copyHeadNodeP->next;
           }
-
-          for(auto const& elem: insertedPairs){	//TODO: optimize?
-            auto it = std::find_if(wholePairs.begin(), wholePairs.end(), [&](const std::pair<KeyType,std::vector<ValueType>>& element) {
-                return key_compare_eq(element.first, elem.first);
-            });
-
-            if(it != wholePairs.end()){
-              it->second.push_back(elem.second);
-            }
-            else{
-              wholePairs.push_back(std::pair<KeyType,std::vector<ValueType>>(
-                      elem.first,std::vector<ValueType>{elem.second}));
-            }
-          }
-
-          std::sort(wholePairs.begin(), wholePairs.end(), [&](const std::pair<KeyType, std::vector<ValueType>>& t1,
-                                                              const std::pair<KeyType, std::vector<ValueType>>& t2) {
-              return key_comparator_(t1.first,t2.first);
-          });
+//
+//          std::sort(wholePairs.begin(), wholePairs.end(), [&](const std::pair<KeyType, std::vector<ValueType>>& t1,
+//                                                              const std::pair<KeyType, std::vector<ValueType>>& t2) {
+//              return key_comparator_(t1.first,t2.first);
+//          });
 
           //Now get a new node and put in these key_values in it
-
-          LeafNode* newLeafNode = new LeafNode(copyHeadNodeP->pid, (static_cast<LeafNode*>(copyHeadNodeP))->sidelink); //TODO: Set neighbor pid here
+          InnerNode* newInnerNode;
+          InnerNode* oldInnerNode = static_cast<InnerNode*>(copyHeadNodeP);
+          if(oldInnerNode->is_kmax_inf)
+            newInnerNode = new InnerNode(copyHeadNodeP->pid,
+                                         copyHeadNodeP->level,
+                                         oldInnerNode->sidelink,
+                                         qPID_last_child);
+          else
+            newInnerNode = new InnerNode(copyHeadNodeP->pid,
+                                         copyHeadNodeP->level,
+                                         oldInnerNode->sidelink,
+                                         qPID_last_child,
+                                         oldInnerNode->kmax);
 
           // split threshold checking
-          if(wholePairs.size()>split_threshold_){
+          if(wholePairs.size()>(unsigned)split_threshold_){
             //call split
             //split should just be sent half the key_values,
             //other half will be stored here itself
             //need to insert splitdelta on top of the current node
             //TODO: need to insert index delta on the parent
             //TODO: Handle root update case
-            DeltaSplitLeaf* splitNodeHead = splitPageLeaf(newLeafNode, wholePairs);
+            DeltaSplitInner* splitNodeHead = splitPageInner(newInnerNode, wholePairs, qPID_last_child);
             result.has_split = true;
             result.kp = splitNodeHead->splitKey;
-            result.split_child_pid = splitNodeHead->new_child;
+            result.split_child_pid = splitNodeHead->new_node;
 
             if(!mapping_table_.install_node(copyHeadNodeP->pid, secondcopyHeadNodeP, splitNodeHead)) //Should I cast?
               return result;
             else
               result.status = true;
-            //TODO set: result.kp and result.split_child_pid
           }
             //merge threshold checking
-          else if(wholePairs.size()<merge_threshold_){
+          else if(wholePairs.size()<(unsigned)merge_threshold_){
             //call merge
+            //TODO
             result.has_merge = true;
           }
           else{
             //TODO: Check correctness of following
-            newLeafNode->key_values = wholePairs;
-            newLeafNode->record_count = wholePairs.size();
+            newInnerNode->key_values = wholePairs;
+            newInnerNode->record_count = wholePairs.size();
 
-            if(!mapping_table_.install_node(copyHeadNodeP->pid, secondcopyHeadNodeP, newLeafNode))
+            if(!mapping_table_.install_node(copyHeadNodeP->pid, secondcopyHeadNodeP, newInnerNode))
               return result;
             else
               result.status = true;
@@ -1438,84 +1390,56 @@ namespace peloton {
 //            }
           }
           return result;
-//          InnerNode* headNodeP1 = static_cast<InnerNode*>(headNodeP);
-//
-//          std::vector<std::pair<KeyType, pid_t>> wholePairs = headNodeP1->key_values; //TODO: Optimize?
-//
-//          std::vector<KeyType> deletedPairs;
-//          pid_t qPID_last_child = headNodeP1->last_child;
-//          bool pageSplitFlag = false;
-//          KeyType pageSplitKey;
-//          auto pageSplitIter = wholePairs.end();
-//
-//          //handling deltaInsert, deltaDelete, removeNode
-//          while(copyHeadNodeP->next != nullptr){ //Assuming last node points to nullptr
-//            switch (copyHeadNodeP->get_type()){
-//              case indexDelta: {
-//                //means that there is a split in the child and that we need to insert Kp and with pointer to child
-//                IndexDelta *curNode = static_cast<IndexDelta*>(copyHeadNodeP);
-//                int last_flag = 0;
-//                for (auto it = wholePairs.begin(); it != wholePairs.end(); ++it) {
-//                  //TODO: what if the key is already present in the wholrePairs
-//                  if (!key_compare_lt(curNode->low, it->first)) {
-//                    //not at this position
-//                    continue;
-//                  }
-//                  //curNode->low
-//                  wholePairs.insert(it, std::make_pair((it - 1)->first, curNode->new_node));
-//                  (it - 1)->first = curNode->low;
-//                  last_flag = 1;
-//                  break;
-//                }
-//                if (last_flag == 0) {
-//                  wholePairs.insert(wholePairs.end(), std::pair<KeyType, pid_t>(curNode->low, qPID_last_child));
-//                  qPID_last_child = curNode->new_node;
-//                }
-//                break;
-//              }
-//              case NodeType::deleteIndex:
-//                //TODO: yet to handle
-//                break;
-//              case NodeType::deltaSplitInner: {
-//                DeltaSplitInner *curNodeSplt = static_cast<DeltaSplitInner *>(copyHeadNodeP);
-//                if (pageSplitFlag) {
-//                  //TODO: what if the page split key is being deleted?
-//                  if (key_compare_lt(curNodeSplt->splitKey, pageSplitKey)) {
-//                    pageSplitKey = curNodeSplt->splitKey;
-//                  }
-//                }
-//                else {
-//                  pageSplitKey = curNodeSplt->splitKey;
-//                  pageSplitFlag = true;
-//                }
-//                break;
-//              }
-//              case NodeType::mergeInner:
-//                //TODO: yet to handle
-//                break;
-//              case NodeType::removeNode:
-//                break;
-//              default:
-//                break;
-//            }
-//            copyHeadNodeP=copyHeadNodeP->next;
-//          }
-//
-//          pageSplitIter = std::find_if(wholePairs.begin(), wholePairs.end(),
-//                                       [&](const std::pair<KeyType,pid_t >& element){
-//                                           return key_compare_eq(element.first,pageSplitKey);} );
-//          if(pageSplitIter != wholePairs.end())
-//          {
-//            qPID_last_child = pageSplitIter->second;
-//          }
-//          //TODO: improve this part later, return cleanly:
-//          (wholePairs.begin()+std::distance(
-//                  wholePairs.begin(), pageSplitIter)/2)->second=qPID_last_child;
-//
-//          return std::vector<std::pair<KeyType, pid_t>>(wholePairs.begin()+std::distance(
-//                  wholePairs.begin(), pageSplitIter)/2, pageSplitIter); //TODO: optimize?
+        }
 
-          return result;
+        template <typename KeyType, typename ValueType, class KeyComparator,
+                class KeyEqualityChecker>
+        typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+        DeltaSplitInner* BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+        splitPageInner(InnerNode *node, const std::vector<std::pair<KeyType, pid_t>>& wholePairs,
+                                        pid_t qPID_last_child){
+
+          node->key_values=std::vector<std::pair<KeyType, pid_t >>
+                  (wholePairs.begin(),wholePairs.begin()+std::distance(wholePairs.begin(), wholePairs.end())/2);
+          node->record_count=node->key_values.size();
+
+          auto qPID = static_cast<pid_t>(pid_gen_++);
+//          LeafNode* newLeafNode = new LeafNode(qPID,node->sidelink); // P->R was there before
+          InnerNode* newInnerNode;
+          if(node->is_kmax_inf){
+            newInnerNode = new InnerNode(node->pid,
+                                         node->level,
+                                         node->sidelink,
+                                         qPID_last_child);
+            //to update the kmax,sidelink, last_child  of left node
+
+          }
+          else{
+            newInnerNode = new InnerNode(node->pid,
+                                         node->level,
+                                         node->sidelink,
+                                         qPID_last_child,
+                                         node->kmax);
+            //to update the kmax,sidelink, last_child  of left node
+          }
+          node->is_kmax_inf=false;
+          newInnerNode->key_values = std::vector<std::pair<KeyType, pid_t >>
+                  (wholePairs.begin()+std::distance(wholePairs.begin(), wholePairs.end())/2,wholePairs.end());
+          newInnerNode->record_count = newInnerNode->key_values.size()-1;
+          KeyType Kp = newInnerNode->key_values[0].first;
+          node->last_child = newInnerNode->key_values[0].second;
+          newInnerNode->key_values.erase(newInnerNode->key_values.begin());
+
+          node->kmax = Kp;
+
+          mapping_table_.insert_new_pid(qPID, newInnerNode);
+
+          DeltaSplitInner* splitNode = new DeltaSplitInner(Kp, qPID, node->record_count);
+          splitNode->set_next(node);
+
+          node->sidelink=qPID;
+
+          return splitNode;
         }
 // go through pid table, delete chain
 // on merge node, delete right chain

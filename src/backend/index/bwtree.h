@@ -289,6 +289,8 @@ namespace peloton {
                   this->has_index_delta = false;
 
                   this->kmax = kmax;
+
+                  this->is_kmax_inf = false;
                 }
 
                 // sets the maximum key as infinity
@@ -905,7 +907,8 @@ namespace peloton {
             ConsolidateResult consolidate_inner(Node *node);
 
             // splitpage inner
-            DeltaSplitInner* splitPageInner(InnerNode *node);
+            DeltaSplitInner* splitPageInner(InnerNode *node, const std::vector<std::pair<KeyType,pid_t>>& wholePairs,
+                                            pid_t qPID_last_child);
 
             // splitpage leaf
             DeltaSplitLeaf* splitPageLeaf(LeafNode *node, const std::vector<std::pair<KeyType,std::vector<ValueType>>>& wholePairs);
