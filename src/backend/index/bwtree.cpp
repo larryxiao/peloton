@@ -1,14 +1,14 @@
-  //===----------------------------------------------------------------------===//
-  //
-  //                         PelotonDB
-  //
-  // bwtree.cpp
-  //
-  // Identification: src/backend/index/bwtree.cpp
-  //
-  // Copyright (c) 2015, Carnegie Mellon University Database Group
-  //
-  //===----------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
+//
+//                         PelotonDB
+//
+// bwtree.cpp
+//
+// Identification: src/backend/index/bwtree.cpp
+//
+// Copyright (c) 2015, Carnegie Mellon University Database Group
+//
+//===----------------------------------------------------------------------===//
 
 #include <backend/common/logger.h>
 #include "backend/index/bwtree.h"
@@ -285,6 +285,11 @@ namespace index {
 
     bool has_child_split = op_result.has_split;
 
+    // child to go back to unblock consolidate
+    pid_t child_pid = op_result.pid;
+
+    op_result.pid = head->pid;
+
     if(!op_result.status){
       // op_result has failed, return
       return op_result;
@@ -336,6 +341,10 @@ namespace index {
         node->set_next(head);
 
       }while(!mapping_table_.install_node(head->pid,head, node));
+
+      // index delta has been installed,
+      // unblock consolidate in child node
+      unblock_consolidate(child_pid);
     }
 
     // return the result from lower levels.
@@ -362,13 +371,18 @@ namespace index {
 
     TreeOpResult result;
 
+    // used for unblocking consolidate, if needed
+    result.pid = head->pid;
+
     // TODO: convert to unordered set
     std::set<ValueType, ItemPointerComparator> deleted_val;
 
     // search always succeeds
     result.status = true;
 
-    if (head->chain_length > consolidate_threshold_leaf_) {
+    // if consolidate is not blocked and threshold is reached
+    if (!head->is_consolidate_blocked &&
+        head->chain_length > consolidate_threshold_leaf_) {
       // perform consolidation
       auto cons_result = consolidate_leaf(head);
       if (cons_result.status && result.has_split){
@@ -417,7 +431,9 @@ namespace index {
           // splitKey < key?
           if (key_compare_lt(delta_node->splitKey, key )) {
             // do search on Q and return
-            return search_leaf_page(delta_node->new_child, key);
+            result =  search_leaf_page(delta_node->new_child, key);
+            result.pid = head->pid;
+            return result;
           }
           break;
         }
@@ -456,7 +472,10 @@ namespace index {
             // check if sibling exists
             if(leaf_node->sidelink != NULL_PID){
               // search in the sibling
-              return search_leaf_page(leaf_node->sidelink, key);
+              result =  search_leaf_page(leaf_node->sidelink, key);
+              // set pid
+              result.pid = head->pid;
+              return result;
             } else {
               // no match, return
               return result;
@@ -541,7 +560,12 @@ namespace index {
 
     TreeOpResult result;
 
-    if (head->chain_length > consolidate_threshold_leaf_) {
+    result.pid = pid;
+
+    // if consolidate is not blocked and consolidate
+    // threshold has been reached
+    if (!head->is_consolidate_blocked &&
+        head->chain_length > consolidate_threshold_leaf_) {
       auto cons_result = consolidate_leaf(head);
       // if consolidate succeeded
       if (cons_result.status && cons_result.has_split){
@@ -592,8 +616,10 @@ namespace index {
 
           // operation should be performed on the split node, forward state
           // and recurse
-          return update_leaf_delta_chain(split_delta->new_child,
+          result =  update_leaf_delta_chain(split_delta->new_child,
                                          key, value, op_type, state);
+          result.pid = head->pid;
+          return result;
         }
       }
 
@@ -604,6 +630,20 @@ namespace index {
     // operation has completed
     result.status = true;
     return result;
+  }
+
+  template <typename KeyType, typename ValueType, class KeyComparator,
+      class KeyEqualityChecker>
+  void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+  unblock_consolidate(const pid_t pid) {
+    Node *head = mapping_table_.get_phy_ptr(pid);
+
+    do {
+      // atomically try to unblock
+      // consolidate at head
+      head->is_consolidate_blocked = false;
+    }while(!mapping_table_.install_node(pid, head, head));
+
   }
 
   template <typename KeyType, typename ValueType, class KeyComparator,
