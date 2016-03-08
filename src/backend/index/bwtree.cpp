@@ -1232,6 +1232,8 @@ namespace index {
 
     LeafNode* newLeafNode = new LeafNode(copyHeadNodeP->pid, (static_cast<LeafNode*>(copyHeadNodeP))->sidelink); //TODO: Set neighbor pid here
 
+    result.has_split = false;
+
     // split threshold checking
     if(wholePairs.size()>(unsigned)split_threshold_){
       //call split
@@ -1252,10 +1254,10 @@ namespace index {
       //TODO set: result.kp and result.split_child_pid
     }
       //merge threshold checking
-    else if(wholePairs.size()<(unsigned)merge_threshold_){
-      //call merge
-      result.has_merge = true;
-    }
+//    else if(wholePairs.size()<(unsigned)merge_threshold_){
+//      //call merge
+//      result.has_merge = true;
+//    }
     else{
       //TODO: Check correctness of following
       newLeafNode->key_values = wholePairs;

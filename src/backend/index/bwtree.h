@@ -1031,7 +1031,7 @@ class BWTree {
       // TODO: decide values
       consolidate_threshold_inner_ = 5;
 
-      consolidate_threshold_leaf_ = 8;
+      consolidate_threshold_leaf_ = 5;
 
       merge_threshold_ = 2;
 
