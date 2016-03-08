@@ -1499,42 +1499,24 @@ namespace index {
   }
   // go through pid table, delete chain
   // on merge node, delete right chain
-  template <typename KeyType, typename ValueType, class KeyComparator,
-      class KeyEqualityChecker>
-  bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Cleanup() {
-  //  std::vector<Node *> delete_queue;
-  //  for (pid_t pid = 0; pid < pid_gen_; ++pid) {
-  //    Node * node = mapping_table_.get_phy_ptr(pid);
-  //    if (node == nullptr)
-  //      continue;
-  //    Node * next = node->next;
-  //    while (next != nullptr) {
-  //      if (node->get_type() == NodeType::mergeInner ||
-  //          node->get_type() == NodeType::mergeLeaf) {
-  //      	MergeInner *mnode = static_cast<MergeInner *>(node);
-  //        delete_queue.push_back((Node*) mnode->deleting_node);
-  //      }
-  //      delete node;
-  //      node = next;
-  //      next = next->next;
-  //    }
-  //    delete node;
-  //  }
-  //  for (auto itr = delete_queue.begin(); itr != delete_queue.end(); itr++) {
-  //  	Node * node = *itr;
-  //    Node * next = node->next;
-  //    while (next != nullptr) {
-  //      delete node;
-  //      node = next;
-  //      next = next->next;
-  //    }
-  //    delete node;
-  //  }
-  //  pid_t root_pid = root_.load(std::memory_order_relaxed);
-  //  Node *node = mapping_table_.get_phy_ptr(root_pid);
-  //  delete node;
-    return true;
-  }
+  // TODO things will change when there's GC
+    template <typename KeyType, typename ValueType, class KeyComparator,
+    class KeyEqualityChecker>
+    bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Cleanup() {
+      for (pid_t pid = 0; pid < pid_gen_; ++pid) {
+        Node * node = mapping_table_.get_phy_ptr(pid);
+        if (node == nullptr)
+          continue;
+        Node * next = node->next;
+        while (next != nullptr) {
+          delete node;
+          node = next;
+          next = next->next;
+        }
+        delete node;
+      }
+      return true;
+    }
 
 
   #ifdef DEBUG
