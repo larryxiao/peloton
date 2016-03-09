@@ -88,7 +88,9 @@ class epoch_manager
 private:
   epoch_entry* nullptrlvalue = nullptr;
   epoch *epoch_;
-  ticker *tk;
+  // ticker *tk;
+  struct timespec t = {0, 40*1000*1000}; // 40 ms
+
   void deleteChain(Node *node) {
     if (node == nullptr)
       return;
@@ -119,18 +121,41 @@ private:
     delete node;
     delete(entry);
   };
+  /**
+   * ticker increments epoch
+   * and check epoch update, and run GC on previous epoch
+   */
+  void ticker() {
+    for(;;) {
+      nanosleep(&t, nullptr);
+      epoch previous = *epoch_;
+      (*epoch_)++;
+      epoch_entry *entry = epoch_table[previous % TABLESIZE].load(std::memory_order_relaxed);
+      if (entry != nullptr && entry->refcnt == 0) { 
+        assert(entry->epoch_ == previous);
+        bool ret = std::atomic_compare_exchange_weak_explicit(
+              &epoch_table[previous % TABLESIZE], &entry, nullptrlvalue,
+              std::memory_order_release, std::memory_order_relaxed);
+        // someone else succeeds
+        if (!ret)
+          return;
+        printf("start gc by ticker\n");
+        std::thread thd(&epoch_manager::GC, this, entry);
+        thd.detach();
+      }
+    }
+  };
 public:
   epoch_manager() {
     epoch_ = new epoch(0UL);
-    tk = new ticker(epoch_);
+    std::thread thd(&epoch_manager::ticker, this);
+    thd.detach();
   };
   ~epoch_manager() {
     delete(epoch_);
-    delete(tk);
   };
   // called by normal threads
   epoch enter() {
-    // TODO check epoch update, and run GC on previous epoch
     printf("enter\n");
     epoch current = *epoch_;
     epoch_entry *entry = epoch_table[current % TABLESIZE].load(std::memory_order_relaxed);
@@ -243,6 +268,7 @@ int main(int argc, char const *argv[])
   printf("e5 %lu\n", e5);
   em.addGCEntry(e5, n4);
   em.exit(e5);
+  sleep(1);
   // manually check
   return 0;
 }
