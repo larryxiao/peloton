@@ -1341,7 +1341,7 @@ namespace index {
         if(root_pid == secondcopyHeadNodeP->pid){
           //hence, root is splitting, create new inner node
           pid_t newRoot = static_cast<pid_t>(pid_gen_++);
-          InnerNode* newInnerNode = new InnerNode(copyHeadNodeP->pid,
+          InnerNode* newInnerNode = new InnerNode(newRoot,
                                        copyHeadNodeP->level,
                                        NULL_PID,
                                        splitNodeHead->new_child);
