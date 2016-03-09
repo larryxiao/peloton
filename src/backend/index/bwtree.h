@@ -942,7 +942,9 @@ class BWTree {
 
     // compare two values for equality
     inline bool val_eq(const ValueType &a, const ValueType &b) {
-      return val_comparator_(a,b);
+      auto p1 = static_cast<ItemPointer>(a);
+      auto p2 = static_cast<ItemPointer>(b);
+      return (p1.block == p2.block && p1.offset == p2.offset);
     }
 
     // Available modes: Greater than equal to, Greater tham
@@ -1052,7 +1054,7 @@ class BWTree {
       // TODO: decide values
       consolidate_threshold_inner_ = 5;
 
-      consolidate_threshold_leaf_ = 100;
+      consolidate_threshold_leaf_ = 5;
 
       merge_threshold_ = 2;
 
