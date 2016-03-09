@@ -634,6 +634,103 @@ namespace index {
 
   template <typename KeyType, typename ValueType, class KeyComparator,
       class KeyEqualityChecker>
+  bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+   search_deleted_kv(const std::vector<std::pair<KeyType, ValueType>> deleted_KV, KVType kv){
+    for(auto kv_itr = deleted_KV.begin(); kv_itr != deleted_KV.end(); kv_itr++){
+      if(key_val_compare_eq(*kv_itr, kv)){
+        // kv has been deleted
+        return true;
+      }
+    }
+    // kv has not been deleted
+    return false;
+  }
+
+  template <typename KeyType, typename ValueType, class KeyComparator,
+      class KeyEqualityChecker>
+  std::vector<ValueType> BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+  AllKeyScan() {
+    // pid of next leaf to visit
+    pid_t next_pid = head_leaf_ptr_;
+
+    TreeOpResult result;
+
+    // always succeeds
+    result.status = true;
+
+    while(next_pid != NULL_PID){
+      // start from the head of the list of leaves
+      Node *head = mapping_table_.get_phy_ptr(next_pid);
+
+      std::vector<std::pair<KeyType, ValueType>> deleted_KV;
+      while(head){
+        switch(head->get_type()){
+          case deltaInsert: {
+            auto node = static_cast<DeltaInsert *>(head);
+            auto kv = std::make_pair(node->key, node->value);
+
+            if(!search_deleted_kv(deleted_KV, kv)){
+              // not found, add to result
+              result.values.push_back(kv.second);
+            }
+            break;
+          }
+
+          case deltaDelete: {
+            auto node = static_cast<DeltaDelete *>(head);
+            auto kv = std::make_pair(node->key, node->value);
+            if(!search_deleted_kv(deleted_KV, kv)){
+              // add kv to deleted_kv
+              deleted_KV.push_back(kv);
+            }
+            break;
+          }
+
+          case NodeType::leaf: {
+            auto leaf = static_cast<LeafNode *>(head);
+            // save the next_pid
+            next_pid = leaf->sidelink;
+
+            // iterate through all keys
+            for(auto keyval_it = leaf->key_values.begin(); keyval_it != leaf->key_values.end();
+                keyval_it++){
+              auto key = keyval_it->first;
+              // check if no value of this key has been deleted
+              auto values = keyval_it->second;
+
+              for(auto val_it = values.begin(); val_it != values.end(); val_it++){
+                auto kv = std::make_pair(key, *val_it);
+                // check if it is not deleted
+                if(!search_deleted_kv(deleted_KV, kv)){
+                  // add to result
+                  result.values.push_back(kv.second);
+                }
+              }
+            }
+            break;
+          }
+          case NodeType::inner:break;
+          case NodeType::indexDelta:break;
+          case NodeType::deleteIndex:break;
+          case NodeType::deltaSplitInner:break;
+          case NodeType::mergeInner:break;
+          case NodeType::deltaSplitLeaf:break;
+          case NodeType::mergeLeaf:break;
+          case NodeType::removeNode:break;
+        }
+
+        // descend delta chain
+        head = head->next;
+      }
+
+      // go to next leaf page
+    }
+
+    return result.values;
+  }
+
+  template <typename KeyType, typename ValueType, class KeyComparator,
+      class KeyEqualityChecker>
   void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
   unblock_consolidate(const pid_t pid) {
     Node *head = mapping_table_.get_phy_ptr(pid);
