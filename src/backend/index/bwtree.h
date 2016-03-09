@@ -40,6 +40,9 @@ class BWTree {
     // logical pointer type
     typedef unsigned int pid_t;
 
+    // key value pair type
+    typedef const std::pair<KeyType, ValueType>& KVType;
+
     //Delta and standard node types
     enum NodeType : std::int8_t {
       leaf,
@@ -163,7 +166,7 @@ class BWTree {
       bool operator ()(const ValueType& v1, const ValueType& v2) const {
         auto p1 = static_cast<ItemPointer>(v1);
         auto p2 = static_cast<ItemPointer>(v2);
-        // block and offset comparision ordering
+        // block and offset comparison ordering
         if (p1.block == p2.block){
           return (p1.offset < p2.offset);
         }
@@ -922,6 +925,21 @@ class BWTree {
       return eq_checker_(a, b);
     }
 
+    inline bool key_val_compare_eq(KVType a, KVType b){
+      // check if keys are equal
+      if(key_compare_eq(a.first, b.first)){
+        auto p1 = static_cast<ItemPointer>(a.second);
+        auto p2 = static_cast<ItemPointer>(b.second);
+        // block and offset comparison ordering
+        if (p1.block == p2.block &&
+            p1.offset == p2.offset) {
+          return true;
+        }
+      }
+      return false;
+
+    }
+
     // compare two values for equality
     inline bool val_eq(const ValueType &a, const ValueType &b) {
       return val_comparator_(a,b);
@@ -946,6 +964,9 @@ class BWTree {
       delete_op,
       search_op,
     };
+
+    bool search_deleted_kv(const std::vector<std::pair<KeyType, ValueType>>
+                           deleted_KV, const std::pair<KeyType, ValueType>& kv);
 
 
     // Does a tree operation on inner node (head of it's delta chain)
@@ -1031,7 +1052,7 @@ class BWTree {
       // TODO: decide values
       consolidate_threshold_inner_ = 5;
 
-      consolidate_threshold_leaf_ = 8;
+      consolidate_threshold_leaf_ = 5;
 
       merge_threshold_ = 2;
 
@@ -1043,6 +1064,7 @@ class BWTree {
     bool Insert(const KeyType &key, const ValueType& value);
     std::vector<ValueType> Search(const KeyType& key);
     bool Delete(const KeyType &key, const ValueType &val);
+    std::vector<ValueType> AllKeyScan();
     bool Cleanup();
 
   #ifdef DEBUG
