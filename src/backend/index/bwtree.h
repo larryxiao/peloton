@@ -1057,7 +1057,7 @@ class BWTree {
 
       consolidate_threshold_leaf_ = 5;
 
-      merge_threshold_ = 2;
+      merge_threshold_ = 0;
 
       split_threshold_ = 100;
     }

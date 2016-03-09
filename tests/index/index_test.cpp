@@ -234,94 +234,94 @@ namespace peloton {
 
 
   // DELETE HELPER FUNCTION
-//  void DeleteTest(index::Index *index, VarlenPool *pool, size_t scale_factor){
-//
-//    // Loop based on scale factor
-//    for(size_t scale_itr = 1; scale_itr <= scale_factor; scale_itr++) {
-//      // Delete a bunch of keys based on scale itr
-//      std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
-//      std::unique_ptr<storage::Tuple> key1(new storage::Tuple(key_schema, true));
-//      std::unique_ptr<storage::Tuple> key2(new storage::Tuple(key_schema, true));
-//      std::unique_ptr<storage::Tuple> key3(new storage::Tuple(key_schema, true));
-//      std::unique_ptr<storage::Tuple> key4(new storage::Tuple(key_schema, true));
-//
-//      key0->SetValue(0, ValueFactory::GetIntegerValue(100 * scale_itr), pool);
-//      key0->SetValue(1, ValueFactory::GetStringValue("a"), pool);
-//      key1->SetValue(0, ValueFactory::GetIntegerValue(100 * scale_itr), pool);
-//      key1->SetValue(1, ValueFactory::GetStringValue("b"), pool);
-//      key2->SetValue(0, ValueFactory::GetIntegerValue(100 * scale_itr), pool);
-//      key2->SetValue(1, ValueFactory::GetStringValue("c"), pool);
-//      key3->SetValue(0, ValueFactory::GetIntegerValue(400 * scale_itr), pool);
-//      key3->SetValue(1, ValueFactory::GetStringValue("d"), pool);
-//      key4->SetValue(0, ValueFactory::GetIntegerValue(500 * scale_itr), pool);
-//      key4->SetValue(1, ValueFactory::GetStringValue(
-//          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-//              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-//              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-//              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-//              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-//              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-//              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-//              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-//              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-//              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-//              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-//              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-//              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-//              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-//              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-//              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-//              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-//              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-//              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-//              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"), pool);
-//
-//      // DELETE
-//      index->DeleteEntry(key0.get(), item0);
-//      index->DeleteEntry(key1.get(), item1);
-//      index->DeleteEntry(key2.get(), item2);
-//      index->DeleteEntry(key3.get(), item1);
-//      index->DeleteEntry(key4.get(), item1);
-//    }
-//
-//  }
-//
-//  TEST(IndexTests, DeleteTest) {
-//    auto pool = TestingHarness::GetInstance().GetTestingPool();
-//    std::vector<ItemPointer> locations;
-//
-//    // INDEX
-//    std::unique_ptr<index::Index> index(BuildIndex());
-//
-//    // Single threaded test
-//    size_t scale_factor = 1;
-//    LaunchParallelTest(1, InsertTest, index.get(), pool, scale_factor);
-//    LaunchParallelTest(1, DeleteTest, index.get(), pool, scale_factor);
-//
-//    // Checks
-//    std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
-//    std::unique_ptr<storage::Tuple> key1(new storage::Tuple(key_schema, true));
-//    std::unique_ptr<storage::Tuple> key2(new storage::Tuple(key_schema, true));
-//
-//    key0->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
-//    key0->SetValue(1, ValueFactory::GetStringValue("a"), pool);
-//    key1->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
-//    key1->SetValue(1, ValueFactory::GetStringValue("b"), pool);
-//    key2->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
-//    key2->SetValue(1, ValueFactory::GetStringValue("c"), pool);
-//
-//    locations = index->ScanKey(key0.get());
-//    EXPECT_EQ(locations.size(), 0);
-//
-//    locations = index->ScanKey(key1.get());
-//    EXPECT_EQ(locations.size(), 2);
-//
-//    locations = index->ScanKey(key2.get());
-//    EXPECT_EQ(locations.size(), 1);
-//    EXPECT_EQ(locations[0].block, item1.block);
-//
-//    delete tuple_schema;
-//  }
+  void DeleteTest(index::Index *index, VarlenPool *pool, size_t scale_factor){
+
+    // Loop based on scale factor
+    for(size_t scale_itr = 1; scale_itr <= scale_factor; scale_itr++) {
+      // Delete a bunch of keys based on scale itr
+      std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
+      std::unique_ptr<storage::Tuple> key1(new storage::Tuple(key_schema, true));
+      std::unique_ptr<storage::Tuple> key2(new storage::Tuple(key_schema, true));
+      std::unique_ptr<storage::Tuple> key3(new storage::Tuple(key_schema, true));
+      std::unique_ptr<storage::Tuple> key4(new storage::Tuple(key_schema, true));
+
+      key0->SetValue(0, ValueFactory::GetIntegerValue(100 * scale_itr), pool);
+      key0->SetValue(1, ValueFactory::GetStringValue("a"), pool);
+      key1->SetValue(0, ValueFactory::GetIntegerValue(100 * scale_itr), pool);
+      key1->SetValue(1, ValueFactory::GetStringValue("b"), pool);
+      key2->SetValue(0, ValueFactory::GetIntegerValue(100 * scale_itr), pool);
+      key2->SetValue(1, ValueFactory::GetStringValue("c"), pool);
+      key3->SetValue(0, ValueFactory::GetIntegerValue(400 * scale_itr), pool);
+      key3->SetValue(1, ValueFactory::GetStringValue("d"), pool);
+      key4->SetValue(0, ValueFactory::GetIntegerValue(500 * scale_itr), pool);
+      key4->SetValue(1, ValueFactory::GetStringValue(
+          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"), pool);
+
+      // DELETE
+      index->DeleteEntry(key0.get(), item0);
+      index->DeleteEntry(key1.get(), item1);
+      index->DeleteEntry(key2.get(), item2);
+      index->DeleteEntry(key3.get(), item1);
+      index->DeleteEntry(key4.get(), item1);
+    }
+
+  }
+
+  TEST(IndexTests, DeleteTest) {
+    auto pool = TestingHarness::GetInstance().GetTestingPool();
+    std::vector<ItemPointer> locations;
+
+    // INDEX
+    std::unique_ptr<index::Index> index(BuildIndex());
+
+    // Single threaded test
+    size_t scale_factor = 1;
+    LaunchParallelTest(1, InsertTest, index.get(), pool, scale_factor);
+    LaunchParallelTest(1, DeleteTest, index.get(), pool, scale_factor);
+
+    // Checks
+    std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
+    std::unique_ptr<storage::Tuple> key1(new storage::Tuple(key_schema, true));
+    std::unique_ptr<storage::Tuple> key2(new storage::Tuple(key_schema, true));
+
+    key0->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
+    key0->SetValue(1, ValueFactory::GetStringValue("a"), pool);
+    key1->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
+    key1->SetValue(1, ValueFactory::GetStringValue("b"), pool);
+    key2->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
+    key2->SetValue(1, ValueFactory::GetStringValue("c"), pool);
+
+    locations = index->ScanKey(key0.get());
+    EXPECT_EQ(locations.size(), 0);
+
+    locations = index->ScanKey(key1.get());
+    EXPECT_EQ(locations.size(), 2);
+
+    locations = index->ScanKey(key2.get());
+    EXPECT_EQ(locations.size(), 1);
+    EXPECT_EQ(locations[0].block, item1.block);
+
+    delete tuple_schema;
+  }
 
 //  void SplitInsertTest(index::Index *index, VarlenPool *pool, size_t scale_factor) {
 //
@@ -427,39 +427,39 @@ namespace peloton {
 //    delete tuple_schema;
 //  }
 
-TEST(IndexTests, MultiThreadedInsertTest) {
-  auto pool = TestingHarness::GetInstance().GetTestingPool();
-  std::vector<ItemPointer> locations;
-
-  // INDEX
-  std::unique_ptr<index::Index> index(BuildIndex());
-
-  // Parallel Test
-  size_t num_threads = 100;
-  size_t scale_factor = 1;
-  LaunchParallelTest(num_threads, InsertTest, index.get(), pool, scale_factor);
-
-  locations = index->ScanAllKeys();
-  EXPECT_EQ(locations.size(), 9 * num_threads);
-
-  std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
-  std::unique_ptr<storage::Tuple> keynonce(new storage::Tuple(key_schema, true));
-
-  keynonce->SetValue(0, ValueFactory::GetIntegerValue(1000), pool);
-  keynonce->SetValue(1, ValueFactory::GetStringValue("f"), pool);
-
-  key0->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
-  key0->SetValue(1, ValueFactory::GetStringValue("a"), pool);
-
-  locations = index->ScanKey(keynonce.get());
-  EXPECT_EQ(locations.size(), 0);
-
-  locations = index->ScanKey(key0.get());
-  EXPECT_EQ(locations.size(), num_threads);
-  EXPECT_EQ(locations[0].block, item0.block);
-
-  delete tuple_schema;
-}
+//TEST(IndexTests, MultiThreadedInsertTest) {
+//  auto pool = TestingHarness::GetInstance().GetTestingPool();
+//  std::vector<ItemPointer> locations;
+//
+//  // INDEX
+//  std::unique_ptr<index::Index> index(BuildIndex());
+//
+//  // Parallel Test
+//  size_t num_threads = 100;
+//  size_t scale_factor = 1;
+//  LaunchParallelTest(num_threads, InsertTest, index.get(), pool, scale_factor);
+//
+//  locations = index->ScanAllKeys();
+//  EXPECT_EQ(locations.size(), 9 * num_threads);
+//
+//  std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
+//  std::unique_ptr<storage::Tuple> keynonce(new storage::Tuple(key_schema, true));
+//
+//  keynonce->SetValue(0, ValueFactory::GetIntegerValue(1000), pool);
+//  keynonce->SetValue(1, ValueFactory::GetStringValue("f"), pool);
+//
+//  key0->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
+//  key0->SetValue(1, ValueFactory::GetStringValue("a"), pool);
+//
+//  locations = index->ScanKey(keynonce.get());
+//  EXPECT_EQ(locations.size(), 0);
+//
+//  locations = index->ScanKey(key0.get());
+//  EXPECT_EQ(locations.size(), num_threads);
+//  EXPECT_EQ(locations[0].block, item0.block);
+//
+//  delete tuple_schema;
+//}
 
   }  // End test namespace
 }  // End peloton namespace
