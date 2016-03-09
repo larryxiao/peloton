@@ -39,6 +39,7 @@ class BWTree {
   private:
     // logical pointer type
     typedef unsigned int pid_t;
+    size_t memory_usage;
 
     // key value pair type
     typedef const std::pair<KeyType, ValueType>& KVType;
@@ -1066,6 +1067,7 @@ class BWTree {
     bool Delete(const KeyType &key, const ValueType &val);
     std::vector<ValueType> AllKeyScan();
     bool Cleanup();
+    size_t GetMemoryFootprint();
 
   #ifdef DEBUG
     // print tree for debugging

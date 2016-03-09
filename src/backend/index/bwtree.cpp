@@ -26,6 +26,8 @@ namespace index {
       class KeyEqualityChecker> template <typename K, typename V>
   unsigned long BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
   node_key_search(const TreeNode<K, V> *node, const KeyType &key) {
+    
+    memory_usage = 0;
 
     NodeSearchMode  mode = GTE;
 
@@ -778,7 +780,7 @@ namespace index {
                                  OperationType::insert_op,
                                  state);
     }while(!result.status);
-
+    memory_usage++;
     return result.status;
   }
 
@@ -797,7 +799,7 @@ namespace index {
       result = do_tree_operation(root_pid, key, val,
                                  OperationType::delete_op, state);
     }while(!result.status);
-
+    memory_usage++;
     return result.status;
   }
 
@@ -1130,6 +1132,7 @@ namespace index {
       class KeyEqualityChecker>
   bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
   merge_page(pid_t pid_l, pid_t pid_r, pid_t pid_parent) {
+    memory_usage+=3;
     return (pid_l > 0 && pid_r > 0 && pid_parent > 0);
     Node *ptr_r, *ptr_l, *ptr_parent;
     bool leaf = ptr_r->is_leaf();
@@ -1616,7 +1619,11 @@ namespace index {
       }
       return true;
     }
-
+    template <typename KeyType, typename ValueType, class KeyComparator,
+    class KeyEqualityChecker>
+    size_t BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::GetMemoryFootprint() {
+      return memory_usage;
+    }
 
   #ifdef DEBUG
   template <typename KeyType, typename ValueType, class KeyComparator,
