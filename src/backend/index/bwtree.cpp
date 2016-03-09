@@ -463,24 +463,14 @@ namespace index {
           // greater key
           auto child_pos = node_key_search(leaf_node, key);
 
+          if(child_pos >= leaf_node->key_values.size()){
+            // key out of range
+            break;
+          }
+
           // extract child pid from they key value pair
           auto match = leaf_node->key_values[child_pos];
 
-          // if our match is greater than the last key
-          if(child_pos == leaf_node->key_values.size()-1 &&
-             key_compare_lt(match.first, key)){
-            // check if sibling exists
-            if(leaf_node->sidelink != NULL_PID){
-              // search in the sibling
-              result =  search_leaf_page(leaf_node->sidelink, key);
-              // set pid
-              result.pid = head->pid;
-              return result;
-            } else {
-              // no match, return
-              return result;
-            }
-          }
 
           // otherwise, key is in this range,
           // check the binary search result
