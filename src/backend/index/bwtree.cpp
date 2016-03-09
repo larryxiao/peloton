@@ -292,10 +292,10 @@ namespace index {
 
     op_result.pid = head->pid;
 
-    if(!op_result.status){
-      // op_result has failed, return
-      return op_result;
-    }
+//    if(!op_result.status){
+//      // op_result has failed, return
+//      return op_result;
+//    }
 
     // the node hasn't split yet
     op_result.has_split = false;
@@ -575,6 +575,10 @@ namespace index {
         else
           result.kq = state.kq;
       }
+
+      result.status = false;
+      // update parent nodes and re-try operation
+      return result;
     }
 
     Node *update = nullptr;
