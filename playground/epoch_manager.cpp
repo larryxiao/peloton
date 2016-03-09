@@ -1,4 +1,5 @@
 // g++ -g -std=c++11 -pthread epoch_manager.cpp
+// valgrind --leak-check=full --track-origins=yes ./a.out
 
 #include <vector>
 #include <atomic>
@@ -84,7 +85,7 @@ class epoch_manager
       list = ent;
     }
   };
-  std::atomic<epoch_entry*> epoch_table[TABLESIZE];
+  std::atomic<epoch_entry*> epoch_table[TABLESIZE] = {};
 private:
   epoch_entry* nullptrlvalue = nullptr;
   epoch *epoch_;
