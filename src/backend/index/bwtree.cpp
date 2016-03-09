@@ -1307,6 +1307,36 @@ namespace index {
       copyHeadNodeP=copyHeadNodeP->next;
     }
 
+    for(auto kv_vec_itr = wholePairs.begin(); kv_vec_itr != wholePairs.end(); ){
+      auto key = kv_vec_itr->first;
+      auto values = kv_vec_itr->second;
+      for(auto del_kv : deletedPairs){
+        // check for key match
+        if(key_compare_eq(del_kv.first, key)){
+          // iterate through all values
+          for(auto val_itr = values.begin(); val_itr != values.end();){
+            // values match, delete value from leaf key
+            if(val_eq(*val_itr, del_kv.second)){
+              val_itr = values.erase(val_itr);
+            }else {
+              // otherwise continue to next value
+              val_itr++;
+            }
+          }
+          // check if all values have been emptied
+          if(values.empty()) {
+            // delete this entry from the leaf node
+            kv_vec_itr = wholePairs.erase(kv_vec_itr);
+          } else {
+            kv_vec_itr++;
+          }
+        } else {
+          // keys don't match, go to next key
+          kv_vec_itr++;
+        }
+      }
+    }
+
     for(auto const& elem: insertedPairs){	//TODO: optimize?
       auto it = std::find_if(wholePairs.begin(), wholePairs.end(), [&](const std::pair<KeyType,std::vector<ValueType>>& element) {
         return key_compare_eq(element.first, elem.first);

@@ -25,7 +25,7 @@
 #define NULL_PID 0
 
 // turn on or off debug mode
-#define DEBUG
+//#define DEBUG
 
 namespace peloton {
 namespace index {
@@ -1052,11 +1052,11 @@ class BWTree {
       // TODO: decide values
       consolidate_threshold_inner_ = 5;
 
-      consolidate_threshold_leaf_ = 5;
+      consolidate_threshold_leaf_ = 100;
 
       merge_threshold_ = 2;
 
-      split_threshold_ = 4;
+      split_threshold_ = 100;
     }
 
     //bool Insert(__attribute__((unused)) KeyType key,
