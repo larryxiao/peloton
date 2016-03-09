@@ -107,7 +107,7 @@ namespace index {
     // check if we are already at leaf level
     if (head->is_leaf()){
       if (op_type == OperationType::search_op) {
-        op_result = search_leaf_page(head, key);
+        op_result = search_leaf_page(head, key, child_state);
       } else {
         // insert/delete operation; try to update
         // delta chain and fetch result
@@ -115,10 +115,6 @@ namespace index {
         child_state.is_kq_inf = true;
         op_result = update_leaf_delta_chain(head, head->pid, key, value,
                                             op_type, child_state);
-  #ifdef DEBUG
-        pid_t root_pid = root_.load(std::memory_order_relaxed);
-        print_tree(root_pid);
-  #endif
       }
     } else {
 
@@ -248,7 +244,7 @@ namespace index {
                 // next level is leaf, execute leaf operation
                 if (op_type == OperationType::search_op) {
                   // search the leaf page and get result
-                  op_result = search_leaf_page(child_pid, key);
+                  op_result = search_leaf_page(child_pid, key, child_state);
                   // don't iterate anymore
                   continue_itr = false;
                 } else {
@@ -301,7 +297,7 @@ namespace index {
     op_result.has_split = false;
 
     // if the child has split, install the index delta node
-    if(has_child_split){
+    if(!op_result.is_new_inner_node && has_child_split){
       // index delta node
       Node *node = nullptr;
 
@@ -329,6 +325,10 @@ namespace index {
             // set pid of split page
             op_result.split_merge_pid =
                 cons_result.split_child_pid;
+
+            // assume no inner node is created
+            op_result.is_new_inner_node =
+                cons_result.is_new_inner_node;
 
             // used to inform parent kp value
             op_result.kp = cons_result.kp;
@@ -359,17 +359,17 @@ namespace index {
       class KeyEqualityChecker>
   typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
   TreeOpResult BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
-  search_leaf_page(const pid_t node_pid, const KeyType &key) {
+  search_leaf_page(const pid_t node_pid, const KeyType &key, const TreeState &state) {
 
     Node *head = mapping_table_.get_phy_ptr(node_pid);
-    return search_leaf_page(head, key);
+    return search_leaf_page(head, key, state);
   }
 
   template <typename KeyType, typename ValueType, class KeyComparator,
       class KeyEqualityChecker>
   typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
   TreeOpResult BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
-  search_leaf_page(Node *head, const KeyType &key) {
+  search_leaf_page(Node *head, const KeyType &key, const TreeState &state) {
 
     TreeOpResult result;
 
@@ -391,7 +391,18 @@ namespace index {
         // split has happened, inform parent on return
         result.has_split = true;
 
-        // TODO: set other consolidate result
+        // set pid of split page
+        result.split_merge_pid = cons_result.split_child_pid;
+
+        result.is_new_inner_node
+            = cons_result.is_new_inner_node;
+        // used to inform parent kp value
+        result.kp = cons_result.kp;
+        result.is_kq_inf = false;
+        if(state.is_kq_inf)
+          result.is_kq_inf = true;
+        else
+          result.kq = state.kq;
       }
     }
 
@@ -433,7 +444,8 @@ namespace index {
           // splitKey < key?
           if (key_compare_lt(delta_node->splitKey, key )) {
             // do search on Q and return
-            result =  search_leaf_page(delta_node->new_child, key);
+            result =  search_leaf_page(delta_node->new_child,
+                                       key, state);
             result.pid = head->pid;
             return result;
           }
@@ -446,7 +458,8 @@ namespace index {
           // splitKey <= key?
           if (key_compare_lte(delta_node->splitKey, key )) {
             // continue search on R
-            result = search_leaf_page(delta_node->deleting_node, key);
+            result = search_leaf_page(delta_node->deleting_node, key,
+                                      state);
 
             continue_itr = false;
           }
@@ -567,6 +580,8 @@ namespace index {
         // set pid of split page
         result.split_merge_pid = cons_result.split_child_pid;
 
+        result.is_new_inner_node
+            = cons_result.is_new_inner_node;
         // used to inform parent kp value
         result.kp = cons_result.kp;
         result.is_kq_inf = false;
@@ -768,12 +783,16 @@ namespace index {
     TreeOpResult result;
     state.has_index_delta = false;
     state.parent_pid = NULL_PID;
-    pid_t root_pid = root_.load(std::memory_order_relaxed);
+    pid_t root_pid;
     do{
+      root_pid = root_.load(std::memory_order_relaxed);
       result = do_tree_operation(root_pid, key, value,
                                  OperationType::insert_op,
                                  state);
     }while(!result.status);
+#ifdef DEBUG
+    print_tree(root_pid);
+#endif
     memory_usage++;
     return result.status;
   }
@@ -787,12 +806,15 @@ namespace index {
     TreeOpResult result;
     state.has_index_delta = false;
     state.parent_pid = NULL_PID;
-
-    pid_t root_pid = root_.load(std::memory_order_relaxed);
+    pid_t root_pid;
     do{
+      root_pid = root_.load(std::memory_order_relaxed);
       result = do_tree_operation(root_pid, key, val,
                                  OperationType::delete_op, state);
     }while(!result.status);
+#ifdef DEBUG
+    print_tree(root_pid);
+#endif
     memory_usage++;
     return result.status;
   }
@@ -1346,7 +1368,7 @@ namespace index {
           //hence, root is splitting, create new inner node
           pid_t newRoot = static_cast<pid_t>(pid_gen_++);
           InnerNode* newInnerNode = new InnerNode(newRoot,
-                                       copyHeadNodeP->level,
+                                       copyHeadNodeP->level+1,
                                        NULL_PID,
                                        splitNodeHead->new_child);
 
@@ -1366,7 +1388,8 @@ namespace index {
           {
             // Clear unused stuff
             return result;
-          };
+          }
+          result.is_new_inner_node = true;
         }
         result.has_split = true;
         result.kp = splitNodeHead->splitKey;
@@ -1541,6 +1564,34 @@ namespace index {
       if(!mapping_table_.install_node(copyHeadNodeP->pid, secondcopyHeadNodeP, splitNodeHead)) //Should I cast?
         return result;
       else{
+        pid_t root_pid = root_.load(std::memory_order_relaxed);
+        if(root_pid == secondcopyHeadNodeP->pid){
+          //hence, root is splitting, create new inner node
+          pid_t newRoot = static_cast<pid_t>(pid_gen_++);
+          InnerNode* newInnerNode = new InnerNode(newRoot,
+                                                  copyHeadNodeP->level+1,
+                                                  NULL_PID,
+                                                  splitNodeHead->new_node);
+
+          std::vector<std::pair<KeyType, pid_t >> qElemVec = std::vector<std::pair<KeyType, pid_t >>{
+              std::pair<KeyType,pid_t >(splitNodeHead->splitKey,copyHeadNodeP->pid)};
+
+          newInnerNode->key_values = qElemVec;
+          newInnerNode->record_count = qElemVec.size();
+
+          mapping_table_.insert_new_pid(newRoot, newInnerNode); //TODO: should I try retry here? (And in all other cases)
+          //TODO: Check if any inconsistencies can pop in because of non-atomic updates in this scope
+
+          //atomically update the parameter
+          if(!std::atomic_compare_exchange_weak_explicit(
+              &root_, &root_pid, newRoot,
+              std::memory_order_release, std::memory_order_relaxed))
+          {
+            // Clear unused stuff
+            return result;
+          }
+          result.is_new_inner_node = true;
+        }
         result.has_split = true;
         result.kp = splitNodeHead->splitKey;
         result.split_child_pid = splitNodeHead->new_node;

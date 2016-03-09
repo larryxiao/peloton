@@ -832,6 +832,9 @@ class BWTree {
 
       bool is_kq_inf;
 
+      // used to handle new inner node edge case (root split)
+      bool is_new_inner_node = false;
+
       // pid of the node requiring split/merge
       pid_t split_merge_pid;
 
@@ -877,6 +880,9 @@ class BWTree {
 
       // split key
       KeyType kp;
+
+      // used to handle new inner node edge case (root split)
+      bool is_new_inner_node = false;
 
       // node created by split
       pid_t split_child_pid;
@@ -987,10 +993,12 @@ class BWTree {
 
     // Search leaf page and return the found value, if exists. Try SMOs /
     // Consolidation, if necessary
-    TreeOpResult search_leaf_page(Node *head, const KeyType& key);
+    TreeOpResult search_leaf_page(Node *head, const KeyType& key,
+                                  const TreeState &state);
 
     // Wrapper for the above function
-    TreeOpResult search_leaf_page(const pid_t pid, const KeyType& key);
+    TreeOpResult search_leaf_page(const pid_t pid, const KeyType& key,
+                                  const TreeState &state);
 
 
     // Update the leaf delta chain during insert/delta. Try SMOs /
