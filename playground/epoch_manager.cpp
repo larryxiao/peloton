@@ -1,5 +1,5 @@
 // g++ -g -std=c++11 -pthread epoch_manager.cpp
-// valgrind --leak-check=full --track-origins=yes ./a.out
+// valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes ./a.out
 
 #include <vector>
 #include <atomic>
