@@ -292,10 +292,10 @@ namespace index {
 
     op_result.pid = head->pid;
 
-    if(!op_result.status){
-      // op_result has failed, return
-      return op_result;
-    }
+//    if(!op_result.status){
+//      // op_result has failed, return
+//      return op_result;
+//    }
 
     // the node hasn't split yet
     op_result.has_split = false;
@@ -575,6 +575,10 @@ namespace index {
         else
           result.kq = state.kq;
       }
+
+      result.status = false;
+      // update parent nodes and re-try operation
+      return result;
     }
 
     Node *update = nullptr;
@@ -1370,6 +1374,10 @@ namespace index {
         result.status = true;
       }
       //TODO set: result.kp and result.split_child_pid
+    } else if(wholePairs.size()<(unsigned)merge_threshold_){
+      //call merge
+      //TODO
+      result.has_merge = true;
     }
     else{
       //TODO: Check correctness of following
@@ -1518,6 +1526,8 @@ namespace index {
                                    qPID_last_child,
                                    oldInnerNode->kmax);
 
+    result.has_split = false;
+
     // split threshold checking
     if(wholePairs.size()>(unsigned)split_threshold_){
       //call split
@@ -1527,14 +1537,16 @@ namespace index {
       //TODO: need to insert index delta on the parent
       //TODO: Handle root update case
       DeltaSplitInner* splitNodeHead = splitPageInner(newInnerNode, wholePairs, qPID_last_child);
-      result.has_split = true;
-      result.kp = splitNodeHead->splitKey;
-      result.split_child_pid = splitNodeHead->new_node;
 
       if(!mapping_table_.install_node(copyHeadNodeP->pid, secondcopyHeadNodeP, splitNodeHead)) //Should I cast?
         return result;
-      else
+      else{
+        result.has_split = true;
+        result.kp = splitNodeHead->splitKey;
+        result.split_child_pid = splitNodeHead->new_node;
         result.status = true;
+      }
+
     }
       //merge threshold checking
     else if(wholePairs.size()<(unsigned)merge_threshold_){
