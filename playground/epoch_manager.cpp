@@ -40,6 +40,10 @@ struct Node
 {
   int payload;
   struct Node *next;
+  Node(int p, Node* n) {
+    payload = p;
+    next = n;
+  }
 };
 
 /**
@@ -90,18 +94,22 @@ private:
       return;
     Node * next = node->next;
     while (next != nullptr) {
+      printf("delete node %d\n", node->payload);
       delete node;
       node = next;
       next = next->next;
     }
+    printf("delete node %d\n", node->payload);
     delete node;
   }
   void GC(epoch_entry *entry) {
+    printf("GC\n");
     delete_entry * node = entry->list;
     if (node == nullptr)
       return;
     delete_entry * next = node->next;
     while (next != nullptr) {
+      printf("deletechain\n");
       deleteChain(node->payload);
       delete node;
       node = next;
@@ -123,6 +131,7 @@ public:
   // called by normal threads
   epoch enter() {
     // TODO check epoch update, and run GC on previous epoch
+    printf("enter\n");
     epoch current = *epoch_;
     epoch_entry *entry = epoch_table[current % TABLESIZE].load(std::memory_order_relaxed);
     if (entry != nullptr) {
@@ -144,24 +153,28 @@ public:
     return current;
   };
   void exit(epoch e) {
+    printf("exit\n");
     // when refcnt drop to zero, and epoch has progressed, spawn thread to do GC
     epoch current = *epoch_;
-    epoch_entry *entry = epoch_table[current % TABLESIZE].load(std::memory_order_relaxed);
+    epoch_entry *entry = epoch_table[e % TABLESIZE].load(std::memory_order_relaxed);
     assert(entry->epoch_ == e); // make sure no collision
     // TODO can have leaked entries because no thread join before epoch moves on
+    printf("refcnt %d epoch %lu, current epoch %lu\n", entry->refcnt-1, entry->epoch_, current);
     if (--entry->refcnt == 0 && current > entry->epoch_) {
       bool ret = std::atomic_compare_exchange_weak_explicit(
-            &epoch_table[current % TABLESIZE], &entry, nullptrlvalue,
+            &epoch_table[e % TABLESIZE], &entry, nullptrlvalue,
             std::memory_order_release, std::memory_order_relaxed);
       // someone else succeeds
       if (!ret)
         return;
+      printf("start gc\n");
       std::thread thd(&epoch_manager::GC, this, entry);
       thd.detach();
     }
   };
   // called by consolidate
   void addGCEntry(epoch e, Node *node) {
+    printf("addGCEntry\n");
     epoch_entry *entry = epoch_table[e % TABLESIZE].load(std::memory_order_relaxed);
     assert(entry->epoch_ == e); // make sure no collision
     delete_entry *head, *nnew;
@@ -190,55 +203,46 @@ int main(int argc, char const *argv[])
     }
     delete(epoch_);
   }
-  printf("test epoch_manager\n");
+  printf("[TEST] epoch_manager\n");
   epoch_manager em;
-  Node *n1 = new Node();
-  Node *ck11 = n1->next = new Node();
-  Node *ck12 = n1->next->next = new Node();
+  Node *n1 = new Node(1, nullptr);
+  Node *ck11 = n1->next = new Node(11, nullptr);
+  Node *ck12 = n1->next->next = new Node(12, nullptr);
   Node *ck13 = n1->next->next->next = nullptr;
-  Node *n2 = new Node();
-  Node *ck21 = n2->next = new Node();
+  Node *n2 = new Node(2, nullptr);
+  Node *ck21 = n2->next = new Node(21, nullptr);
   Node *ck22 = n2->next->next = nullptr;
-  Node *n3 = new Node();
-  Node *ck31 = n3->next = new Node();
-  Node *ck32 = n3->next->next = new Node();
+  Node *n3 = new Node(3, nullptr);
+  Node *ck31 = n3->next = new Node(31, nullptr);
+  Node *ck32 = n3->next->next = new Node(32, nullptr);
   Node *ck33 = n3->next->next->next = nullptr;
-  Node *n4 = new Node();
-  Node *ck41 = n4->next = new Node();
+  Node *n4 = new Node(4, nullptr);
+  Node *ck41 = n4->next = new Node(41, nullptr);
   Node *ck42 = n4->next->next = nullptr;
-  printf("normal gc, 1 entry\n");
+  printf("[TEST] normal gc, 1 entry\n");
   epoch e1 = em.enter();
   em.addGCEntry(e1, n1);
   epoch e2 = em.enter();
   printf("e1 %lu e2 %lu\n", e1, e2);
   em.exit(e1);
-  sleep(0.05);
+  sleep(1);
   em.exit(e2);
-  assert(n1 == nullptr);
-  assert(ck11 == nullptr);
-  assert(ck12 == nullptr);
-  assert(ck13 == nullptr);
-  printf("normal gc, 2 entry\n");
+  // manually check
+  printf("[TEST] normal gc, 2 entry\n");
   epoch e3 = em.enter();
   epoch e4 = em.enter();
   printf("e3 %lu e4 %lu\n", e3, e4);
   em.addGCEntry(e3, n2);
   em.addGCEntry(e4, n3);
   em.exit(e3);
-  sleep(0.05);
+  sleep(1);
   em.exit(e4);
-  assert(n2 == nullptr);
-  assert(ck21 == nullptr);
-  assert(ck22 == nullptr);
-  assert(n3 == nullptr);
-  assert(ck31 == nullptr);
-  assert(ck32 == nullptr);
-  assert(ck33 == nullptr);
-  printf("leaked gc\n");
+  // manually check
+  printf("[TEST] leaked gc\n");
   epoch e5 = em.enter();
   printf("e5 %lu\n", e5);
   em.addGCEntry(e5, n4);
   em.exit(e5);
-  printf("n4: %p %p %p\n", n4, ck41, ck42);
+  // manually check
   return 0;
 }
