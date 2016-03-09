@@ -26,7 +26,7 @@ namespace index {
       class KeyEqualityChecker> template <typename K, typename V>
   unsigned long BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
   node_key_search(const TreeNode<K, V> *node, const KeyType &key) {
-    
+
     memory_usage = 0;
 
     NodeSearchMode  mode = GTE;
@@ -1343,21 +1343,44 @@ namespace index {
       //TODO: need to insert index delta on the parent
       //TODO: Handle root update case
       DeltaSplitLeaf* splitNodeHead = splitPageLeaf(newLeafNode, wholePairs);
-      result.has_split = true;
-      result.kp = splitNodeHead->splitKey;
-      result.split_child_pid = splitNodeHead->new_child;
 
       if(!mapping_table_.install_node(copyHeadNodeP->pid, secondcopyHeadNodeP, splitNodeHead)) //Should I cast?
         return result;
-      else
+      else {
+        pid_t root_pid = root_.load(std::memory_order_relaxed);
+        if(root_pid == secondcopyHeadNodeP->pid){
+          //hence, root is splitting, create new inner node
+          pid_t newRoot = static_cast<pid_t>(pid_gen_++);
+          InnerNode* newInnerNode = new InnerNode(copyHeadNodeP->pid,
+                                       copyHeadNodeP->level,
+                                       NULL_PID,
+                                       splitNodeHead->new_child);
+
+          std::vector<std::pair<KeyType, pid_t >> qElemVec = std::vector<std::pair<KeyType, pid_t >>{
+                  std::pair<KeyType,pid_t >(splitNodeHead->splitKey,copyHeadNodeP->pid)};
+
+          newInnerNode->key_values = qElemVec;
+          newInnerNode->record_count = qElemVec.size();
+
+          mapping_table_.insert_new_pid(newRoot, newInnerNode); //TODO: should I try retry here? (And in all other cases)
+          //TODO: Check if any inconsistencies can pop in because of non-atomic updates in this scope
+
+          //atomically update the parameter
+          if(!std::atomic_compare_exchange_weak_explicit(
+                  &root_, &root_pid, newRoot,
+                  std::memory_order_release, std::memory_order_relaxed))
+          {
+            // Clear unused stuff
+            return result;
+          };
+        }
+        result.has_split = true;
+        result.kp = splitNodeHead->splitKey;
+        result.split_child_pid = splitNodeHead->new_child;
         result.status = true;
+      }
       //TODO set: result.kp and result.split_child_pid
     }
-      //merge threshold checking
-//    else if(wholePairs.size()<(unsigned)merge_threshold_){
-//      //call merge
-//      result.has_merge = true;
-//    }
     else{
       //TODO: Check correctness of following
       newLeafNode->key_values = wholePairs;
@@ -1367,7 +1390,6 @@ namespace index {
         return result;
       else
         result.status = true;
-
   //            TODO: The following :-
   //            if(!status){
   //              dealloc split node (outside gc)
