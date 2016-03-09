@@ -25,7 +25,7 @@
 #define NULL_PID 0
 
 // turn on or off debug mode
-#define DEBUG
+//#define DEBUG
 
 namespace peloton {
 namespace index {
@@ -943,7 +943,9 @@ class BWTree {
 
     // compare two values for equality
     inline bool val_eq(const ValueType &a, const ValueType &b) {
-      return val_comparator_(a,b);
+      auto p1 = static_cast<ItemPointer>(a);
+      auto p2 = static_cast<ItemPointer>(b);
+      return (p1.block == p2.block && p1.offset == p2.offset);
     }
 
     // Available modes: Greater than equal to, Greater tham
@@ -1057,7 +1059,7 @@ class BWTree {
 
       merge_threshold_ = 2;
 
-      split_threshold_ = 4;
+      split_threshold_ = 100;
     }
 
     //bool Insert(__attribute__((unused)) KeyType key,
