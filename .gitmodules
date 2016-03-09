@@ -1,0 +1,3 @@
+[submodule "src/backend/index/libcuckoo"]
+	path = src/backend/index/libcuckoo
+	url = git@github.com:efficient/libcuckoo.git
