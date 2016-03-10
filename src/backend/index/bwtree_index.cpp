@@ -12,7 +12,6 @@
 
 #include "backend/common/logger.h"
 #include "backend/index/index_key.h"
-#include "backend/storage/tuple.h"
 
 #include "backend/index/bwtree_index.h"
 
@@ -21,19 +20,19 @@ namespace index {
 
 template <typename KeyType, typename ValueType, class KeyComparator,
           class KeyEqualityChecker>
-BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
-BWTreeIndex(IndexMetadata *metadata)
-  : Index(metadata),
-    container(metadata),
-    equals(metadata),
-    comparator(metadata) {
+BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::BWTreeIndex(
+    IndexMetadata *metadata)
+    : Index(metadata),
+      container(metadata),
+      equals(metadata),
+      comparator(metadata) {
   // Add your implementation here
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator,
           class KeyEqualityChecker>
-BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
-~BWTreeIndex() {
+BWTreeIndex<KeyType, ValueType, KeyComparator,
+            KeyEqualityChecker>::~BWTreeIndex() {
   // Add your implementation here
   container.Cleanup();
 }
@@ -41,22 +40,25 @@ BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
 template <typename KeyType, typename ValueType, class KeyComparator,
           class KeyEqualityChecker>
 bool BWTreeIndex<KeyType, ValueType, KeyComparator,
-     KeyEqualityChecker>::InsertEntry(
-       __attribute__((unused)) const storage::Tuple *key,
-       __attribute__((unused)) const ItemPointer location) {
+                 KeyEqualityChecker>::InsertEntry(__attribute__((unused))
+                                                  const storage::Tuple *key,
+                                                  __attribute__((unused))
+                                                  const ItemPointer location) {
   // Add your implementation here
   KeyType index_key;
   index_key.SetFromKey(key);
-  while(!container.Insert(index_key, location));
+  while (!container.Insert(index_key, location))
+    ;
   return true;
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator,
           class KeyEqualityChecker>
 bool BWTreeIndex<KeyType, ValueType, KeyComparator,
-     KeyEqualityChecker>::DeleteEntry(
-       __attribute__((unused)) const storage::Tuple *key,
-__attribute__((unused)) const ItemPointer location) {
+                 KeyEqualityChecker>::DeleteEntry(__attribute__((unused))
+                                                  const storage::Tuple *key,
+                                                  __attribute__((unused))
+                                                  const ItemPointer location) {
   // Add your implementation here
   KeyType index_key;
   index_key.SetFromKey(key);
@@ -68,18 +70,16 @@ template <typename KeyType, typename ValueType, class KeyComparator,
           class KeyEqualityChecker>
 std::vector<ItemPointer>
 BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Scan(
-  __attribute__((unused)) const std::vector<Value> &values,
-  __attribute__((unused)) const std::vector<oid_t> &key_column_ids,
-  __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
-  __attribute__((unused)) const ScanDirectionType& scan_direction) {
+    __attribute__((unused)) const std::vector<Value> &values,
+    __attribute__((unused)) const std::vector<oid_t> &key_column_ids,
+    __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
+    __attribute__((unused)) const ScanDirectionType &scan_direction) {
   std::vector<ItemPointer> result;
-  KeyType index_key;
-
   // Check if we have leading (leftmost) column equality
   // refer : http://www.postgresql.org/docs/8.2/static/indexes-multicolumn.html
   oid_t leading_column_id = 0;
-  auto key_column_ids_itr = std::find(
-      key_column_ids.begin(), key_column_ids.end(), leading_column_id);
+  auto key_column_ids_itr = std::find(key_column_ids.begin(),
+                                      key_column_ids.end(), leading_column_id);
 
   // SPECIAL CASE : leading column id is one of the key column ids
   // and is involved in a equality constraint
@@ -95,44 +95,39 @@ BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Scan(
 
   // auto scan_begin_itr = container.begin();
   std::unique_ptr<storage::Tuple> start_key;
-  bool all_constraints_are_equal = false;
+  //  bool all_constraints_are_equal = false;
 
   // If it is a special case, we can figure out the range to scan in the index
   if (special_case == true) {
-
     start_key.reset(new storage::Tuple(metadata->GetKeySchema(), true));
+    KeyType index_key;
     index_key.SetFromKey(start_key.get());
 
     // Construct the lower bound key tuple
-    all_constraints_are_equal =
-        ConstructLowerBoundTuple(start_key.get(), values, key_column_ids, expr_types);
-    LOG_TRACE("All constraints are equal : %d ", all_constraints_are_equal);
+    // all_constraints_are_equal = ConstructLowerBoundTuple(
+    //    start_key.get(), values, key_column_ids, expr_types);
+    // LOG_TRACE("All constraints are equal : %d ", all_constraints_are_equal);
 
-  }
+    switch (scan_direction) {
+      case SCAN_DIRECTION_TYPE_FORWARD:
+      case SCAN_DIRECTION_TYPE_BACKWARD: {
+        result =
+            container.RangeScan(index_key, key_column_ids, expr_types, values);
+      } break;
 
-  switch(scan_direction) {
-    case SCAN_DIRECTION_TYPE_FORWARD:
-    case SCAN_DIRECTION_TYPE_BACKWARD: {
-      result = container.RangeScan(index_key, key_column_ids,
-                                   expr_types, values);
+      case SCAN_DIRECTION_TYPE_INVALID:
+      default:
+        throw Exception("Invalid scan direction \n");
+        break;
     }
-      break;
-
-    case SCAN_DIRECTION_TYPE_INVALID:
-    default:
-      throw Exception("Invalid scan direction \n");
-      break;
   }
-
   return result;
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator,
           class KeyEqualityChecker>
-std::vector<ItemPointer>
-BWTreeIndex<KeyType, ValueType, KeyComparator,
-KeyEqualityChecker>::ScanAllKeys() {
-
+std::vector<ItemPointer> BWTreeIndex<KeyType, ValueType, KeyComparator,
+                                     KeyEqualityChecker>::ScanAllKeys() {
   return container.AllKeyScan();
 }
 
@@ -142,8 +137,8 @@ KeyEqualityChecker>::ScanAllKeys() {
 template <typename KeyType, typename ValueType, class KeyComparator,
           class KeyEqualityChecker>
 std::vector<ItemPointer>
-BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
-ScanKey(__attribute__((unused)) const storage::Tuple *key) {
+BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::ScanKey(
+    __attribute__((unused)) const storage::Tuple *key) {
   // Add your implementation here
   KeyType index_key;
   index_key.SetFromKey(key);
@@ -152,8 +147,8 @@ ScanKey(__attribute__((unused)) const storage::Tuple *key) {
 
 template <typename KeyType, typename ValueType, class KeyComparator,
           class KeyEqualityChecker>
-std::string BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
-GetTypeName() const {
+std::string BWTreeIndex<KeyType, ValueType, KeyComparator,
+                        KeyEqualityChecker>::GetTypeName() const {
   return "BWTree";
 }
 
@@ -197,4 +192,3 @@ template class BWTreeIndex<TupleKey, ItemPointer, TupleKeyComparator,
 
 }  // End index namespace
 }  // End peloton namespace
-

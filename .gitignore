@@ -159,3 +159,5 @@ third_party/nanomsg
 *.tar
 handin/
 out
+src/backend/index/bwtree.cpp
+src/backend/index/bwtree.h

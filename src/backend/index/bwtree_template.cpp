@@ -1209,8 +1209,8 @@ namespace index {
       Kp = qElemVec[0].first;
       lastChild = qElemVec[0].second;
 
-      qElemVec.erase(qElemVec.begin()); //TODO: Write this cleanly
-      newInnerNode->key_values = qElemVec; //TODO: optimize?
+      qElemVec.erase(qElemVec.begin());
+      newInnerNode->key_values = qElemVec;
       newInnerNode->last_child = lastChild;
       newInnerNode->record_count = qElemVec.size();
 
