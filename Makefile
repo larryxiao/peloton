@@ -11,4 +11,8 @@ stylecheck:
 	clang-format-3.6 --style=file ./src/backend/index/bwtree_index.cpp | diff ./src/backend/index/bwtree_index.cpp -
 style:
 	clang-format-3.6 --style=file -i ./src/backend/index/bwtree_index.cpp
+	clang-format-3.6 --style=file -i ./src/backend/index/bwtree_index.h
+	clang-format-3.6 --style=file -i ./src/backend/index/bwtree.cpp
+	clang-format-3.6 --style=file -i ./src/backend/index/bwtree.h
+	clang-format-3.6 --style=file -i ./tests/index/index_test.cpp
 
