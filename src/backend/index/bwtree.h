@@ -134,6 +134,8 @@ class BWTree {
 
     };
 
+    std::atomic<Node*> gc_head_;
+
     // TODO: performance issues?
     struct LockFreeTable {
       // static table block
@@ -1126,6 +1128,33 @@ class BWTree {
       GTE, GT
     };
 
+    void add_to_gc_chain(Node *head){
+      // get to the bottom of the delta chain
+      Node *expected, *ptr = head;
+      while(ptr->next){
+        ptr = ptr->next;
+      }
+
+      // keep trying till added to list
+      do{
+        expected = gc_head_.load(std::memory_order_relaxed);
+        ptr->next = expected;
+      }while(!std::atomic_compare_exchange_weak_explicit(
+          &(gc_head_), &expected, head,
+          std::memory_order_release, std::memory_order_relaxed));
+    }
+
+    void clear_gc_chain(){
+      Node *head = gc_head_.load(std::memory_order_relaxed);
+      Node *next = nullptr;
+
+      while(head){
+        next = head->next;
+        delete head;
+        head = next;
+      }
+      head = next = nullptr;
+    }
 
     // Performs a binary search on a tree node to find the position of
     // the key nearest to the search key, depending on the mode.
@@ -1230,11 +1259,14 @@ class BWTree {
       // TODO: decide values
       consolidate_threshold_inner_ = 5;
 
-      consolidate_threshold_leaf_ = 8;
+      consolidate_threshold_leaf_ = 10;
 
       merge_threshold_ = 0;
 
-      split_threshold_ = 150;
+      split_threshold_ = 4;
+
+      gc_head_.store(nullptr, std::memory_order_release);
+
     }
 
     //bool Insert(__attribute__((unused)) KeyType key,
