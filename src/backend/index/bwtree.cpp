@@ -27,7 +27,7 @@ namespace index {
   unsigned long BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
   node_key_search(const TreeNode<K, V> *node, const KeyType &key) {
 
-    memory_usage = 0;
+    // memory_usage = 0;
 
     NodeSearchMode  mode = GTE;
 
@@ -793,7 +793,7 @@ namespace index {
 #ifdef DEBUG
     print_tree(root_pid);
 #endif
-    memory_usage++;
+    // memory_usage++;
     return result.status;
   }
 
@@ -815,7 +815,7 @@ namespace index {
 #ifdef DEBUG
     print_tree(root_pid);
 #endif
-    memory_usage++;
+    // memory_usage++;
     return result.status;
   }
 
@@ -1148,7 +1148,7 @@ namespace index {
       class KeyEqualityChecker>
   bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
   merge_page(pid_t pid_l, pid_t pid_r, pid_t pid_parent) {
-    memory_usage+=3;
+    // memory_usage+=3;
     return (pid_l > 0 && pid_r > 0 && pid_parent > 0);
     Node *ptr_r, *ptr_l, *ptr_parent;
     bool leaf = ptr_r->is_leaf();
@@ -1237,48 +1237,30 @@ namespace index {
     Node *copyHeadNodeP = node;
     Node *secondcopyHeadNodeP = node;
     Node *head_for_gc = node;
-  //          bool has_split_delta = false;
-  //          KeyType split_key;
-  //          pid_t split_child_right;
+
     while(node->next!= nullptr){
       node=node->next;
-      //there can be only one split delta
-  //            if(node->get_type() == deltaSplitLeaf){
-  //              DeltaSplitLeaf* delSplit = static_cast<DeltaSplitLeaf*>(node);
-  //              has_split_delta =  true;
-  //              split_key = delSplit->splitKey;
-  ////              split_child_right = delSplit->new_child;
-  //            }
     }
 
-    if(checkIfRemoveDelta(node)) //TODO: Should I do this here?
+    if(checkIfRemoveDelta(node))
     {
       return result;
     }
 
     LeafNode* headNodeP1 = static_cast<LeafNode*>(node);
-    //TODO:yet to handle for duplicate keys case
 
     auto wholePairs = headNodeP1->key_values; //if split then discarded values wont be there
 
     std::vector<std::pair<KeyType,ValueType>> deletedPairs;
     std::vector<std::pair<KeyType,ValueType>> insertedPairs;
 
-    //IMPORTANT ASSUMPTION: Any delta corresponding to the the new_child being pointed by the splitdelta, will not go to this node
-    //handling deltaInsert, deltaDelete, removeNode
     while(copyHeadNodeP->next != nullptr){ //Assuming last node points to nullptr
       switch (copyHeadNodeP->get_type()){
         case removeNode: {
-          //TODO: Check if we have to do something before returning
           return result;
         }
         case deltaInsert:{
           DeltaInsert* deltains = static_cast<DeltaInsert*>(copyHeadNodeP);
-
-  //                if(has_split_delta){
-  //                  if(!key_compare_lte(deltains->key,split_key))
-  //                    break;
-  //                }
 
           auto it = std::find_if(deletedPairs.begin(),deletedPairs.end(), [&](const std::pair<KeyType,ValueType>& element){
             return key_compare_eq(element.first,deltains->key) && val_eq(element.second, deltains->value);
@@ -1288,15 +1270,10 @@ namespace index {
             insertedPairs.push_back(std::pair<KeyType,ValueType>
                                         (deltains->key,deltains->value));
 
-  //                (&(it->second))->push_back(deltains->value); //TODO: check correctness
           break;
         }
         case deltaDelete: {
           DeltaDelete *deltadel = static_cast<DeltaDelete *>(copyHeadNodeP);
-  //                if(has_split_delta){
-  //                  if(!key_compare_lte(deltadel->key,split_key))
-  //                    break;
-  //                }
 
           auto it = std::find_if(wholePairs.begin(),wholePairs.end(), [&](const std::pair<KeyType,std::vector<ValueType>>& element){
             return key_compare_eq(element.first,deltadel->key);
@@ -1327,7 +1304,7 @@ namespace index {
       copyHeadNodeP=copyHeadNodeP->next;
     }
 
-    for(auto const& elem: insertedPairs){	//TODO: optimize?
+    for(auto const& elem: insertedPairs){
       auto it = std::find_if(wholePairs.begin(), wholePairs.end(), [&](const std::pair<KeyType,std::vector<ValueType>>& element) {
         return key_compare_eq(element.first, elem.first);
       });
@@ -1348,22 +1325,21 @@ namespace index {
     //Now get a new node and put in these key_values in it
 
     LeafNode* newLeafNode = new LeafNode(copyHeadNodeP->pid,
-                                         (static_cast<LeafNode*>(copyHeadNodeP))->sidelink); //TODO: Set neighbor pid here
+                                         (static_cast<LeafNode*>(copyHeadNodeP))->sidelink);
 
     result.has_split = false;
 
     // split threshold checking
     if(wholePairs.size()>(unsigned)split_threshold_){
-      //call split
-      //split should just be sent half the key_values,
-      //other half will be stored here itself
-      //need to insert splitdelta on top of the current node
-      //TODO: need to insert index delta on the parent
-      //TODO: Handle root update case
+
       DeltaSplitLeaf* splitNodeHead = splitPageLeaf(newLeafNode, wholePairs);
 
-      if(!mapping_table_.install_node(copyHeadNodeP->pid, secondcopyHeadNodeP, splitNodeHead)) //Should I cast?
+      if(!mapping_table_.install_node(copyHeadNodeP->pid, secondcopyHeadNodeP, splitNodeHead)) {
+        delete mapping_table_.get_phy_ptr(splitNodeHead->new_child);
+        delete splitNodeHead;
+        delete newLeafNode;
         return result;
+      }
       else {
         pid_t root_pid = root_.load(std::memory_order_relaxed);
         if(root_pid == secondcopyHeadNodeP->pid){
@@ -1380,17 +1356,12 @@ namespace index {
           newInnerNode->key_values = qElemVec;
           newInnerNode->record_count = qElemVec.size();
 
-          mapping_table_.insert_new_pid(newRoot, newInnerNode); //TODO: should I try retry here? (And in all other cases)
-          //TODO: Check if any inconsistencies can pop in because of non-atomic updates in this scope
+          mapping_table_.insert_new_pid(newRoot, newInnerNode);
 
           //atomically update the parameter
-          if(!std::atomic_compare_exchange_weak_explicit(
+          std::atomic_compare_exchange_weak_explicit(
                   &root_, &root_pid, newRoot,
-                  std::memory_order_release, std::memory_order_relaxed))
-          {
-            // Clear unused stuff
-            return result;
-          }
+                  std::memory_order_release, std::memory_order_relaxed);
           result.is_new_inner_node = true;
         }
         result.has_split = true;
@@ -1398,10 +1369,8 @@ namespace index {
         result.split_child_pid = splitNodeHead->new_child;
         result.status = true;
       }
-      //TODO set: result.kp and result.split_child_pid
+
     } else if(wholePairs.size()<(unsigned)merge_threshold_){
-      //call merge
-      //TODO
       result.has_merge = true;
     }
     else{
@@ -1409,16 +1378,12 @@ namespace index {
       newLeafNode->key_values = wholePairs;
       newLeafNode->record_count = wholePairs.size();
 
-      if(!mapping_table_.install_node(copyHeadNodeP->pid, secondcopyHeadNodeP, newLeafNode))
+      if(!mapping_table_.install_node(copyHeadNodeP->pid, secondcopyHeadNodeP, newLeafNode)){
+        delete newLeafNode;
         return result;
+      }
       else
         result.status = true;
-  //            TODO: The following :-
-  //            if(!status){
-  //              dealloc split node (outside gc)
-  //              dealloc split delta (outside gc)
-  //              deregister from mapping table
-  //            }
     }
     add_to_gc_chain(head_for_gc);
     return result;
@@ -1463,51 +1428,36 @@ namespace index {
     Node *secondcopyHeadNodeP = node;
     Node *head_for_gc = node;
 
-  //          bool has_split_delta = false;
-  //          KeyType split_key;
-  //          pid_t split_child_right;
-
     while(node->next!= nullptr){
       node=node->next;
-      //there can be only one split delta
-  //            if(node->get_type() == deltaSplitInner){
-  //              DeltaSplitInner* delSplit = static_cast<DeltaSplitInner*>(node);
-  //              has_split_delta =  true;
-  //              split_key = delSplit->splitKey;
-  //              split_child_right = delSplit->new_node;
-  //            }
     }
 
-    if(checkIfRemoveDelta(node)) //TODO: Should I do this here?
+    if(checkIfRemoveDelta(node))
     {
       return result;
     }
 
     InnerNode* headNodeP1 = static_cast<InnerNode*>(node);
-    //TODO: yet to handle for duplicate keys case
+
 
     pid_t qPID_last_child = headNodeP1->last_child;
 
     auto wholePairs = headNodeP1->key_values;
 
-    //IMPORTANT ASSUMPTION: Any delta corresponding to the the new_child being pointed by the splitdelta, will not go to this node
-    //handling deltaInsert, deltaDelete, removeNode
-    while(copyHeadNodeP->next != nullptr){ //Assuming last node points to nullptr
+    while(copyHeadNodeP->next != nullptr){
       switch (copyHeadNodeP->get_type()){
         case removeNode: {
-          //TODO: Check if we have to do something before returning
           return result;
         }
         case indexDelta:{
           IndexDelta *curNode = static_cast<IndexDelta*>(copyHeadNodeP);
           int last_flag = 0;
           for (auto it = wholePairs.begin(); it != wholePairs.end(); ++it) {
-            //TODO: what if the key is already present in the wholePairs
             if (!key_compare_lt(curNode->low, it->first)) {
               //not at this position
               continue;
             }
-            //TODO: Edge cases possible here, check when merge is implemented
+
             wholePairs.insert(it, std::pair<KeyType, pid_t>(curNode->low, it->second));
             (it+1)->second = curNode->new_node;
             last_flag = 1;
@@ -1532,11 +1482,6 @@ namespace index {
       }
       copyHeadNodeP=copyHeadNodeP->next;
     }
-  //
-  //          std::sort(wholePairs.begin(), wholePairs.end(), [&](const std::pair<KeyType, std::vector<ValueType>>& t1,
-  //                                                              const std::pair<KeyType, std::vector<ValueType>>& t2) {
-  //              return key_comparator_(t1.first,t2.first);
-  //          });
 
     //Now get a new node and put in these key_values in it
     InnerNode* newInnerNode;
@@ -1557,17 +1502,14 @@ namespace index {
 
     // split threshold checking
     if(wholePairs.size()>(unsigned)split_threshold_){
-      //call split
-      //split should just be sent half the key_values,
-      //other half will be stored here itself
-      //need to insert splitdelta on top of the current node
-      //TODO: need to insert index delta on the parent
-      //TODO: Handle root update case
       DeltaSplitInner* splitNodeHead = splitPageInner(newInnerNode, wholePairs, qPID_last_child);
 
-      if(!mapping_table_.install_node(copyHeadNodeP->pid, secondcopyHeadNodeP, splitNodeHead)) //Should I cast?
+      if(!mapping_table_.install_node(copyHeadNodeP->pid, secondcopyHeadNodeP, splitNodeHead)){
+        delete mapping_table_.get_phy_ptr(splitNodeHead->new_node);
+        delete splitNodeHead;
+        delete newInnerNode;
         return result;
-      else{
+      } else{
         pid_t root_pid = root_.load(std::memory_order_relaxed);
         if(root_pid == secondcopyHeadNodeP->pid){
           //hence, root is splitting, create new inner node
@@ -1583,17 +1525,12 @@ namespace index {
           newInnerNode->key_values = qElemVec;
           newInnerNode->record_count = qElemVec.size();
 
-          mapping_table_.insert_new_pid(newRoot, newInnerNode); //TODO: should I try retry here? (And in all other cases)
-          //TODO: Check if any inconsistencies can pop in because of non-atomic updates in this scope
+          mapping_table_.insert_new_pid(newRoot, newInnerNode);
 
           //atomically update the parameter
-          if(!std::atomic_compare_exchange_weak_explicit(
+          std::atomic_compare_exchange_weak_explicit(
               &root_, &root_pid, newRoot,
-              std::memory_order_release, std::memory_order_relaxed))
-          {
-            // Clear unused stuff
-            return result;
-          }
+              std::memory_order_release, std::memory_order_relaxed);
           result.is_new_inner_node = true;
         }
         result.has_split = true;
@@ -1603,28 +1540,20 @@ namespace index {
       }
 
     }
-      //merge threshold checking
+    //merge threshold checking
     else if(wholePairs.size()<(unsigned)merge_threshold_){
-      //call merge
-      //TODO
+
       result.has_merge = true;
     }
     else{
-      //TODO: Check correctness of following
       newInnerNode->key_values = wholePairs;
       newInnerNode->record_count = wholePairs.size();
 
-      if(!mapping_table_.install_node(copyHeadNodeP->pid, secondcopyHeadNodeP, newInnerNode))
+      if(!mapping_table_.install_node(copyHeadNodeP->pid, secondcopyHeadNodeP, newInnerNode)){
+        delete newInnerNode;
         return result;
-      else
+      } else
         result.status = true;
-
-  //            TODO: The following :-
-  //            if(!status){
-  //              dealloc split node (outside gc)
-  //              dealloc split delta (outside gc)
-  //              deregister from mapping table
-  //            }
     }
     add_to_gc_chain(head_for_gc);
     return result;
