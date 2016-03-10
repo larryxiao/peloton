@@ -14,7 +14,6 @@
 #include "backend/index/bwtree.h"
 #include "index_key.h"
 #include "bwtree.h"
-#include "../../../handin/bwtree.h"
 
 #define TODO
 
