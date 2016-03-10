@@ -241,12 +241,12 @@ class BWTree {
           return;
         Node * next = node->next;
         while (next != nullptr) {
-          LOG_DEBUG("delete node %p\n", node);
+          LOG_DEBUG("delete node %p", node);
           delete node;
           node = next;
           next = next->next;
         }
-        LOG_DEBUG("delete node %dp\n", node);
+        LOG_DEBUG("delete node %p", node);
         delete node;
       }
       void GC(epoch_entry * entry) {
@@ -256,7 +256,7 @@ class BWTree {
           return;
         delete_entry * next = node->next;
         while (next != nullptr) {
-          LOG_DEBUG("deletechain\n");
+          LOG_DEBUG("deletechain");
           deleteChain(node->payload);
           delete node;
           node = next;
@@ -284,7 +284,7 @@ class BWTree {
             // someone else succeeds
             if (!ret)
               return;
-            LOG_DEBUG("start gc by ticker\n");
+            LOG_DEBUG("start gc by ticker");
             std::thread thd(&epoch_manager::GC, this, entry);
             thd.detach();
           }
@@ -301,7 +301,7 @@ class BWTree {
       };
       // called by normal threads
       epoch enter() {
-        LOG_DEBUG("enter\n");
+        LOG_DEBUG("enter");
         epoch current = *epoch_;
         epoch_entry *entry = epoch_table[current % TABLESIZE].load(std::memory_order_relaxed);
         if (entry != nullptr) {
@@ -323,13 +323,13 @@ class BWTree {
         return current;
       };
       void exit(epoch e) {
-        LOG_DEBUG("exit\n");
+        LOG_DEBUG("exit");
         // when refcnt drop to zero, and epoch has progressed, spawn thread to do GC
         epoch current = *epoch_;
         epoch_entry *entry = epoch_table[e % TABLESIZE].load(std::memory_order_relaxed);
         assert(entry->epoch_ == e); // make sure no collision
         // TODO can have leaked entries because no thread join before epoch moves on
-        LOG_DEBUG("refcnt %d epoch %lu, current epoch %lu\n", entry->refcnt - 1, entry->epoch_, current);
+        LOG_DEBUG("refcnt %lu epoch %lu, current epoch %lu", entry->refcnt - 1, entry->epoch_, current);
         if (--entry->refcnt == 0 && current > entry->epoch_) {
           bool ret = std::atomic_compare_exchange_weak_explicit(
                        &epoch_table[e % TABLESIZE], &entry, nullptrlvalue,
@@ -337,14 +337,14 @@ class BWTree {
           // someone else succeeds
           if (!ret)
             return;
-          LOG_DEBUG("start gc\n");
+          LOG_DEBUG("start gc");
           std::thread thd(&epoch_manager::GC, this, entry);
           thd.detach();
         }
       };
       // called by consolidate
       void addGCEntry(epoch e, Node * node) {
-        LOG_DEBUG("addGCEntry\n");
+        LOG_DEBUG("addGCEntry");
         epoch_entry *entry = epoch_table[e % TABLESIZE].load(std::memory_order_relaxed);
         assert(entry->epoch_ == e); // make sure no collision
         delete_entry *head, *nnew;
