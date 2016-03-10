@@ -51,7 +51,6 @@ class BWTree {
   private:
     // logical pointer type
     typedef unsigned int pid_t;
-    size_t memory_usage;
 
     // key value pair type
     typedef const std::pair<KeyType, ValueType>& KVType;
@@ -358,6 +357,7 @@ class BWTree {
       }
     };
 
+    IndexMetadata *metadata_;
     // lock free mapping table
     LockFreeTable mapping_table_;
 
@@ -1283,9 +1283,11 @@ class BWTree {
 
       merge_threshold_ = 0;
 
-      split_threshold_ = 150;
+      split_threshold_ = 20;
 
       gc_head_.store(nullptr, std::memory_order_release);
+
+      metadata_ = metadata;
 
     }
 
@@ -1295,6 +1297,10 @@ class BWTree {
     std::vector<ValueType> Search(const KeyType& key);
     bool Delete(const KeyType &key, const ValueType &val);
     std::vector<ValueType> AllKeyScan();
+    std::vector<ValueType> RangeScan(const KeyType &start_key,
+                                     const std::vector<oid_t> &key_column_ids,
+                                     const std::vector<ExpressionType> &expr_types,
+                                     const std::vector<Value> &values);
     bool Cleanup();
     size_t GetMemoryFootprint();
 
