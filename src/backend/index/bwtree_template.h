@@ -1265,11 +1265,13 @@ class BWTree {
           eq_checker_(metadata) {
       pid_gen_ = NULL_PID + 1;
       root_.store(static_cast<pid_t>(pid_gen_++), std::memory_order_release);
-      memory_usage_.store(static_cast<size_t>(4194304), std::memory_order_release);
+      memory_usage_.store(static_cast<size_t>(0), std::memory_order_release);
 
       //insert the chain into the mapping table
       mapping_table_.insert_new_pid(root_.load(std::memory_order_relaxed), new LeafNode(root_, NULL_PID));
+      memory_usage_ += sizeof(LeafNode);
       //memory_usage_.store(memory_usage_.load(std::memory_order_relaxed)+ sizeof(newnode), std::memory_order_release);
+
       //update the leaf pointers
       head_leaf_ptr_ = root_;
       tail_leaf_ptr_ = root_;
