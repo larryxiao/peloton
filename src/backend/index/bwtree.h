@@ -420,8 +420,6 @@ class BWTree {
 
         // leaf node is always at the end of a delta chain
         this->next = nullptr;
-
-        memory_usage_ += sizeof(LeafNode);
       }
 
       void set_next(Node *next_node) {
@@ -429,9 +427,7 @@ class BWTree {
         this->chain_length = next_node->chain_length + 1;
       }
 
-      ~LeafNode(){
-          memory_usage_ -= sizeof(LeafNode);
-      };
+      ~LeafNode(){};
 
     };
 
@@ -483,8 +479,6 @@ class BWTree {
         this->kmax = kmax;
 
         this->is_kmax_inf = false;
-
-        memory_usage_ += sizeof(InnerNode);
       }
 
       // sets the maximum key as infinity
@@ -518,7 +512,6 @@ class BWTree {
 
         this->is_kmax_inf = true;
 
-        memory_usage_ += sizeof(InnerNode);
       }
 
       void set_next(Node *next_node) {
@@ -526,9 +519,7 @@ class BWTree {
         this->chain_length = next_node->chain_length + 1;
       }
 
-      ~InnerNode(){
-        memory_usage_ -= sizeof(InnerNode);
-      };
+      ~InnerNode(){};
     };
 
     // IndexDelta record of the delta chain
@@ -559,8 +550,6 @@ class BWTree {
         // add logical pointer to the provided new node
         this->new_node = new_node;
 
-        memory_usage_ += sizeof(IndexDelta);
-
       }
 
       // used to set infinite key
@@ -577,8 +566,6 @@ class BWTree {
 
         // add logical pointer to the provided new node
         this->new_node = new_node;
-
-        memory_usage_ += sizeof(IndexDelta);
 
       }
 
@@ -609,9 +596,7 @@ class BWTree {
         this->has_index_delta = true;
       }
 
-      ~IndexDelta(){
-        memory_usage_ -= sizeof(IndexDelta);
-      };
+      ~IndexDelta(){};
 
     };
 
@@ -636,8 +621,6 @@ class BWTree {
 
         // update the node for merging
         this->merge_node = merge_node;
-
-        memory_usage_ += sizeof(DeleteIndex);
       }
 
       void set_next(Node *next_node) {
@@ -666,10 +649,7 @@ class BWTree {
         this->has_index_delta = next_node->has_index_delta;
       }
 
-      ~DeleteIndex(){
-
-        memory_usage_ -= sizeof(DeleteIndex);
-      };
+      ~DeleteIndex(){};
 
     };
 
@@ -697,8 +677,6 @@ class BWTree {
 
         // get the new record count from SplitPage
         this->record_count = new_record_count;
-
-        memory_usage_ += sizeof(DeltaSplitInner);
       }
 
       // update the next pointer and bookeeping
@@ -725,9 +703,7 @@ class BWTree {
         this->has_index_delta = next_node->has_index_delta;
       }
 
-      ~DeltaSplitInner(){
-        memory_usage_ -= sizeof(DeltaSplitInner);
-      };
+      ~DeltaSplitInner(){};
 
     };
 
@@ -752,7 +728,6 @@ class BWTree {
         // update the record count from MergePage
         this->record_count = new_record_count;
 
-        memory_usage_ += sizeof(MergeInner);
       }
 
       // update the next pointer and bookeeping
@@ -779,9 +754,7 @@ class BWTree {
         this->has_index_delta = next_node->has_index_delta;
       }
 
-      ~MergeInner(){
-        memory_usage_ -= sizeof(MergeInner);
-      };
+      ~MergeInner(){};
 
     };
 
@@ -800,8 +773,6 @@ class BWTree {
         // set the key, value and base node
         this->key = key;
         this->value = value;
-
-        memory_usage_ += sizeof(DeltaInsert);
       }
 
       void set_next(Node *next_node) {
@@ -827,9 +798,7 @@ class BWTree {
         this->level = next_node->level;
       }
 
-      ~DeltaInsert(){
-        memory_usage_ -= sizeof(DeltaInsert);
-      };
+      ~DeltaInsert(){};
     };
 
     struct DeltaDelete : public Node {
@@ -847,8 +816,6 @@ class BWTree {
         this->key = key;
 
         this->value = val;
-
-        memory_usage_ += sizeof(DeltaDelete);
       }
 
       // sets the next node in the delta chain
@@ -875,9 +842,7 @@ class BWTree {
         this->level = next_node->level;
       }
 
-      ~DeltaDelete(){
-        memory_usage_ -= sizeof(DeltaDelete);
-      };
+      ~DeltaDelete(){};
 
     };
 
@@ -904,8 +869,6 @@ class BWTree {
 
         // set the updated record count from SplitPage
         this->record_count = new_record_count;
-
-        memory_usage_ += sizeof(DeltaSplitLeaf);
       }
 
       // sets the next node in the delta chain
@@ -926,10 +889,7 @@ class BWTree {
         this->level = next_node->level;
       }
 
-      ~DeltaSplitLeaf(){
-
-        memory_usage_ -= sizeof(DeltaSplitLeaf);
-      };
+      ~DeltaSplitLeaf(){};
     };
 
     struct MergeLeaf : public Node {
@@ -953,7 +913,6 @@ class BWTree {
         // update the record count from MergePage
         this->record_count = new_record_count;
 
-        memory_usage_ += sizeof(MergeLeaf);
       }
 
       // update the next pointer and bookeeping
@@ -978,9 +937,7 @@ class BWTree {
         this->level = next_node->level;
       }
 
-      ~MergeLeaf(){
-        memory_usage_ -= sizeof(MergeLeaf);
-      };
+      ~MergeLeaf(){};
     };
 
     // Remove node delta record for any node
@@ -989,8 +946,6 @@ class BWTree {
       inline RemoveNode() {
         // set the type
         this->type = NodeType::removeNode;
-
-        memory_usage_ += sizeof(RemoveNode);
       }
 
       void set_next(Node *next_node) {
@@ -1019,9 +974,7 @@ class BWTree {
         this->has_index_delta = next_node->has_index_delta;
       }
 
-      ~RemoveNode(){
-        memory_usage_ -= sizeof(RemoveNode);
-      };
+      ~RemoveNode(){};
     };
 
     // stores the result of the operation
