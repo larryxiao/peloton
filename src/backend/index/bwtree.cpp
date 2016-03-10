@@ -1236,6 +1236,7 @@ namespace index {
 
     Node *copyHeadNodeP = node;
     Node *secondcopyHeadNodeP = node;
+    Node *head_for_gc = node;
   //          bool has_split_delta = false;
   //          KeyType split_key;
   //          pid_t split_child_right;
@@ -1346,7 +1347,8 @@ namespace index {
 
     //Now get a new node and put in these key_values in it
 
-    LeafNode* newLeafNode = new LeafNode(copyHeadNodeP->pid, (static_cast<LeafNode*>(copyHeadNodeP))->sidelink); //TODO: Set neighbor pid here
+    LeafNode* newLeafNode = new LeafNode(copyHeadNodeP->pid,
+                                         (static_cast<LeafNode*>(copyHeadNodeP))->sidelink); //TODO: Set neighbor pid here
 
     result.has_split = false;
 
@@ -1418,6 +1420,7 @@ namespace index {
   //              deregister from mapping table
   //            }
     }
+    add_to_gc_chain(head_for_gc);
     return result;
   }
 
@@ -1458,6 +1461,7 @@ namespace index {
 
     Node *copyHeadNodeP = node;
     Node *secondcopyHeadNodeP = node;
+    Node *head_for_gc = node;
 
   //          bool has_split_delta = false;
   //          KeyType split_key;
@@ -1622,6 +1626,7 @@ namespace index {
   //              deregister from mapping table
   //            }
     }
+    add_to_gc_chain(head_for_gc);
     return result;
   }
 
@@ -1681,6 +1686,10 @@ namespace index {
     class KeyEqualityChecker>
     bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Cleanup() {
       for (pid_t pid = 0; pid < pid_gen_; ++pid) {
+#ifdef DEBUG
+        std::cout << "Before:\n" << std::endl;
+				print_tree(pid);
+#endif
         Node * node = mapping_table_.get_phy_ptr(pid);
         if (node == nullptr)
           continue;
@@ -1691,7 +1700,18 @@ namespace index {
           next = next->next;
         }
         delete node;
+#ifdef DEBUG
+        std::cout << "After:\n" << std::endl;
+        print_tree(pid);
+#endif
       }
+
+      // clear gc chain
+      clear_gc_chain();
+#ifdef DEBUG
+    std::cout << "Final:\n" << std::endl;
+    print_tree(root_.load(std::memory_order_relaxed));
+#endif
       return true;
     }
     template <typename KeyType, typename ValueType, class KeyComparator,
