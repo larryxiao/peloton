@@ -1642,11 +1642,11 @@ namespace index {
     template <typename KeyType, typename ValueType, class KeyComparator,
     class KeyEqualityChecker>
     bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Cleanup() {
-      for (pid_t pid = 0; pid < pid_gen_; ++pid) {
 #ifdef DEBUG
         std::cout << "Before:\n" << std::endl;
 				print_tree(pid);
 #endif
+      for (pid_t pid = 1; pid < pid_gen_; ++pid) { // start from 1
         Node * node = mapping_table_.get_phy_ptr(pid);
         if (node == nullptr)
           continue;
@@ -1663,6 +1663,7 @@ namespace index {
         std::cout << "After:\n" << std::endl;
         print_tree(pid);
 #endif
+        mapping_table_.erase(pid);
       }
 
       // clear gc chain

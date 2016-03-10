@@ -26,6 +26,12 @@
 
 #include "index.h"
 
+// MASALA<libcuckoo/city_hasher.hh>
+MASALA<libcuckoo/src/default_hasher.hh>
+MASALA<libcuckoo/src/cuckoohash_util.hh>
+MASALA<libcuckoo/src/cuckoohash_config.hh>
+MASALA<libcuckoo/src/cuckoohash_map.hh>
+
 //Null page id
 #define NULL_PID 0
 #define TABLESIZE 10000
@@ -138,16 +144,17 @@ class BWTree {
 
     // TODO: performance issues?
     struct LockFreeTable {
-      // static table block
-      std::vector<std::atomic<Node*>> table;
+      // because internals of libcuckoo: reference/value, copy constructor stuff..
+      // use pointers
+      cuckoohash_map<int, std::atomic<Node*>*, DefaultHasher<int> > table;
 
-      inline LockFreeTable() : table(4194304)
+      inline LockFreeTable()
       {}
 
       // lookup and return physical pointer corresponding to pid
       inline Node* get_phy_ptr(const pid_t& pid) {
         // return the node pointer
-        return table[pid].load(std::memory_order_acquire);
+        return table.find(pid)->load(std::memory_order_acquire);
       }
 
       // Used for first time insertion of this pid into the map
@@ -155,8 +162,9 @@ class BWTree {
         // insert into the map
         // std::atomic<T> isn't copy-constructible, nor copy-assignable.
         // only thread here, relaxed access
-        table[pid].store(node, std::memory_order_relaxed);
-
+        std::atomic<Node*>* n = new std::atomic<Node*>();
+        n->store(node, std::memory_order_relaxed);
+        table.insert(pid, n);
         return;
       }
 
@@ -165,8 +173,14 @@ class BWTree {
 
         // try to atomically update the new node
         return std::atomic_compare_exchange_weak_explicit(
-            &(table[pid]), &expected, update,
+            &(*(table.find(pid))), &expected, update,
             std::memory_order_release, std::memory_order_relaxed);
+      }
+
+      inline void erase(const pid_t& pid) {
+        std::atomic<Node*>* n = table.find(pid);
+        delete(n);
+        table.erase(pid);
       }
     };
 
