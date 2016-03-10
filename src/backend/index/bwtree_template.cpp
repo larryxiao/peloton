@@ -87,6 +87,7 @@ namespace index {
                     const ValueType& value,
                     const OperationType op_type,
                     const TreeState &state) {
+    epoch ep = em.enter();
 
     TreeOpResult op_result;
 
@@ -101,6 +102,7 @@ namespace index {
       // TODO: implement retry looping
       // send failed status
       op_result.status = false;
+      em.exit(ep);
       return op_result;
     }
 
@@ -206,6 +208,7 @@ namespace index {
             if (inner_node->key_values.empty()) {
               //this shouldn't happen
               LOG_ERROR("Failed binary search at page");
+              em.exit(ep);
               return get_failed_result();
             }
 
@@ -227,6 +230,7 @@ namespace index {
               } else {
                 // operation failure
                 op_result.status = false;
+                em.exit(ep);
                 return op_result;
               }
             } else {
@@ -353,6 +357,7 @@ namespace index {
 
     // return the result from lower levels.
     // or failure
+    em.exit(ep);
     return op_result;
   }
 
@@ -1361,6 +1366,7 @@ namespace index {
   typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
   ConsolidateResult BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
   consolidate_leaf(Node *node) {
+    epoch ep = em.enter();
   //          node->chain_length++;
 
     ConsolidateResult result;
@@ -1523,7 +1529,9 @@ namespace index {
       else
         result.status = true;
     }
-    add_to_gc_chain(head_for_gc);
+    //add_to_gc_chain(head_for_gc);
+    em.addGCEntry(ep, head_for_gc);
+    em.exit(ep);
     return result;
   }
 
@@ -1560,6 +1568,7 @@ namespace index {
   typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
   ConsolidateResult BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
   consolidate_inner(Node *node) {
+    epoch ep = em.enter();
 
     ConsolidateResult result;
     result.status = false;
@@ -1700,7 +1709,9 @@ namespace index {
       } else
         result.status = true;
     }
-    add_to_gc_chain(head_for_gc);
+    //add_to_gc_chain(head_for_gc);
+    em.addGCEntry(ep, head_for_gc);
+    em.exit(ep);
     return result;
   }
 

@@ -52,6 +52,7 @@ template <typename KeyType, typename ValueType, class KeyComparator,
 class BWTree {
 
   private:
+    class epoch_manager;
     // logical pointer type
     typedef unsigned int pid_t;
 
@@ -59,6 +60,7 @@ class BWTree {
     typedef const std::pair<KeyType, ValueType>& KVType;
 
     typedef uint64_t epoch;
+    epoch_manager em;
 
     //Delta and standard node types
     enum NodeType : std::int8_t {
@@ -217,7 +219,7 @@ class BWTree {
       };
       struct epoch_entry
       {
-        uint32_t refcnt;
+        std::atomic<std::uint_fast32_t> refcnt;
         epoch epoch_;
         std::atomic<delete_entry*> list; // start nodes of deltachain to GC
         // struct epoch_entry *next;
@@ -262,7 +264,7 @@ class BWTree {
         }
         deleteChain(node->payload);
         delete node;
-        delete(entry);
+        delete entry;
       };
       /**
        * ticker increments epoch
