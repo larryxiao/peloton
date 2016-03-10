@@ -1646,6 +1646,7 @@ namespace index {
         std::cout << "Before:\n" << std::endl;
 				print_tree(pid);
 #endif
+      //printf("Memory Footprint is : %lu",GetMemoryFootprint());
       for (pid_t pid = 1; pid < pid_gen_; ++pid) { // start from 1
         Node * node = mapping_table_.get_phy_ptr(pid);
         if (node == nullptr)
