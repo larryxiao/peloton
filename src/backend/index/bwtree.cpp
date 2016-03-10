@@ -306,10 +306,12 @@ namespace index {
         // kq is infinity
         node = new IndexDelta(op_result.kp,
                               op_result.split_merge_pid);
+        memory_usage_ += sizeof(node);
       } else {
         // kq is not infinity
         node = new IndexDelta(op_result.kp, op_result.kq,
                               op_result.split_merge_pid);
+        memory_usage_ += sizeof(node);
       }
 
       do{
@@ -600,9 +602,11 @@ namespace index {
 
     if (op_type == OperationType::insert_op) {
       update = new DeltaInsert(key, value);
+      memory_usage_ += sizeof(update);
     } else {
       // otherwise, it is a delete op
       update = new DeltaDelete(key, value);
+      memory_usage_ += sizeof(update);
     }
 
     // check if addition is permitted and add
@@ -612,6 +616,7 @@ namespace index {
 
       if (head->get_type() == NodeType::removeNode) {
         // free the update
+        memory_usage_ -= sizeof(update);
         delete update;
 
         // operation shouldn't happen here
@@ -623,6 +628,7 @@ namespace index {
 
         if (key_compare_lt(split_delta->splitKey, key)){
           // update not happening in this node
+          memory_usage_ -= sizeof(update);
           delete update;
 
           // operation should be performed on the split node, forward state
@@ -1161,12 +1167,14 @@ namespace index {
     do {
       ptr_r = mapping_table_.get_phy_ptr(pid_r);
       if (remove_node_delta != nullptr) {
+        memory_usage_ -= sizeof(remove_node_delta);
         delete remove_node_delta;
       }
       if (ptr_r->get_type() == NodeType::removeNode) {
         return false;
       }
       remove_node_delta = new RemoveNode();
+      memory_usage_ += sizeof(remove_node_delta);
       remove_node_delta->set_next(ptr_r);
     } while (!mapping_table_.install_node(pid_r, ptr_r, remove_node_delta));
 
@@ -1176,6 +1184,7 @@ namespace index {
     do {
       ptr_l = mapping_table_.get_phy_ptr(pid_l);
       if (node_merge_delta != nullptr) {
+        memory_usage_ -= sizeof(node_merge_delta);
         delete node_merge_delta;
         node_merge_delta = nullptr;
       }
@@ -1188,6 +1197,7 @@ namespace index {
         auto split_key = leaf_node->key_values.front().first;
         // create the delta record
         node_merge_delta = new MergeLeaf(split_key, leaf_node, record_count);
+        memory_usage_ += sizeof(node_merge_delta);
       } else {
         // cast as inner node
         auto inner_node = static_cast<InnerNode *>(ptr_r);
@@ -1195,6 +1205,7 @@ namespace index {
         auto split_key = inner_node->key_values.front().first;
         // create delta record
         node_merge_delta = new MergeInner(split_key, inner_node, record_count);
+        memory_usage_ += sizeof(node_merge_delta);
       }
       node_merge_delta->set_next(ptr_l);
       // add to the list
@@ -1206,6 +1217,7 @@ namespace index {
     do {
       ptr_parent = mapping_table_.get_phy_ptr(pid_parent);
       if (index_term_delete_delta != nullptr) {
+        memory_usage_ -= sizeof(index_term_delete_delta);
         delete index_term_delete_delta;
         index_term_delete_delta = nullptr;
       }
@@ -1218,6 +1230,7 @@ namespace index {
 
       index_term_delete_delta = new DeleteIndex(left_low_key,
                                                 right_high_key, pid_l);
+      memory_usage_ += sizeof(index_term_delete_delta);
       index_term_delete_delta->set_next(ptr_parent);
     } while (!mapping_table_.install_node(pid_parent, ptr_parent,
                                           (Node *) index_term_delete_delta));
@@ -1326,6 +1339,7 @@ namespace index {
 
     LeafNode* newLeafNode = new LeafNode(copyHeadNodeP->pid,
                                          (static_cast<LeafNode*>(copyHeadNodeP))->sidelink);
+    memory_usage_ += sizeof(newLeafNode);
 
     result.has_split = false;
 
@@ -1335,6 +1349,9 @@ namespace index {
       DeltaSplitLeaf* splitNodeHead = splitPageLeaf(newLeafNode, wholePairs);
 
       if(!mapping_table_.install_node(copyHeadNodeP->pid, secondcopyHeadNodeP, splitNodeHead)) {
+        memory_usage_ -= sizeof(mapping_table_.get_phy_ptr(splitNodeHead->new_child));
+        memory_usage_ -= sizeof(splitNodeHead);
+        memory_usage_ -= sizeof(newLeafNode);
         delete mapping_table_.get_phy_ptr(splitNodeHead->new_child);
         delete splitNodeHead;
         delete newLeafNode;
@@ -1349,6 +1366,7 @@ namespace index {
                                        copyHeadNodeP->level+1,
                                        NULL_PID,
                                        splitNodeHead->new_child);
+          memory_usage_ += sizeof(newInnerNode);
 
           std::vector<std::pair<KeyType, pid_t >> qElemVec = std::vector<std::pair<KeyType, pid_t >>{
                   std::pair<KeyType,pid_t >(splitNodeHead->splitKey,copyHeadNodeP->pid)};
@@ -1379,6 +1397,7 @@ namespace index {
       newLeafNode->record_count = wholePairs.size();
 
       if(!mapping_table_.install_node(copyHeadNodeP->pid, secondcopyHeadNodeP, newLeafNode)){
+        memory_usage_ -= sizeof(newLeafNode);
         delete newLeafNode;
         return result;
       }
@@ -1401,6 +1420,7 @@ namespace index {
 
     auto qPID = static_cast<pid_t>(pid_gen_++);
     LeafNode* newLeafNode = new LeafNode(qPID,node->sidelink); // P->R was there before
+    memory_usage_ += sizeof(newLeafNode);
     newLeafNode->key_values = std::vector<std::pair<KeyType, std::vector<ValueType>>>
         (wholePairs.begin()+std::distance(wholePairs.begin(), wholePairs.end())/2,wholePairs.end());
     newLeafNode->record_count = newLeafNode->key_values.size();
@@ -1408,6 +1428,7 @@ namespace index {
 
     mapping_table_.insert_new_pid(qPID, newLeafNode);
     DeltaSplitLeaf* splitNode = new DeltaSplitLeaf(Kp, qPID, node->record_count);
+    memory_usage_ += sizeof(splitNode);
     splitNode->set_next(node);
 
     node->sidelink=qPID;
@@ -1498,6 +1519,7 @@ namespace index {
                                    qPID_last_child,
                                    oldInnerNode->kmax);
 
+    memory_usage_ += sizeof(newInnerNode);
     result.has_split = false;
 
     // split threshold checking
@@ -1505,6 +1527,9 @@ namespace index {
       DeltaSplitInner* splitNodeHead = splitPageInner(newInnerNode, wholePairs, qPID_last_child);
 
       if(!mapping_table_.install_node(copyHeadNodeP->pid, secondcopyHeadNodeP, splitNodeHead)){
+        memory_usage_ -= sizeof(mapping_table_.get_phy_ptr(splitNodeHead->new_node));
+        memory_usage_ -= sizeof(splitNodeHead);
+        memory_usage_ -= sizeof(newInnerNode);
         delete mapping_table_.get_phy_ptr(splitNodeHead->new_node);
         delete splitNodeHead;
         delete newInnerNode;
@@ -1514,7 +1539,7 @@ namespace index {
         if(root_pid == secondcopyHeadNodeP->pid){
           //hence, root is splitting, create new inner node
           pid_t newRoot = static_cast<pid_t>(pid_gen_++);
-          InnerNode* newInnerNode = new InnerNode(newRoot,
+          InnerNode* newInnerNode_root = new InnerNode(newRoot,
                                                   copyHeadNodeP->level+1,
                                                   NULL_PID,
                                                   splitNodeHead->new_node);
@@ -1522,10 +1547,11 @@ namespace index {
           std::vector<std::pair<KeyType, pid_t >> qElemVec = std::vector<std::pair<KeyType, pid_t >>{
               std::pair<KeyType,pid_t >(splitNodeHead->splitKey,copyHeadNodeP->pid)};
 
-          newInnerNode->key_values = qElemVec;
-          newInnerNode->record_count = qElemVec.size();
+          newInnerNode_root->key_values = qElemVec;
+          newInnerNode_root->record_count = qElemVec.size();
 
-          mapping_table_.insert_new_pid(newRoot, newInnerNode);
+          mapping_table_.insert_new_pid(newRoot, newInnerNode_root);
+          memory_usage_ += sizeof(newInnerNode_root);
 
           //atomically update the parameter
           std::atomic_compare_exchange_weak_explicit(
@@ -1542,7 +1568,6 @@ namespace index {
     }
     //merge threshold checking
     else if(wholePairs.size()<(unsigned)merge_threshold_){
-
       result.has_merge = true;
     }
     else{
@@ -1550,6 +1575,7 @@ namespace index {
       newInnerNode->record_count = wholePairs.size();
 
       if(!mapping_table_.install_node(copyHeadNodeP->pid, secondcopyHeadNodeP, newInnerNode)){
+        memory_usage_ -= sizeof(newInnerNode);
         delete newInnerNode;
         return result;
       } else
@@ -1589,6 +1615,7 @@ namespace index {
                                    node->kmax);
       //to update the kmax,sidelink, last_child  of left node
     }
+    memory_usage_ += sizeof(newInnerNode);
     node->is_kmax_inf=false;
     newInnerNode->key_values = std::vector<std::pair<KeyType, pid_t >>
         (wholePairs.begin()+std::distance(wholePairs.begin(), wholePairs.end())/2,wholePairs.end());
@@ -1602,6 +1629,7 @@ namespace index {
     mapping_table_.insert_new_pid(qPID, newInnerNode);
 
     DeltaSplitInner* splitNode = new DeltaSplitInner(Kp, qPID, node->record_count);
+    memory_usage_ += sizeof(splitNode);
     splitNode->set_next(node);
 
     node->sidelink=qPID;
@@ -1624,10 +1652,12 @@ namespace index {
           continue;
         Node * next = node->next;
         while (next != nullptr) {
+          memory_usage_ -= sizeof(node);
           delete node;
           node = next;
           next = next->next;
         }
+        memory_usage_ -= sizeof(node);
         delete node;
 #ifdef DEBUG
         std::cout << "After:\n" << std::endl;
@@ -1646,6 +1676,7 @@ namespace index {
     template <typename KeyType, typename ValueType, class KeyComparator,
     class KeyEqualityChecker>
     size_t BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::GetMemoryFootprint() {
+      auto memory_usage = memory_usage_.load(std::memory_order_relaxed);
       return memory_usage;
     }
 
