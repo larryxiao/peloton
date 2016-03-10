@@ -12,19 +12,22 @@
 
 #pragma once
 
-#include <unordered_map>
-#include <memory>
-#include <vector>
-#include <atomic>
-#include <bits/atomic_base.h>
-#include <backend/common/types.h>
-#include <ostream>
-#include <cstdint>
-#include <thread>
-#include <cassert>
-#include <time.h>
-
 #include "index.h"
+#include <atomic>
+#include <backend/common/types.h>
+#include <bits/atomic_base.h>
+#include <cassert>
+#include <cstdint>
+#include <memory>
+#include <ostream>
+#include <stdio.h>
+#include <thread>
+#include <time.h>
+#include <unistd.h>
+#include <unordered_map>
+#include <vector>
+
+typedef uint64_t epoch;
 
 //Null page id
 #define NULL_PID 0
@@ -170,165 +173,6 @@ class BWTree {
       }
     };
 
-//    /**
-//     * Epoch Table
-//     * coarse granularity: Thread -> Epoch
-//     * TODO better granularity: Thread -> (Epoch, PID)
-//     * 0. handout pointer to epoch_entry, to save lookup, use linked list
-//     * need to handle remove epoch_entry from list, only one thread will delete
-//     * one epoch_entry, but many threads can trigger delete at the same time
-//     * 1. use fixed size array, handout epoch. just free the spot.
-//     * possibility of collision, with long running thread
-//     * 2. use concurrent hashmap
-//     *
-//     * Delete Entry: head of delta chain to be deleted
-//     * lock free linked list
-//     */
-//
-//    class epoch_manager
-//    {
-//      struct delete_entry
-//      {
-//        Node* payload;
-//        struct delete_entry *next;
-//        delete_entry(Node *p, delete_entry* ent) {
-//          payload = p;
-//          next = ent;
-//        }
-//      };
-//      struct epoch_entry
-//      {
-//        uint32_t refcnt;
-//        epoch epoch_;
-//        std::atomic<delete_entry*> list; // start nodes of deltachain to GC
-//        // struct epoch_entry *next;
-//        epoch_entry(uint32_t r, epoch e, delete_entry* ent) {
-//          refcnt = r;
-//          epoch_ = e;
-//          list = ent;
-//        }
-//      };
-//      std::atomic<epoch_entry*> epoch_table[TABLESIZE] = {};
-//    private:
-//      epoch_entry* nullptrlvalue = nullptr;
-//      epoch *epoch_;
-//      // ticker *tk;
-//      struct timespec t = {0, 40*1000*1000}; // 40 ms
-//
-//      void deleteChain(Node *node) {
-//        if (node == nullptr)
-//          return;
-//        Node * next = node->next;
-//        while (next != nullptr) {
-//          delete node;
-//          node = next;
-//          next = next->next;
-//        }
-//        delete node;
-//      }
-//      void GC(epoch_entry *entry) {
-//        delete_entry * node = entry->list;
-//        if (node == nullptr)
-//          return;
-//        delete_entry * next = node->next;
-//        while (next != nullptr) {
-//          deleteChain(node->payload);
-//          delete node;
-//          node = next;
-//          next = next->next;
-//        }
-//        deleteChain(node->payload);
-//        delete node;
-//        delete(entry);
-//      };
-//      /**
-//			 * ticker increments epoch
-//			 * and check epoch update, and run GC on previous epoch
-//			 */
-//      void ticker() {
-//        for(;;) {
-//          nanosleep(&t, nullptr);
-//          epoch previous = *epoch_;
-//          (*epoch_)++;
-//          epoch_entry *entry = epoch_table[previous % TABLESIZE].load(std::memory_order_relaxed);
-//          if (entry != nullptr && entry->refcnt == 0) {
-//            assert(entry->epoch_ == previous);
-//            bool ret = std::atomic_compare_exchange_weak_explicit(
-//                &epoch_table[previous % TABLESIZE], &entry, nullptrlvalue,
-//                std::memory_order_release, std::memory_order_relaxed);
-//            // someone else succeeds
-//            if (!ret)
-//              return;
-//            std::thread thd(&epoch_manager::GC, this, entry);
-//            thd.detach();
-//          }
-//        }
-//      };
-//    public:
-//      epoch_manager() {
-//        epoch_ = new epoch(0UL);
-//        std::thread thd(&epoch_manager::ticker, this);
-//        thd.detach();
-//      };
-//      ~epoch_manager() {
-//        delete(epoch_);
-//      };
-//      // called by normal threads
-//      epoch enter() {
-//        epoch current = *epoch_;
-//        epoch_entry *entry = epoch_table[current % TABLESIZE].load(std::memory_order_relaxed);
-//        if (entry != nullptr) {
-//          assert(entry->epoch_ == current); // make sure no collision
-//          entry->refcnt++;
-//        } else {
-//          entry = new epoch_entry(1, current, nullptr);
-//          bool ret = std::atomic_compare_exchange_weak_explicit(
-//              &epoch_table[current % TABLESIZE], &nullptrlvalue, entry,
-//              std::memory_order_release, std::memory_order_relaxed);
-//          // someone else succeeds
-//          if (!ret) {
-//            delete(entry);
-//            epoch_entry *entry = epoch_table[current % TABLESIZE].load(std::memory_order_relaxed);
-//            assert(entry->epoch_ == current); // make sure no collision
-//            entry->refcnt++;
-//          }
-//        }
-//        return current;
-//      };
-//      void exit(epoch e) {
-//        // when refcnt drop to zero, and epoch has progressed, spawn thread to do GC
-//        epoch current = *epoch_;
-//        epoch_entry *entry = epoch_table[e % TABLESIZE].load(std::memory_order_relaxed);
-//        assert(entry->epoch_ == e); // make sure no collision
-//        // TODO can have leaked entries because no thread join before epoch moves on
-//        if (--entry->refcnt == 0 && current > entry->epoch_) {
-//          bool ret = std::atomic_compare_exchange_weak_explicit(
-//              &epoch_table[e % TABLESIZE], &entry, nullptrlvalue,
-//              std::memory_order_release, std::memory_order_relaxed);
-//          // someone else succeeds
-//          if (!ret)
-//            return;
-//          std::thread thd(&epoch_manager::GC, this, entry);
-//          thd.detach();
-//        }
-//      };
-//      // called by consolidate
-//      void addGCEntry(epoch e, Node *node) {
-//        epoch_entry *entry = epoch_table[e % TABLESIZE].load(std::memory_order_relaxed);
-//        assert(entry->epoch_ == e); // make sure no collision
-//        delete_entry *head, *nnew;
-//        nnew = new delete_entry(node, nullptr);
-//        // retry until succeed
-//        do {
-//          head = entry->list.load(std::memory_order_relaxed);
-//          nnew->next = head;
-//        } while (!std::atomic_compare_exchange_weak_explicit(
-//            &entry->list, &head, nnew,
-//            std::memory_order_release, std::memory_order_relaxed)
-//            );
-//      };
-//    };
-
     class ItemPointerComparator {
     public:
       ItemPointerComparator(){};
@@ -342,6 +186,161 @@ class BWTree {
         }
         return (p1.block < p2.block);
       }
+    };
+
+    class epoch_manager
+    {
+     private:
+      struct delete_entry
+      {
+        Node* payload;
+        struct delete_entry *next;
+        delete_entry(Node * p, delete_entry * ent) {
+          payload = p;
+          next = ent;
+        }
+      };
+      struct epoch_entry
+      {
+        uint32_t refcnt;
+        epoch epoch_;
+        std::atomic<delete_entry*> list; // start nodes of deltachain to GC
+        // struct epoch_entry *next;
+        epoch_entry(uint32_t r, epoch e, delete_entry * ent) {
+          refcnt = r;
+          epoch_ = e;
+          list = ent;
+        }
+      };
+
+      std::vector<std::atomic<epoch_entry*> > epoch_table;
+      epoch_entry* nullptrlvalue = nullptr;
+      epoch *epoch_;
+      // ticker *tk;
+      struct timespec t = {0, 40 * 1000 * 1000}; // 40 ms
+
+      void deleteChain(Node * node) {
+        if (node == nullptr)
+          return;
+        Node * next = node->next;
+        while (next != nullptr) {
+          LOG_DEBUG("delete node %p\n", node);
+          delete node;
+          node = next;
+          next = next->next;
+        }
+        LOG_DEBUG("delete node %dp\n", node);
+        delete node;
+      }
+      void GC(epoch_entry * entry) {
+        LOG_DEBUG("GC\n");
+        delete_entry * node = entry->list;
+        if (node == nullptr)
+          return;
+        delete_entry * next = node->next;
+        while (next != nullptr) {
+          LOG_DEBUG("deletechain\n");
+          deleteChain(node->payload);
+          delete node;
+          node = next;
+          next = next->next;
+        }
+        deleteChain(node->payload);
+        delete node;
+        delete(entry);
+      };
+      /**
+       * ticker increments epoch
+       * and check epoch update, and run GC on previous epoch
+       */
+      void ticker() {
+        for (;;) {
+          nanosleep(&t, nullptr);
+          epoch previous = *epoch_;
+          (*epoch_)++;
+          epoch_entry *entry = epoch_table[previous % TABLESIZE].load(std::memory_order_relaxed);
+          if (entry != nullptr && entry->refcnt == 0) {
+            assert(entry->epoch_ == previous);
+            bool ret = std::atomic_compare_exchange_weak_explicit(
+                         &epoch_table[previous % TABLESIZE], &entry, nullptrlvalue,
+                         std::memory_order_release, std::memory_order_relaxed);
+            // someone else succeeds
+            if (!ret)
+              return;
+            LOG_DEBUG("start gc by ticker\n");
+            std::thread thd(&epoch_manager::GC, this, entry);
+            thd.detach();
+          }
+        }
+      };
+     public:
+      epoch_manager() : epoch_table(TABLESIZE) { // initialized to NULL
+        epoch_ = new epoch(0UL);
+        std::thread thd(&epoch_manager::ticker, this);
+        thd.detach();
+      };
+      ~epoch_manager() {
+        delete(epoch_);
+      };
+      // called by normal threads
+      epoch enter() {
+        LOG_DEBUG("enter\n");
+        epoch current = *epoch_;
+        epoch_entry *entry = epoch_table[current % TABLESIZE].load(std::memory_order_relaxed);
+        if (entry != nullptr) {
+          assert(entry->epoch_ == current); // make sure no collision
+          entry->refcnt++;
+        } else {
+          entry = new epoch_entry(1, current, nullptr);
+          bool ret = std::atomic_compare_exchange_weak_explicit(
+                       &epoch_table[current % TABLESIZE], &nullptrlvalue, entry,
+                       std::memory_order_release, std::memory_order_relaxed);
+          // someone else succeeds
+          if (!ret) {
+            delete(entry);
+            epoch_entry *entry = epoch_table[current % TABLESIZE].load(std::memory_order_relaxed);
+            assert(entry->epoch_ == current); // make sure no collision
+            entry->refcnt++;
+          }
+        }
+        return current;
+      };
+      void exit(epoch e) {
+        LOG_DEBUG("exit\n");
+        // when refcnt drop to zero, and epoch has progressed, spawn thread to do GC
+        epoch current = *epoch_;
+        epoch_entry *entry = epoch_table[e % TABLESIZE].load(std::memory_order_relaxed);
+        assert(entry->epoch_ == e); // make sure no collision
+        // TODO can have leaked entries because no thread join before epoch moves on
+        LOG_DEBUG("refcnt %d epoch %lu, current epoch %lu\n", entry->refcnt - 1, entry->epoch_, current);
+        if (--entry->refcnt == 0 && current > entry->epoch_) {
+          bool ret = std::atomic_compare_exchange_weak_explicit(
+                       &epoch_table[e % TABLESIZE], &entry, nullptrlvalue,
+                       std::memory_order_release, std::memory_order_relaxed);
+          // someone else succeeds
+          if (!ret)
+            return;
+          LOG_DEBUG("start gc\n");
+          std::thread thd(&epoch_manager::GC, this, entry);
+          thd.detach();
+        }
+      };
+      // called by consolidate
+      void addGCEntry(epoch e, Node * node) {
+        LOG_DEBUG("addGCEntry\n");
+        epoch_entry *entry = epoch_table[e % TABLESIZE].load(std::memory_order_relaxed);
+        assert(entry->epoch_ == e); // make sure no collision
+        delete_entry *head, *nnew;
+        nnew = new delete_entry(node, nullptr);
+        // retry until succeed
+        do {
+          head = entry->list.load(std::memory_order_relaxed);
+          nnew->next = head;
+        } while (!std::atomic_compare_exchange_weak_explicit(
+                   &entry->list, &head, nnew,
+                   std::memory_order_release, std::memory_order_relaxed)
+                );
+      };
     };
 
     // lock free mapping table
