@@ -1263,11 +1263,11 @@ class BWTree {
       // TODO: decide values
       consolidate_threshold_inner_ = 5;
 
-      consolidate_threshold_leaf_ = 10;
+      consolidate_threshold_leaf_ = 8;
 
       merge_threshold_ = 0;
 
-      split_threshold_ = 4;
+      split_threshold_ = 150;
 
       gc_head_.store(nullptr, std::memory_order_release);
 
