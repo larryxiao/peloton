@@ -73,7 +73,57 @@ BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Scan(
   __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
   __attribute__((unused)) const ScanDirectionType& scan_direction) {
   std::vector<ItemPointer> result;
-  // Add your implementation here
+  KeyType index_key;
+
+  // Check if we have leading (leftmost) column equality
+  // refer : http://www.postgresql.org/docs/8.2/static/indexes-multicolumn.html
+  oid_t leading_column_id = 0;
+  auto key_column_ids_itr = std::find(
+      key_column_ids.begin(), key_column_ids.end(), leading_column_id);
+
+  // SPECIAL CASE : leading column id is one of the key column ids
+  // and is involved in a equality constraint
+  bool special_case = false;
+  if (key_column_ids_itr != key_column_ids.end()) {
+    auto offset = std::distance(key_column_ids.begin(), key_column_ids_itr);
+    if (expr_types[offset] == EXPRESSION_TYPE_COMPARE_EQUAL) {
+      special_case = true;
+    }
+  }
+
+  LOG_TRACE("Special case : %d ", special_case);
+
+  // auto scan_begin_itr = container.begin();
+  std::unique_ptr<storage::Tuple> start_key;
+  bool all_constraints_are_equal = false;
+
+  // If it is a special case, we can figure out the range to scan in the index
+  if (special_case == true) {
+
+    start_key.reset(new storage::Tuple(metadata->GetKeySchema(), true));
+    index_key.SetFromKey(start_key.get());
+
+    // Construct the lower bound key tuple
+    all_constraints_are_equal =
+        ConstructLowerBoundTuple(start_key.get(), values, key_column_ids, expr_types);
+    LOG_TRACE("All constraints are equal : %d ", all_constraints_are_equal);
+
+  }
+
+  switch(scan_direction) {
+    case SCAN_DIRECTION_TYPE_FORWARD:
+    case SCAN_DIRECTION_TYPE_BACKWARD: {
+      result = container.RangeScan(index_key, key_column_ids,
+                                   expr_types, values);
+    }
+      break;
+
+    case SCAN_DIRECTION_TYPE_INVALID:
+    default:
+      throw Exception("Invalid scan direction \n");
+      break;
+  }
+
   return result;
 }
 

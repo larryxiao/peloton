@@ -14,7 +14,7 @@
 #include "backend/index/bwtree.h"
 #include "index_key.h"
 #include "bwtree.h"
-
+#include "backend/index/index.h"
 #define TODO
 
 namespace peloton {
@@ -741,6 +741,125 @@ namespace index {
       }
 
       // go to next leaf page
+    }
+
+    return result.values;
+  }
+
+  template <typename KeyType, typename ValueType, class KeyComparator,
+      class KeyEqualityChecker>
+  std::vector<ValueType> BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+  RangeScan(const KeyType &start_key,const std::vector<oid_t> &key_column_ids,
+            const std::vector<ExpressionType> &expr_types,
+            const std::vector<Value> &values) {
+    // pid of next leaf to visit
+    pid_t next_pid = head_leaf_ptr_;
+
+    TreeOpResult result;
+
+    // always succeeds
+    result.status = true;
+
+    while(next_pid != NULL_PID){
+      // start from the head of the list of leaves
+      Node *head = mapping_table_.get_phy_ptr(next_pid);
+      result.status = false;
+
+      Node *copyHeadNodeP = head;
+      Node *ptr = head;
+
+      while(ptr->next!= nullptr){
+        ptr=ptr->next;
+      }
+
+      LeafNode* headNodeP1 = static_cast<LeafNode*>(ptr);
+
+      auto wholePairs = headNodeP1->key_values; //if split then discarded values wont be there
+
+      std::vector<std::pair<KeyType,ValueType>> deletedPairs;
+      std::vector<std::pair<KeyType,ValueType>> insertedPairs;
+      while(head->next) {
+        switch (head->get_type()) {
+          case deltaInsert: {
+            DeltaInsert *deltains = static_cast<DeltaInsert *>(copyHeadNodeP);
+
+            auto it = std::find_if(deletedPairs.begin(), deletedPairs.end(),
+                                   [&](const std::pair<KeyType, ValueType> &element) {
+                                     return key_compare_eq(element.first, deltains->key) &&
+                                            val_eq(element.second, deltains->value);
+                                   });
+
+            if (it == deletedPairs.end())
+              insertedPairs.push_back(std::pair<KeyType, ValueType>
+                                          (deltains->key, deltains->value));
+
+            break;
+          }
+          case deltaDelete: {
+            DeltaDelete *deltadel = static_cast<DeltaDelete *>(copyHeadNodeP);
+
+            auto it = std::find_if(wholePairs.begin(), wholePairs.end(),
+                                   [&](const std::pair<KeyType, std::vector<ValueType>> &element) {
+                                     return key_compare_eq(element.first, deltadel->key);
+                                   });
+
+            if (it != wholePairs.end()) {
+              while (true) {
+                auto itValVec = std::find_if(it->second.begin(), it->second.end(), [&](const ValueType &elementV) {
+                  return val_eq(elementV, deltadel->value);
+                });
+                if (itValVec != it->second.end()) {
+                  it->second.erase(itValVec);
+                }
+                else {
+                  //remove the key with empty vector
+                  if (it->second.empty())
+                    wholePairs.erase(it);
+                  break;
+                }
+              }
+            }
+            deletedPairs.push_back(std::pair<KeyType, ValueType>(deltadel->key, deltadel->value));
+
+            break;
+          }
+          default:
+            break;
+        }
+
+        head = head->next;
+      }
+
+      for(auto const& elem: insertedPairs){
+        auto it = std::find_if(wholePairs.begin(), wholePairs.end(),
+                               [&](const std::pair<KeyType,std::vector<ValueType>>& element) {
+          return key_compare_eq(element.first, elem.first);
+        });
+
+        if(it != wholePairs.end()){
+          it->second.push_back(elem.second);
+        }
+        else{
+          wholePairs.push_back(std::make_pair(elem.first,std::vector<ValueType>{elem.second}));
+        }
+      }
+
+      std::sort(wholePairs.begin(), wholePairs.end(), [&](const std::pair<KeyType, std::vector<ValueType>>& t1,
+                                                          const std::pair<KeyType, std::vector<ValueType>>& t2) {
+        return key_comparator_(t1.first,t2.first);
+      });
+
+      for(auto kv : wholePairs){
+        if(key_compare_lte(start_key, kv.first)){
+          auto tuple = kv.first.GetTupleForComparison(metadata_->GetKeySchema());
+          if (Index::Compare(tuple, key_column_ids, expr_types, values) == true) {
+            result.values.insert(result.values.end(), kv.second.begin(),
+                                 kv.second.end());
+          }
+        }
+      }
+
+      next_pid = headNodeP1->sidelink;
     }
 
     return result.values;
@@ -1639,42 +1758,39 @@ namespace index {
   // go through pid table, delete chain
   // on merge node, delete right chain
   // TODO things will change when there's GC
-    template <typename KeyType, typename ValueType, class KeyComparator,
-    class KeyEqualityChecker>
-    bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Cleanup() {
-#ifdef DEBUG
-        std::cout << "Before:\n" << std::endl;
-				print_tree(pid);
-#endif
-      //printf("Memory Footprint is : %lu",GetMemoryFootprint());
-      for (pid_t pid = 1; pid < pid_gen_; ++pid) { // start from 1
-        Node * node = mapping_table_.get_phy_ptr(pid);
-        if (node == nullptr)
-          continue;
-        Node * next = node->next;
-        while (next != nullptr) {
-          memory_usage_ -= sizeof(node);
-          delete node;
-          node = next;
-          next = next->next;
-        }
+  template <typename KeyType, typename ValueType, class KeyComparator,
+  class KeyEqualityChecker>
+  bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Cleanup() {
+    //printf("Memory Footprint is : %lu",GetMemoryFootprint());
+    for (pid_t pid = 1; pid < pid_gen_; ++pid) { // start from 1
+      Node * node = mapping_table_.get_phy_ptr(pid);
+      if (node == nullptr)
+        continue;
+      Node * next = node->next;
+      while (next != nullptr) {
         memory_usage_ -= sizeof(node);
         delete node;
-#ifdef DEBUG
-        std::cout << "After:\n" << std::endl;
-        print_tree(pid);
-#endif
-        mapping_table_.erase(pid);
+        node = next;
+        next = next->next;
       }
-
-      // clear gc chain
-      clear_gc_chain();
+      memory_usage_ -= sizeof(node);
+      delete node;
 #ifdef DEBUG
-    std::cout << "Final:\n" << std::endl;
-    print_tree(root_.load(std::memory_order_relaxed));
+      std::cout << "After:\n" << std::endl;
+      print_tree(pid);
 #endif
-      return true;
+      mapping_table_.erase(pid);
     }
+
+    // clear gc chain
+    clear_gc_chain();
+#ifdef DEBUG
+  std::cout << "Final:\n" << std::endl;
+  print_tree(root_.load(std::memory_order_relaxed));
+#endif
+    return true;
+  }
+
     template <typename KeyType, typename ValueType, class KeyComparator,
     class KeyEqualityChecker>
     size_t BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::GetMemoryFootprint() {
