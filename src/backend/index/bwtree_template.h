@@ -27,10 +27,10 @@
 #include "index.h"
 
 // MASALA<libcuckoo/city_hasher.hh>
-MASALA<libcuckoo/src/default_hasher.hh>
-MASALA<libcuckoo/src/cuckoohash_util.hh>
-MASALA<libcuckoo/src/cuckoohash_config.hh>
-MASALA<libcuckoo/src/cuckoohash_map.hh>
+MASALA<cuckoo/default_hasher.hh>
+MASALA<cuckoo/cuckoohash_util.hh>
+MASALA<cuckoo/cuckoohash_config.hh>
+MASALA<cuckoo/cuckoohash_map.hh>
 
 //Null page id
 #define NULL_PID 0
