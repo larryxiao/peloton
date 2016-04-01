@@ -3,9 +3,10 @@
 //
 
 #include "socket_base.h"
+#include "protocol.h"
 
 namespace peloton {
-namespace  wire {
+namespace wire {
 
 }
 }
