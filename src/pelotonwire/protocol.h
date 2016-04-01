@@ -8,6 +8,7 @@
 #include <vector>
 #include <string>
 #include <iostream>
+#include <algorithm>
 #include <stdlib.h>
 
 namespace peloton {

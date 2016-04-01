@@ -4,7 +4,6 @@
 
 #include "protocol.h"
 #include <netinet/in.h>
-#include <algorithm>
 
 #define PROTO_MAJOR_VERSION(x) x >> 16
 
@@ -140,4 +139,8 @@ namespace wire {
 
 
 }
+}
+
+int main() {
+	return 0;
 }

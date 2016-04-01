@@ -1,40 +1,41 @@
 srcdir = src
 builddir = build
+wiredir = $(srcdir)/pelotonwire
+WIRE_INCLUDES = -I$(wiredir)/*.h
+
 CXX = g++
 CXXLD = g++
 DEFS = -DHAVE_CONFIG_H
-CPPFLAGS =  -I/usr/include -I/usr/include
-CXXFLAGS = -O0 -g -ggdb -DNVML
+CPPFLAGS =  -I/usr/include
+CXXFLAGS = -O0 -DNVML
 DEBUG_CXXFLAGS = -O0 -g -ggdb -Wall -Wextra -Werror
-INCLUDES = -I$(srcdir)/mc_driver/*.h
+INCLUDES = $(WIRE_INCLUDES)
 AM_CXXFLAGS = $(DEBUG_CXXFLAGS) -std=c++11 -fPIC -fpermissive \
 	-fno-strict-aliasing
-
 SHELL = /bin/bash
 LIBTOOL = $(SHELL) $(builddir)/libtool
-AM_LDFLAGS = -static -pthread \
-	$(builddir)/src/libpelotonpg.la
-LDFLAGS =  -L/usr/lib -L/usr/lib
+AM_LDFLAGS = -static -pthread
+LDFLAGS = -L/usr/lib -L/usr/lib
 
-CXXCOMPILE = $(CXX) $(DEFS) $(INCLUDES) \
-	$(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS)
+CXXCOMPILE = $(CXX) $(DEFS) $(AM_CXXFLAGS)  \
+	 $(CPPFLAGS) $(INCLUDES) $(CXXFLAGS)
 CXXLINK = $(LIBTOOL) --tag=CXX \
 	--mode=link $(CXXLD) $(AM_CXXFLAGS) \
 	$(CXXFLAGS) $(AM_LDFLAGS) $(LDFLAGS)
 
-CPP_FILES := $(wildcard $(srcdir)/mc_driver/*.cpp)
-OBJ_FILES := $(addprefix $(builddir)/src/mc_driver/,$(notdir $(CPP_FILES:.cpp=.o)))
+CPP_FILES := $(wildcard $(wiredir)/*.cpp)
+OBJ_FILES := $(addprefix $(builddir)/$(wiredir)/,$(notdir $(CPP_FILES:.cpp=.o)))
 
-mc_driver: $(OBJ_FILES)
+wire_server: $(OBJ_FILES)
 	$(CXXLINK) -o $(builddir)/$@ $^
 
-$(builddir)/src/mc_driver/%.o: $(srcdir)/mc_driver/%.cpp
+$(builddir)/$(wiredir)/%.o: $(wiredir)/%.cpp
 	@mkdir -p $(@D)
 	$(CXXCOMPILE) -c -o $@ $<
 
 clean:
-	@rm -rf $(builddir)/src/mc_driver
-	@rm $(builddir)/mc_driver
+	@rm -f $(builddir)/src/wire_server
+	@rm -rf $(builddir)/$(wiredir)
 
 stylecheck:
 	clang-format-3.6 --style=file ./src/postgres/backend/postmaster/postmaster.cpp | diff ./src/postgres/backend/postmaster/postmaster.cpp -
