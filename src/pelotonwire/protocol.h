@@ -52,7 +52,7 @@ namespace  wire {
 		void process_packet(Packet *pkt);
 	};
 
-	extern void error(const std::string &msg);
+	extern void error(const std::string &msg, bool if_exit = true);
 
 }
 }

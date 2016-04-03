@@ -132,15 +132,13 @@ namespace wire {
 
 	}
 
-	void error(const std::string& msg) {
+	void error(const std::string& msg, bool if_exit) {
 		std::cerr << msg << std::endl;
-		exit(EXIT_FAILURE);
+		if (if_exit) {
+			exit(EXIT_FAILURE);
+		}
 	}
 
 
 }
-}
-
-int main() {
-	return 0;
 }
