@@ -5,7 +5,7 @@
 #ifndef PELOTON_SOCKET_BASE_H
 #define PELOTON_SOCKET_BASE_H
 
-#include <vector>
+#include <array>
 #include <thread>
 #include <cstring>
 #include <unistd.h>
@@ -27,6 +27,7 @@ namespace wire {
 
 	typedef unsigned char uchar;
 
+	typedef std::array<uchar, SOCKET_BUFFER_SIZE> SockBuf;
 
 	struct Server {
 		int port;
@@ -42,18 +43,20 @@ namespace wire {
 		int sock_fd;
 		size_t buf_ptr;
 		size_t buf_size;
-		std::vector<uchar> buf;
+		SockBuf buf;
 
 	private:
 		bool refill_buffer();
 
 	public:
 		inline SocketManager(int sock_fd) : sock_fd(sock_fd),
-																				buf_ptr(0), buf_size(0),
-																				buf(SOCKET_BUFFER_SIZE, 0)
+																				buf_ptr(0), buf_size(0)
 		{}
-		void close();
-		bool read_bytes(std::vector<uchar>& pkt_buf, size_t bytes);
+		void close_socket();
+
+		// template used to encapsulate protocol's buffer array generics
+		template <typename T, std::size_t SIZE>
+		bool read_bytes(std::array<T, SIZE>& pkt_buf, size_t bytes);
 	};
 
 	extern void start_server(Server *server);

@@ -16,7 +16,7 @@ namespace wire {
 			error("Parsing error: pointer overflow for int");
 	}
 
-	const std::vector<uchar>::iterator get_end_itr(Packet *pkt, int len){
+	PktBuf::iterator get_end_itr(Packet *pkt, int len){
 		if (len == 0)
 			return pkt->buf.end();
 		return pkt->buf.begin() + pkt->ptr + len;
@@ -98,6 +98,66 @@ namespace wire {
 	}
 
 	/*
+	 * read_packet - Tries to read a single packet, returns true on success,
+	 * 		false on failure. Accepts pointer to an empty packet, and if the
+	 * 		expected packet contains a type field. The function does a preliminary
+	 * 		read to fetch the size value and then reads the rest of the packet.
+	 *
+	 * 		Assume: Packet length field is always 32-bit int
+	 */
+
+	bool PacketManager::read_packet(Packet *pkt, bool has_type_field) {
+		uint32_t pkt_size = 0, initial_read_size = sizeof(int32_t);
+
+		// reads the type and size of packet
+		std::array<uchar, 5> init_pkt;
+
+		if (has_type_field)
+			// need to read type character as well
+			initial_read_size++;
+
+		// read first size_field_end bytes
+		if(!client.sock->read_bytes<uchar, 5>
+				(init_pkt, static_cast<size_t >(initial_read_size))) {
+			// nothing more to read
+			return false;
+		}
+
+		if (has_type_field) {
+			// packet includes type byte as well
+			pkt->msg_type = init_pkt[0];
+
+			// extract packet size
+			std::copy(init_pkt.begin() + 1, init_pkt.end(),
+													 reinterpret_cast<uchar *>(pkt_size));
+		} else {
+			// directly extract packet size
+			std::copy(init_pkt.begin(), init_pkt.end(),
+								reinterpret_cast<uchar *>(pkt_size));
+		}
+
+		// packet size includes initial bytes read as well
+		pkt_size = ntohl(pkt_size) - initial_read_size;
+
+		if (!client.sock->read_bytes<uchar, PktBufMaxSize>(
+				pkt->buf, static_cast<size_t >(pkt_size))) {
+			// nothing more to read
+			return false;
+		}
+
+		pkt->len = pkt_size;
+
+		return true;
+	}
+
+	/*
+	 * close_client - Close the socket of the underlying client
+	 */
+	void PacketManager::close_client() {
+		client.sock->close_socket();
+	}
+
+	/*
 	 * process_startup_packet - Processes the startup packet
 	 * 	(after the size field of the header).
 	 */
@@ -132,51 +192,16 @@ namespace wire {
 
 	}
 
-	/*
-	 * read_packet - Tries to read a single packet, returns true on success,
-	 * 		false on failure. Accepts pointer to an empty packet, and if the
-	 * 		expected packet contains a type field. The function does a preliminary
-	 * 		read to fetch the size value and then reads the rest of the packet.
-	 *
-	 * 		Assume: Packet length field is always 32-bit int
-	 */
-
-	bool PacketManager::read_packet(Packet *pkt, bool has_type_field) {
-		int32_t pkt_size = 0;
-		size_t initial_read_size = sizeof(int32_t);
-
-		// reads the type and size of packet
-		std::vector<uchar> init_pkt;
-
-		if (has_type_field)
-			// need to read type character as well
-			initial_read_size++;
-
-		// read first size_field_end bytes
-		if(!client.sock->read_bytes(init_pkt, initial_read_size)) {
-			// nothing more to read
-			return false;
-		}
-
-		if (has_type_field) {
-			// packet includes type byte as well
-			pkt->msg_type = init_pkt[0];
-
-			// extract packet size
-			std::copy(init_pkt.begin() + 1, init_pkt.end(),
-													 reinterpret_cast<uchar *>(pkt_size));
-		} else {
-			// directly extract packet size
-			std::copy(init_pkt.begin(), init_pkt.end(),
-								reinterpret_cast<uchar *>(pkt_size));
-		}
-
-		pkt_size = ntohl(pkt_size);
-
-		return pkt_size == 0;
-	}
 
 	void PacketManager::manage_packets() {
+		Packet pkt;
+
+		// fetch the startup packet
+		if (!read_packet(&pkt, false)) {
+			close_client();
+		}
+
+		process_startup_packet(&pkt);
 
 	}
 

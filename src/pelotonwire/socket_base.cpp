@@ -70,27 +70,34 @@ namespace wire {
 	 * read - Tries to read "bytes" bytes into packet's buffer. Returns true on success.
 	 * 		false on failure.
 	 */
-	bool SocketManager::read_bytes(std::vector<uchar>& pkt_buf, size_t bytes) {
-		size_t window;
+	template <typename T, std::size_t SIZE>
+	bool SocketManager::read_bytes(std::array<T, SIZE>& pkt_buf, size_t bytes) {
+		size_t window, pkt_buf_idx = 0;
 		// while data still needs to be read
 		while(bytes) {
 			// how much data is available
 			window = buf_size - buf_ptr;
 			if (bytes <= window) {
-				pkt_buf.insert(std::end(pkt_buf), std::begin(buf) + buf_ptr,
-												std::begin(buf) + bytes);
+				std::copy(std::begin(buf) + buf_ptr, std::begin(buf) + bytes,
+										std::begin(pkt_buf) + pkt_buf_idx);
 
 				// move the pointer
 				buf_ptr += bytes;
 
+				// move pkt_buf_idx as well
+				pkt_buf_idx += bytes;
+
 				return true;
 			} else {
 				// read what is available
-				pkt_buf.insert(std::end(pkt_buf), std::begin(buf) + buf_ptr,
-												std::end(buf));
+				std::copy(std::begin(buf) + buf_ptr, std::end(buf),
+									std::begin(pkt_buf) + pkt_buf_idx);
 
 				// update bytes leftover
 				bytes -= window;
+
+				// update pkt_buf_idx
+				pkt_buf_idx += window;
 
 				// refill buffer, reset buf ptr here
 				if (!refill_buffer()) {
@@ -103,6 +110,20 @@ namespace wire {
 		return true;
 	}
 
+	void SocketManager::close_socket() {
+		for (;;) {
+			int status = close(sock_fd);
+			if (status < 0) {
+				// failed close
+				if (errno == EINTR) {
+					// interrupted, try closing again
+					continue;
+				}
+			}
+			return;
+		}
+	}
+
 	void error(const std::string& msg, bool if_exit) {
 		std::cerr << msg << std::endl;
 		if (if_exit) {
@@ -110,5 +131,10 @@ namespace wire {
 		}
 	}
 
+	// explicit template instantiation for read_bytes
+	template bool SocketManager::read_bytes<uchar, sizeof(int32_t) + 1>(
+			std::array<uchar, sizeof(int32_t)+1>& pkt_buf, size_t bytes);
+	//	template bool SocketManager::read_bytes<uchar, 5>(
+	//			std::array<uchar, 5>& pkt_buf, size_t bytes);
 }
 }
