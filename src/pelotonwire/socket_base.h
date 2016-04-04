@@ -27,7 +27,7 @@ namespace wire {
 
 	typedef unsigned char uchar;
 
-	
+
 	struct Server {
 		int port;
 		int server_fd;
@@ -72,7 +72,7 @@ namespace wire {
 	 *
 	 */
 
-
+	template <typename P>
 	void handle_connections(Server *server) {
 		int *clientfd, connfd, clilen;
 		struct sockaddr_in cli_addr;
