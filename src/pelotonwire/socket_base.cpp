@@ -3,16 +3,7 @@
 //
 
 #include "socket_base.h"
-#include "protocol.h"
-#include <unistd.h>
-#include <sys/file.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/time.h>
-#include <netdb.h>
-#include <netinet/in.h>
-
-#define MAX_CONNECTIONS 64
+#include <stdlib.h>
 
 namespace peloton {
 namespace wire {
@@ -37,40 +28,87 @@ namespace wire {
 		listen(server->server_fd, server->max_connections);
 	}
 
-	void handle_connections(Server *server) {
-		int *clientfd, connfd, clilen;
-		struct sockaddr_in cli_addr;
-		clilen = sizeof(cli_addr);
+	bool SocketManager::refill_buffer() {
+
+		ssize_t bytes_read;
+
+		// our buffer is to be emptied
+		buf_ptr = buf_size = 0;
+
+		// return explicitly
 		for (;;) {
-			// block and wait for incoming connection
-			connfd = accept(server->server_fd,
-												 (struct sockaddr *) &cli_addr,
-											(socklen_t *) &clilen);
-			if (connfd < 0){
-				error("Server error: Connection not established", false);
+			//  try to fill the available space in the buffer
+			bytes_read = read(sock_fd, &buf[buf_ptr],
+												SOCKET_BUFFER_SIZE - buf_size );
+
+			if (bytes_read < 0 ) {
+				if ( errno == EINTR) {
+					// interrupts are OK
+					continue;
+				}
+
+				// otherwise, report error
+				error("Socket error: could not receive data from client", false);
+				return false;
 			}
 
-			clientfd = new int(connfd);
-			std::thread client_thread(client_handler, clientfd);
-			client_thread.detach();
+			if (bytes_read == 0) {
+				// EOF, return
+				return false;
+			}
+
+			// read success, update buffer size
+			buf_size += bytes_read;
+
+			// reset buffer ptr, to cover special case
+			buf_ptr = 0;
+			return true;
 		}
 	}
 
-	void client_handler(int *clientfd) {
-		int fd = *clientfd;
-		delete clientfd;
-		std::cout << "Client fd:" << fd << std::endl;
-	}
-}
-}
+	/*
+	 * read - Tries to read "bytes" bytes into packet's buffer. Returns true on success.
+	 * 		false on failure.
+	 */
+	bool SocketManager::read_bytes(std::vector<uchar>& pkt_buf, size_t bytes) {
+		size_t window;
+		// while data still needs to be read
+		while(bytes) {
+			// how much data is available
+			window = buf_size - buf_ptr;
+			if (bytes <= window) {
+				pkt_buf.insert(std::end(pkt_buf), std::begin(buf) + buf_ptr,
+												std::begin(buf) + bytes);
 
-int main(int argc, char *argv[]) {
-	if (argc != 2){
-		peloton::wire::error("Usage: ./wire_server [port]");
+				// move the pointer
+				buf_ptr += bytes;
+
+				return true;
+			} else {
+				// read what is available
+				pkt_buf.insert(std::end(pkt_buf), std::begin(buf) + buf_ptr,
+												std::end(buf));
+
+				// update bytes leftover
+				bytes -= window;
+
+				// refill buffer, reset buf ptr here
+				if (!refill_buffer()) {
+					// nothing more to read, end
+					return false;
+				}
+			}
+		}
+
+		return true;
 	}
 
-	peloton::wire::Server server(atoi(argv[1]), MAX_CONNECTIONS);
-	peloton::wire::start_server(&server);
-	peloton::wire::handle_connections(&server);
-	return 0;
+	void error(const std::string& msg, bool if_exit) {
+		std::cerr << msg << std::endl;
+		if (if_exit) {
+			exit(EXIT_FAILURE);
+		}
+	}
+
+}
 }

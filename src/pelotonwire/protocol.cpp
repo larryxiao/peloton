@@ -132,13 +132,64 @@ namespace wire {
 
 	}
 
-	void error(const std::string& msg, bool if_exit) {
-		std::cerr << msg << std::endl;
-		if (if_exit) {
-			exit(EXIT_FAILURE);
+	/*
+	 * read_packet - Tries to read a single packet, returns true on success,
+	 * 		false on failure. Accepts pointer to an empty packet, and if the
+	 * 		expected packet contains a type field. The function does a preliminary
+	 * 		read to fetch the size value and then reads the rest of the packet.
+	 *
+	 * 		Assume: Packet length field is always 32-bit int
+	 */
+
+	bool PacketManager::read_packet(Packet *pkt, bool has_type_field) {
+		int32_t pkt_size = 0;
+		size_t initial_read_size = sizeof(int32_t);
+
+		// reads the type and size of packet
+		std::vector<uchar> init_pkt;
+
+		if (has_type_field)
+			// need to read type character as well
+			initial_read_size++;
+
+		// read first size_field_end bytes
+		if(!client.sock->read_bytes(init_pkt, initial_read_size)) {
+			// nothing more to read
+			return false;
 		}
+
+		if (has_type_field) {
+			// packet includes type byte as well
+			pkt->msg_type = init_pkt[0];
+
+			// extract packet size
+			std::copy(init_pkt.begin() + 1, init_pkt.end(),
+													 reinterpret_cast<uchar *>(pkt_size));
+		} else {
+			// directly extract packet size
+			std::copy(init_pkt.begin(), init_pkt.end(),
+								reinterpret_cast<uchar *>(pkt_size));
+		}
+
+		pkt_size = ntohl(pkt_size);
+
+		return pkt_size == 0;
 	}
 
+	void PacketManager::manage_packets() {
+
+	}
 
 }
+}
+
+int main(int argc, char *argv[]) {
+	if (argc != 2){
+		peloton::wire::error("Usage: ./wire_server [port]");
+	}
+
+	peloton::wire::Server server(atoi(argv[1]), MAX_CONNECTIONS);
+	peloton::wire::start_server(&server);
+	peloton::wire::handle_connections<peloton::wire::PacketManager>(&server);
+	return 0;
 }
