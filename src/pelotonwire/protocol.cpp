@@ -34,18 +34,18 @@ namespace wire {
 		switch(base) {
 			case 1:
 				std::copy(pkt->buf.begin() + pkt->ptr, get_end_itr(pkt, base),
-									reinterpret_cast<uchar*>(value));
+									reinterpret_cast<uchar*>(&value));
 				break;
 
 			case 2:
 				std::copy(pkt->buf.begin() + pkt->ptr,get_end_itr(pkt, base),
-									reinterpret_cast<char *>(value));
+									reinterpret_cast<uchar *>(&value));
 				value = ntohs(value);
 				break;
 
 			case 4:
 				std::copy(pkt->buf.begin() + pkt->ptr, get_end_itr(pkt, base),
-									reinterpret_cast<char *>(value));
+									reinterpret_cast<uchar *>(&value));
 				value = ntohl(value);
 				break;
 
@@ -109,16 +109,16 @@ namespace wire {
 	bool PacketManager::read_packet(Packet *pkt, bool has_type_field) {
 		uint32_t pkt_size = 0, initial_read_size = sizeof(int32_t);
 
-		// reads the type and size of packet
-		std::array<uchar, 5> init_pkt;
-
 		if (has_type_field)
 			// need to read type character as well
 			initial_read_size++;
 
+		// reads the type and size of packet
+		PktBuf init_pkt(initial_read_size, 0);
+
+
 		// read first size_field_end bytes
-		if(!client.sock->read_bytes<uchar, 5>
-				(init_pkt, static_cast<size_t >(initial_read_size))) {
+		if(!client.sock->read_bytes(init_pkt, static_cast<size_t >(initial_read_size))) {
 			// nothing more to read
 			return false;
 		}
@@ -129,18 +129,17 @@ namespace wire {
 
 			// extract packet size
 			std::copy(init_pkt.begin() + 1, init_pkt.end(),
-													 reinterpret_cast<uchar *>(pkt_size));
+													 reinterpret_cast<uchar *>(&pkt_size));
 		} else {
 			// directly extract packet size
 			std::copy(init_pkt.begin(), init_pkt.end(),
-								reinterpret_cast<uchar *>(pkt_size));
+								reinterpret_cast<uchar *>(&pkt_size));
 		}
 
 		// packet size includes initial bytes read as well
 		pkt_size = ntohl(pkt_size) - initial_read_size;
 
-		if (!client.sock->read_bytes<uchar, PktBufMaxSize>(
-				pkt->buf, static_cast<size_t >(pkt_size))) {
+		if (!client.sock->read_bytes(pkt->buf, static_cast<size_t >(pkt_size))) {
 			// nothing more to read
 			return false;
 		}
@@ -193,16 +192,22 @@ namespace wire {
 	}
 
 
+	/*
+	 * PacketManager - Main wire protocol logic.
+	 * 		Always return with a closed socket.
+	 */
 	void PacketManager::manage_packets() {
 		Packet pkt;
 
 		// fetch the startup packet
 		if (!read_packet(&pkt, false)) {
 			close_client();
+			return;
 		}
 
 		process_startup_packet(&pkt);
 
+		close_client();
 	}
 
 }
@@ -215,6 +220,6 @@ int main(int argc, char *argv[]) {
 
 	peloton::wire::Server server(atoi(argv[1]), MAX_CONNECTIONS);
 	peloton::wire::start_server(&server);
-	peloton::wire::handle_connections<peloton::wire::PacketManager>(&server);
+	peloton::wire::handle_connections<peloton::wire::PacketManager, peloton::wire::PktBuf>(&server);
 	return 0;
 }

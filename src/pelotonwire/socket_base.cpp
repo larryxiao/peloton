@@ -10,10 +10,17 @@ namespace wire {
 
 	void start_server(Server *server) {
 		struct sockaddr_in serv_addr;
+		int yes = 1;
 
 		server->server_fd = socket(AF_INET, SOCK_STREAM, 0);
 		if (server->server_fd < 0)
 			error("Server error: while opening socket");
+
+
+		if (setsockopt(server->server_fd, SOL_SOCKET, SO_REUSEADDR, &yes,
+									 sizeof(yes)) == -1) {
+			error("Setsockopt error: can't config reuse addr");
+		}
 
 		memset(&serv_addr, 0, sizeof(serv_addr));
 
@@ -28,7 +35,8 @@ namespace wire {
 		listen(server->server_fd, server->max_connections);
 	}
 
-	bool SocketManager::refill_buffer() {
+	template <typename B>
+	bool SocketManager<B>::refill_buffer() {
 
 		ssize_t bytes_read;
 
@@ -40,7 +48,7 @@ namespace wire {
 			//  try to fill the available space in the buffer
 			bytes_read = read(sock_fd, &buf[buf_ptr],
 												SOCKET_BUFFER_SIZE - buf_size );
-
+			std::cout << "Bytes Read:" << bytes_read << std::endl;
 			if (bytes_read < 0 ) {
 				if ( errno == EINTR) {
 					// interrupts are OK
@@ -68,17 +76,17 @@ namespace wire {
 
 	/*
 	 * read - Tries to read "bytes" bytes into packet's buffer. Returns true on success.
-	 * 		false on failure.
+	 * 		false on failure. B can be any STL container.
 	 */
-	template <typename T, std::size_t SIZE>
-	bool SocketManager::read_bytes(std::array<T, SIZE>& pkt_buf, size_t bytes) {
+	template <typename B>
+	bool SocketManager<B>::read_bytes(B& pkt_buf, size_t bytes) {
 		size_t window, pkt_buf_idx = 0;
 		// while data still needs to be read
 		while(bytes) {
 			// how much data is available
 			window = buf_size - buf_ptr;
 			if (bytes <= window) {
-				std::copy(std::begin(buf) + buf_ptr, std::begin(buf) + bytes,
+				std::copy(std::begin(buf) + buf_ptr, std::begin(buf) + buf_ptr + bytes,
 										std::begin(pkt_buf) + pkt_buf_idx);
 
 				// move the pointer
@@ -110,7 +118,8 @@ namespace wire {
 		return true;
 	}
 
-	void SocketManager::close_socket() {
+	template <typename B>
+	void SocketManager<B>::close_socket() {
 		for (;;) {
 			int status = close(sock_fd);
 			if (status < 0) {
@@ -132,9 +141,6 @@ namespace wire {
 	}
 
 	// explicit template instantiation for read_bytes
-	template bool SocketManager::read_bytes<uchar, sizeof(int32_t) + 1>(
-			std::array<uchar, sizeof(int32_t)+1>& pkt_buf, size_t bytes);
-	//	template bool SocketManager::read_bytes<uchar, 5>(
-	//			std::array<uchar, 5>& pkt_buf, size_t bytes);
+	template class SocketManager<std::vector<uchar>>;
 }
 }

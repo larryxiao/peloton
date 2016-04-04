@@ -6,25 +6,26 @@
 #define PELOTON_PROTOCOL_H
 
 #include "socket_base.h"
-#include <array>
+#include <vector>
 #include <string>
 #include <iostream>
 #include <algorithm>
 
+#define BUFFER_INIT_SIZE 100
+
 namespace peloton {
 namespace  wire {
 
-	const std::size_t PktBufMaxSize = sizeof(int32_t) + 1;
 	typedef unsigned char uchar;
-	typedef std::array<uchar, PktBufMaxSize> PktBuf;
+	typedef std::vector<uchar> PktBuf;
 
 	struct Client {
-		SocketManager *sock;
+		SocketManager<PktBuf> *sock;
 		std::string dbname;
 		std::string user;
 		std::string cmdline_options;
 
-		inline Client(SocketManager *sock) : sock(sock)
+		inline Client(SocketManager<PktBuf> *sock) : sock(sock)
 		{ }
 	};
 
@@ -35,11 +36,12 @@ namespace  wire {
 		uchar msg_type;
 
 		// initialize buf's size as maximum packet size
-		inline Packet() {
+		inline Packet() : buf(BUFFER_INIT_SIZE, 0) {
 			reset();
 		}
 
 		inline void reset() {
+			buf.clear();
 			len = ptr = msg_type = 0;
 		}
 	};
@@ -64,7 +66,7 @@ namespace  wire {
 		void close_client();
 
 	public :
-		inline PacketManager(SocketManager *sock) : client(sock)
+		inline PacketManager(SocketManager<PktBuf> *sock) : client(sock)
 		{}
 
 		void manage_packets();
