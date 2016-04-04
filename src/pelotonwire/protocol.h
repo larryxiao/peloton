@@ -10,6 +10,7 @@
 #include <string>
 #include <iostream>
 #include <algorithm>
+#include <unordered_map>
 
 #define BUFFER_INIT_SIZE 100
 
@@ -23,7 +24,7 @@ namespace  wire {
 		SocketManager<PktBuf> *sock;
 		std::string dbname;
 		std::string user;
-		std::string cmdline_options;
+		std::unordered_map<std::string, std::string> cmdline_options;
 
 		inline Client(SocketManager<PktBuf> *sock) : sock(sock)
 		{ }
@@ -35,12 +36,14 @@ namespace  wire {
 		size_t ptr;
 		uchar msg_type;
 
-		// initialize buf's size as maximum packet size
-		inline Packet() : buf(BUFFER_INIT_SIZE, 0) {
+		// reserve buf's size as maximum packet size
+		inline Packet() {
 			reset();
 		}
 
 		inline void reset() {
+			buf.resize(BUFFER_INIT_SIZE);
+			buf.shrink_to_fit();
 			buf.clear();
 			len = ptr = msg_type = 0;
 		}

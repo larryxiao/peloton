@@ -86,8 +86,8 @@ namespace wire {
 			// how much data is available
 			window = buf_size - buf_ptr;
 			if (bytes <= window) {
-				std::copy(std::begin(buf) + buf_ptr, std::begin(buf) + buf_ptr + bytes,
-										std::begin(pkt_buf) + pkt_buf_idx);
+				pkt_buf.insert(std::end(pkt_buf), std::begin(buf) + buf_ptr,
+											 std::begin(buf) + buf_ptr + bytes);
 
 				// move the pointer
 				buf_ptr += bytes;
@@ -97,9 +97,9 @@ namespace wire {
 
 				return true;
 			} else {
-				// read what is available
-				std::copy(std::begin(buf) + buf_ptr, std::end(buf),
-									std::begin(pkt_buf) + pkt_buf_idx);
+				// read what is available for non-trivial window
+				if (window > 0)
+					pkt_buf.insert(std::end(pkt_buf), std::begin(buf) + buf_ptr, std::end(buf));
 
 				// update bytes leftover
 				bytes -= window;

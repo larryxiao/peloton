@@ -83,7 +83,10 @@ namespace wire {
 	 * 		from an unsingned char vector
 	 */
 	std::string get_string_token(Packet *pkt) {
-		auto find_itr = std::find(pkt->buf.begin() + pkt->ptr, pkt->buf.end(), 0);
+		// save start itr position of string
+		auto start = pkt->buf.begin() + pkt->ptr;
+
+		auto find_itr = std::find(start, pkt->buf.end(), 0);
 
 		if (find_itr == pkt->buf.end()) {
 			// no match? consider the remaining vector
@@ -92,9 +95,14 @@ namespace wire {
 			return std::string(pkt->buf.begin() + pkt->ptr, pkt->buf.end());
 		}
 
-		// continue after the found position
+		// update ptr position
 		pkt->ptr = find_itr - pkt->buf.begin() + 1;
-		return std::string(pkt->buf.begin() + pkt->ptr, find_itr);
+
+		// edge case
+		if (start == find_itr)
+			return std::string("");
+
+		return std::string(start, find_itr);
 	}
 
 	/*
@@ -114,8 +122,7 @@ namespace wire {
 			initial_read_size++;
 
 		// reads the type and size of packet
-		PktBuf init_pkt(initial_read_size, 0);
-
+		PktBuf init_pkt;
 
 		// read first size_field_end bytes
 		if(!client.sock->read_bytes(init_pkt, static_cast<size_t >(initial_read_size))) {
@@ -161,7 +168,7 @@ namespace wire {
 	 * 	(after the size field of the header).
 	 */
 	void PacketManager::process_startup_packet(Packet *pkt) {
-		std::string token;
+		std::string token, value;
 		int32_t proto_version = packet_getint(pkt, sizeof(int32_t));
 		if(PROTO_MAJOR_VERSION(proto_version) != 3){
 			error("Protocol error: Only protocol version 3 is supported.");
@@ -183,9 +190,10 @@ namespace wire {
 				// loop end?
 				if (pkt->ptr >= pkt->len) break;
 				client.user = get_string_token(pkt);
-			} else if (token.compare("options")) {
+			} else {
 				if (pkt->ptr >= pkt->len) break;
-				client.cmdline_options = get_string_token(pkt);
+				value = get_string_token(pkt);
+				client.cmdline_options[token] = value;
 			}
 		}
 
