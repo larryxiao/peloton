@@ -72,7 +72,7 @@ namespace wire {
 	 * process_startup_packet - Processes the startup packet
 	 * 	(after the size field of the header).
 	 */
-	void PacketManager::process_startup_packet(Packet *pkt) {
+	bool PacketManager::process_startup_packet(Packet *pkt) {
 		std::string token, value;
 		int32_t proto_version = packet_getint(pkt, sizeof(int32_t));
 
@@ -103,19 +103,40 @@ namespace wire {
 			}
 		}
 
+		if (client.dbname.empty() || client.user.empty()){
+			std::unordered_map<uchar, std::string> responses =
+					{{'M', "Invalid user or database name"}};
+			send_error_response(responses);
+			return false;
+		}
+
+		// send auth-ok
+		pkt->reset();
+		pkt->msg_type = 'R';
+		packet_putint(pkt, 0, 4);
+		if (!client.sock->write_bytes(pkt->buf, pkt->len, pkt->msg_type))
+			return false;
+
+		return true;
 	}
 
 	/*
 	 * send_error_response - Sends the passed string as an error response.
 	 * 		For now, it only supports the human readable 'M' message body
 	 */
-//	void PacketManager::send_error_response(std::string message) {
-//		Packet pkt;
-//
-//		pkt.msg_type = 'E';
-//
-//
-//	}
+	void PacketManager::send_error_response(
+			std::unordered_map<uchar, std::string> responses) {
+		Packet pkt;
+		pkt.msg_type = 'E';
+
+		for(auto keyval : responses) {
+			packet_putbyte(&pkt, keyval.first);
+			packet_putstring(&pkt, keyval.second);
+		}
+
+		// don't care if write finished or not, we are closing anyway
+		client.sock->write_bytes(pkt.buf, pkt.len, pkt.msg_type);
+	}
 
 
 	/*
@@ -131,7 +152,10 @@ namespace wire {
 			return;
 		}
 
-		process_startup_packet(&pkt);
+		if (!process_startup_packet(&pkt)) {
+			close_client();
+			return;
+		}
 
 		close_client();
 	}

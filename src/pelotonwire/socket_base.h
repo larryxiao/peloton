@@ -40,6 +40,23 @@ namespace wire {
 		{}
 	};
 
+	struct Buffer {
+		size_t buf_ptr;
+		size_t buf_size;
+		SockBuf buf;
+
+		inline Buffer() : buf_ptr(0), buf_size(0)
+		{}
+
+		inline void reset() {
+			buf_ptr = 0;
+			buf_size = 0;
+		}
+
+		inline size_t get_max_size() {
+			return SOCKET_BUFFER_SIZE;
+		}
+	};
 	/*
 	 * SocektManager - Wrapper for managing socket.
 	 * 	B is the STL container type used as the protocol's buffer.
@@ -47,20 +64,21 @@ namespace wire {
 	template <typename B>
 	class SocketManager {
 		int sock_fd;
-		size_t buf_ptr;
-		size_t buf_size;
-		SockBuf buf;
+		Buffer rbuf;
+		Buffer wbuf;
 
 	private:
-		bool refill_buffer();
+		bool refill_read_buffer();
+
+		bool write_socket();
 
 	public:
-		inline SocketManager(int sock_fd) : sock_fd(sock_fd),
-																				buf_ptr(0), buf_size(0)
+		inline SocketManager(int sock_fd) : sock_fd(sock_fd)
 		{}
 
-		// template used to encapsulate protocol's buffer array generics
 		bool read_bytes(B& pkt_buf, size_t bytes);
+
+		bool write_bytes(B& pkt_buf, size_t len, uchar type);
 
 		void close_socket();
 

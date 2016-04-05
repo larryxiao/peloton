@@ -37,6 +37,20 @@ namespace wire {
 		}
 	};
 
+	/*
+	 * Marshallers
+	 */
+	extern void packet_putbyte(Packet *pkt, const uchar c);
+
+	extern void packet_putstring(Packet *pkt, std::string& str);
+
+	extern void packet_putint(Packet *pkt, int n, int base);
+
+	extern void packet_putcbytes(Packet *pkt, const char *b, int len);
+
+	/*
+	 * Unmarshallers
+	 */
 	extern int packet_getint(Packet *pkt, uchar base);
 
 	extern std::string packet_getstring(Packet *pkt, size_t len = 0);
@@ -44,6 +58,7 @@ namespace wire {
 	extern PktBuf packet_getbytes(Packet *pkt, size_t len = 0);
 
 	extern std::string get_string_token(Packet *pkt);
+
 
 }
 }

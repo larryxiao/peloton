@@ -32,11 +32,11 @@ namespace  wire {
 
 		bool read_packet(Packet *pkt, bool has_type_field);
 
-		void process_startup_packet(Packet *pkt);
+		bool process_startup_packet(Packet *pkt);
 
-		void send_error_response(std::string message);
+		void send_error_response(std::unordered_map<uchar, std::string> response);
 
-		void process_packet(Packet *pkt);
+		bool process_packet(Packet *pkt);
 
 		void close_client();
 

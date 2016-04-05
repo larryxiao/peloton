@@ -5,6 +5,8 @@
 #include "marshall.h"
 #include <netinet/in.h>
 #include <algorithm>
+#include <cstring>
+#include <iterator>
 
 namespace peloton {
 namespace wire {
@@ -106,6 +108,39 @@ namespace wire {
 		return std::string(start, find_itr);
 	}
 
+	void packet_putbyte(Packet *pkt, const uchar c) {
+		pkt->buf.push_back(c);
+		pkt->len++;
+	}
+
+	void packet_putstring(Packet *pkt, std::string& str) {
+		str += "\0";
+		pkt->buf.insert(pkt->buf.end(), str.begin(), str.end());
+		pkt->len += str.size();
+	}
+
+	void packet_putint(Packet *pkt, int n, int base) {
+		switch(base){
+			case 2:
+				n = htons(n);
+				break;
+
+			case 4:
+				n = ntohl(n);
+				break;
+
+			default:
+				error("Parsing error: Invalid base for int");
+		}
+
+		packet_putcbytes(pkt, reinterpret_cast<char *>(&n), base);
+
+	}
+
+	void packet_putcbytes(Packet *pkt, const char *b, int len) {
+		std::copy(b, b + len, std::back_inserter(pkt->buf));
+		pkt->len += len;
+	}
 
 }
 }

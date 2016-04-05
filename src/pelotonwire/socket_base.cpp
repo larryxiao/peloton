@@ -36,18 +36,18 @@ namespace wire {
 	}
 
 	template <typename B>
-	bool SocketManager<B>::refill_buffer() {
+	bool SocketManager<B>::refill_read_buffer() {
 
 		ssize_t bytes_read;
 
 		// our buffer is to be emptied
-		buf_ptr = buf_size = 0;
+		rbuf.reset();
 
 		// return explicitly
 		for (;;) {
 			//  try to fill the available space in the buffer
-			bytes_read = read(sock_fd, &buf[buf_ptr],
-												SOCKET_BUFFER_SIZE - buf_size );
+			bytes_read = read(sock_fd, &rbuf.buf[rbuf.buf_ptr],
+												SOCKET_BUFFER_SIZE - rbuf.buf_size );
 			std::cout << "Bytes Read:" << bytes_read << std::endl;
 			if (bytes_read < 0 ) {
 				if ( errno == EINTR) {
@@ -66,12 +66,48 @@ namespace wire {
 			}
 
 			// read success, update buffer size
-			buf_size += bytes_read;
+			rbuf.buf_size += bytes_read;
 
 			// reset buffer ptr, to cover special case
-			buf_ptr = 0;
+			rbuf.buf_ptr = 0;
 			return true;
 		}
+	}
+
+	template <typename B>
+	bool SocketManager<B>::write_socket() {
+		ssize_t written_bytes = 0;
+		wbuf.buf_ptr = 0;
+		// still outstanding bytes
+		while (wbuf.buf_size - written_bytes > 0) {
+
+			written_bytes = write(sock_fd, &wbuf.buf[wbuf.buf_ptr], wbuf.buf_size);
+			if (written_bytes < 0) {
+				if (errno == EINTR) {
+					// interrupts are ok, try again
+					continue;
+				} else {
+					// fatal errors
+					return false;
+				}
+			}
+
+			// weird edge case?
+			if (written_bytes == 0 && wbuf.buf_size !=0) {
+				// fatal
+				return false;
+			}
+
+			// update bookkeping
+			wbuf.buf_ptr += written_bytes;
+			wbuf.buf_size -= written_bytes;
+		}
+
+		// buffer is empty
+		wbuf.buf_ptr = 0;
+
+		// we are ok
+		return true;
 	}
 
 	/*
@@ -84,13 +120,13 @@ namespace wire {
 		// while data still needs to be read
 		while(bytes) {
 			// how much data is available
-			window = buf_size - buf_ptr;
+			window = rbuf.buf_size - rbuf.buf_ptr;
 			if (bytes <= window) {
-				pkt_buf.insert(std::end(pkt_buf), std::begin(buf) + buf_ptr,
-											 std::begin(buf) + buf_ptr + bytes);
+				pkt_buf.insert(std::end(pkt_buf), std::begin(rbuf.buf) + rbuf.buf_ptr,
+											 std::begin(rbuf.buf) + rbuf.buf_ptr + bytes);
 
 				// move the pointer
-				buf_ptr += bytes;
+				rbuf.buf_ptr += bytes;
 
 				// move pkt_buf_idx as well
 				pkt_buf_idx += bytes;
@@ -99,7 +135,8 @@ namespace wire {
 			} else {
 				// read what is available for non-trivial window
 				if (window > 0)
-					pkt_buf.insert(std::end(pkt_buf), std::begin(buf) + buf_ptr, std::end(buf));
+					pkt_buf.insert(std::end(pkt_buf), std::begin(rbuf.buf) + rbuf.buf_ptr,
+												 std::end(rbuf.buf));
 
 				// update bytes leftover
 				bytes -= window;
@@ -108,13 +145,64 @@ namespace wire {
 				pkt_buf_idx += window;
 
 				// refill buffer, reset buf ptr here
-				if (!refill_buffer()) {
+				if (!refill_read_buffer()) {
 					// nothing more to read, end
 					return false;
 				}
 			}
 		}
 
+		return true;
+	}
+
+	template <typename B>
+	bool SocketManager<B>::write_bytes(B &pkt_buf, size_t len, uchar type) {
+		size_t window, pkt_buf_ptr = 0;
+		// reset write buffer
+		wbuf.reset();
+
+		wbuf.buf_size = wbuf.get_max_size();
+
+		// assuming wbuf is large enough to
+		// fit type and size fields in one go
+		if (type != 0) {
+			// type shouldn't be ignored
+			wbuf.buf[wbuf.buf_ptr++] = type;
+		}
+
+		// make len include its field as well
+		std::string len_nb_str = std::to_string(htonl(len + sizeof(int32_t)));
+
+		std::copy(len_nb_str.begin(), len_nb_str.end(),
+							wbuf.buf.begin() + wbuf.buf_ptr);
+
+		wbuf.buf_ptr += sizeof(int32_t);
+
+		// fill the contents
+		while(len) {
+			window = wbuf.buf_size - wbuf.buf_ptr;
+
+			if (len <= window) {
+				// contents fit in window
+				std::copy(pkt_buf.begin() + pkt_buf_ptr,
+									pkt_buf.begin() + pkt_buf_ptr + len,
+									wbuf.buf.begin() + wbuf.buf_ptr);
+				wbuf.buf_ptr += len;
+				wbuf.buf_size = wbuf.buf_ptr;
+				return write_socket();
+			} else {
+				// non-trivial window
+				std::copy(pkt_buf.begin() + pkt_buf_ptr,
+									pkt_buf.begin() + pkt_buf_ptr + window,
+									wbuf.buf.begin() + wbuf.buf_ptr);
+				pkt_buf_ptr += window;
+				len -= window;
+
+				// write failure
+				if(!write_socket())
+					return false;
+			}
+		}
 		return true;
 	}
 
