@@ -170,10 +170,10 @@ namespace wire {
 			wbuf.buf[wbuf.buf_ptr++] = type;
 		}
 
-		// make len include its field as well
-		std::string len_nb_str = std::to_string(htonl(len + sizeof(int32_t)));
+		// make len include its field size as well
+		len = htonl(len + sizeof(int32_t));
 
-		std::copy(len_nb_str.begin(), len_nb_str.end(),
+		std::copy(reinterpret_cast<uchar*>(&len), reinterpret_cast<uchar *>(&len) + 4,
 							wbuf.buf.begin() + wbuf.buf_ptr);
 
 		wbuf.buf_ptr += sizeof(int32_t);
