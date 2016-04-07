@@ -114,9 +114,11 @@ namespace wire {
 	}
 
 	void packet_putstring(Packet *pkt, std::string& str) {
-		str += "\0";
 		pkt->buf.insert(std::end(pkt->buf), std::begin(str), std::end(str));
-		pkt->len += str.size();
+		// add null character
+		pkt->buf.push_back(0);
+		// add 1 for null character
+		pkt->len += str.size() + 1;
 	}
 
 	void packet_putint(Packet *pkt, int n, int base) {

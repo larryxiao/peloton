@@ -18,7 +18,7 @@
 #include <netinet/in.h>
 #include <iostream>
 
-#define SOCKET_BUFFER_SIZE 8
+#define SOCKET_BUFFER_SIZE 8192
 #define MAX_CONNECTIONS 64
 
 namespace peloton {

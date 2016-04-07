@@ -34,7 +34,7 @@ namespace  wire {
 
 		bool process_startup_packet(Packet *pkt);
 
-		void send_error_response(std::unordered_map<uchar, std::string> response);
+		void send_error_response(std::vector<std::pair<uchar, std::string>> response);
 
 		bool process_packet(Packet *pkt);
 

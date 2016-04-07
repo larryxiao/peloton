@@ -103,20 +103,20 @@ namespace wire {
 			}
 		}
 
-		if (!client.dbname.empty() || !client.user.empty()){
-			std::unordered_map<uchar, std::string> responses =
-					{{'M', "Invalid user or database name"}};
-			send_error_response(responses);
-			return false;
-		}
-
-		// send auth-ok
 		pkt->reset();
 		pkt->msg_type = 'R';
 		packet_putint(pkt, 0, 4);
 		if (!client.sock->write_bytes(pkt->buf, pkt->len, pkt->msg_type))
 			return false;
 
+		if (client.dbname.empty() || client.user.empty()){
+			std::vector<std::pair<uchar, std::string>> responses =
+					{{'S', "FATAL"},{'C', "3D000"}, {'M', "Invalid user or database name"}};
+			send_error_response(responses);
+			return false;
+		}
+
+		// send auth-ok
 		return true;
 	}
 
@@ -125,13 +125,13 @@ namespace wire {
 	 * 		For now, it only supports the human readable 'M' message body
 	 */
 	void PacketManager::send_error_response(
-			std::unordered_map<uchar, std::string> responses) {
+			std::vector<std::pair<uchar, std::string>> responses) {
 		Packet pkt;
 		pkt.msg_type = 'E';
 
-		for(auto keyval : responses) {
-			packet_putbyte(&pkt, keyval.first);
-			packet_putstring(&pkt, keyval.second);
+		for(auto entry : responses) {
+			packet_putbyte(&pkt, entry.first);
+			packet_putstring(&pkt, entry.second);
 		}
 
 		// don't care if write finished or not, we are closing anyway
@@ -154,10 +154,11 @@ namespace wire {
 
 		if (!process_startup_packet(&pkt)) {
 			close_client();
-			return;
+			// return;
 		}
 
-		close_client();
+		for (;;) {}
+		// close_client();
 	}
 
 }
