@@ -46,7 +46,7 @@ namespace wire {
 
 	extern void packet_putint(Packet *pkt, int n, int base);
 
-	extern void packet_putcbytes(Packet *pkt, const char *b, int len);
+	extern void packet_putcbytes(Packet *pkt, const uchar *b, int len);
 
 	/*
 	 * Unmarshallers

@@ -19,8 +19,8 @@ namespace wire {
 
 	PktBuf::iterator get_end_itr(Packet *pkt, int len){
 		if (len == 0)
-			return pkt->buf.end();
-		return pkt->buf.begin() + pkt->ptr + len;
+			return std::end(pkt->buf);
+		return std::begin(pkt->buf) + pkt->ptr + len;
 	}
 
 	/*
@@ -65,7 +65,7 @@ namespace wire {
 		PktBuf result;
 		check_overflow(pkt, len);
 
-		result.insert(result.end(), pkt->buf.begin() + pkt->ptr,
+		result.insert(std::end(result), std::begin(pkt->buf) + pkt->ptr,
 									get_end_itr(pkt, len));
 
 		// move the pointer
@@ -78,7 +78,7 @@ namespace wire {
 	 * 		if len=0? parse till the end of the string
 	 */
 	std::string packet_getstring(Packet *pkt, size_t len) {
-		return std::string(pkt->buf.begin() + pkt->ptr, get_end_itr(pkt, len));
+		return std::string(std::begin(pkt->buf) + pkt->ptr, get_end_itr(pkt, len));
 	}
 
 	/*
@@ -87,19 +87,19 @@ namespace wire {
 	 */
 	std::string get_string_token(Packet *pkt) {
 		// save start itr position of string
-		auto start = pkt->buf.begin() + pkt->ptr;
+		auto start = std::begin(pkt->buf) + pkt->ptr;
 
-		auto find_itr = std::find(start, pkt->buf.end(), 0);
+		auto find_itr = std::find(start, std::end(pkt->buf), 0);
 
-		if (find_itr == pkt->buf.end()) {
+		if (find_itr == std::end(pkt->buf)) {
 			// no match? consider the remaining vector
 			// as a single string and continue
 			pkt->ptr = pkt->len;
-			return std::string(pkt->buf.begin() + pkt->ptr, pkt->buf.end());
+			return std::string(std::begin(pkt->buf) + pkt->ptr, std::end(pkt->buf));
 		}
 
 		// update ptr position
-		pkt->ptr = find_itr - pkt->buf.begin() + 1;
+		pkt->ptr = find_itr - std::begin(pkt->buf) + 1;
 
 		// edge case
 		if (start == find_itr)
@@ -115,7 +115,7 @@ namespace wire {
 
 	void packet_putstring(Packet *pkt, std::string& str) {
 		str += "\0";
-		pkt->buf.insert(pkt->buf.end(), str.begin(), str.end());
+		pkt->buf.insert(std::end(pkt->buf), std::begin(str), std::end(str));
 		pkt->len += str.size();
 	}
 
@@ -126,19 +126,19 @@ namespace wire {
 				break;
 
 			case 4:
-				n = ntohl(n);
+				n = htonl(n);
 				break;
 
 			default:
 				error("Parsing error: Invalid base for int");
 		}
 
-		packet_putcbytes(pkt, reinterpret_cast<char *>(&n), base);
+		packet_putcbytes(pkt, reinterpret_cast<uchar *>(&n), base);
 
 	}
 
-	void packet_putcbytes(Packet *pkt, const char *b, int len) {
-		std::copy(b, b + len, std::back_inserter(pkt->buf));
+	void packet_putcbytes(Packet *pkt, const uchar *b, int len) {
+		pkt->buf.insert(std::end(pkt->buf), b, b + len);
 		pkt->len += len;
 	}
 

@@ -105,6 +105,7 @@ namespace wire {
 
 		// buffer is empty
 		wbuf.buf_ptr = 0;
+		wbuf.buf_size = wbuf.get_max_size();
 
 		// we are ok
 		return true;
@@ -158,6 +159,7 @@ namespace wire {
 	template <typename B>
 	bool SocketManager<B>::write_bytes(B &pkt_buf, size_t len, uchar type) {
 		size_t window, pkt_buf_ptr = 0;
+		int len_nb; // length in network byte order
 		// reset write buffer
 		wbuf.reset();
 
@@ -171,10 +173,10 @@ namespace wire {
 		}
 
 		// make len include its field size as well
-		len = htonl(len + sizeof(int32_t));
+		len_nb = htonl(len + sizeof(int32_t));
 
-		std::copy(reinterpret_cast<uchar*>(&len), reinterpret_cast<uchar *>(&len) + 4,
-							wbuf.buf.begin() + wbuf.buf_ptr);
+		std::copy(reinterpret_cast<uchar*>(&len_nb), reinterpret_cast<uchar *>(&len_nb) + 4,
+							std::begin(wbuf.buf) + wbuf.buf_ptr);
 
 		wbuf.buf_ptr += sizeof(int32_t);
 
@@ -184,17 +186,17 @@ namespace wire {
 
 			if (len <= window) {
 				// contents fit in window
-				std::copy(pkt_buf.begin() + pkt_buf_ptr,
-									pkt_buf.begin() + pkt_buf_ptr + len,
-									wbuf.buf.begin() + wbuf.buf_ptr);
+				std::copy(std::begin(pkt_buf) + pkt_buf_ptr,
+									std::begin(pkt_buf) + pkt_buf_ptr + len,
+									std::begin(wbuf.buf) + wbuf.buf_ptr);
 				wbuf.buf_ptr += len;
 				wbuf.buf_size = wbuf.buf_ptr;
 				return write_socket();
 			} else {
 				// non-trivial window
-				std::copy(pkt_buf.begin() + pkt_buf_ptr,
-									pkt_buf.begin() + pkt_buf_ptr + window,
-									wbuf.buf.begin() + wbuf.buf_ptr);
+				std::copy(std::begin(pkt_buf) + pkt_buf_ptr,
+									std::begin(pkt_buf) + pkt_buf_ptr + window,
+									std::begin(wbuf.buf) + wbuf.buf_ptr);
 				pkt_buf_ptr += window;
 				len -= window;
 

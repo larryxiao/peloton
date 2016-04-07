@@ -103,7 +103,7 @@ namespace wire {
 			}
 		}
 
-		if (client.dbname.empty() || client.user.empty()){
+		if (!client.dbname.empty() || !client.user.empty()){
 			std::unordered_map<uchar, std::string> responses =
 					{{'M', "Invalid user or database name"}};
 			send_error_response(responses);
