@@ -117,14 +117,14 @@ namespace wire {
 		}
 
 		// send auth-ok
-		return true;
+		return send_ready_for_query(TXN_IDLE);
 	}
 
 	/*
 	 * send_error_response - Sends the passed string as an error response.
 	 * 		For now, it only supports the human readable 'M' message body
 	 */
-	void PacketManager::send_error_response(
+	bool PacketManager::send_error_response(
 			std::vector<std::pair<uchar, std::string>> responses) {
 		Packet pkt;
 		pkt.msg_type = 'E';
@@ -135,9 +135,17 @@ namespace wire {
 		}
 
 		// don't care if write finished or not, we are closing anyway
-		client.sock->write_bytes(pkt.buf, pkt.len, pkt.msg_type);
+		return client.sock->write_bytes(pkt.buf, pkt.len, pkt.msg_type);
 	}
 
+	bool PacketManager::send_ready_for_query(uchar txn_status) {
+		Packet pkt;
+		pkt.msg_type = 'Z';
+
+		packet_putbyte(&pkt, txn_status);
+
+		return client.sock->write_bytes(pkt.buf, pkt.len, pkt.msg_type);
+	}
 
 	/*
 	 * PacketManager - Main wire protocol logic.
@@ -157,7 +165,6 @@ namespace wire {
 			// return;
 		}
 
-		for (;;) {}
 		// close_client();
 	}
 

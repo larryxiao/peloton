@@ -15,6 +15,10 @@
 namespace peloton {
 namespace  wire {
 
+	uchar TXN_IDLE = 'I';
+	uchar TXN_BLOCK = 'T';
+	uchar TXN_FAIL = 'E';
+
 	struct Client {
 		SocketManager<PktBuf> *sock;
 		std::string dbname;
@@ -34,7 +38,9 @@ namespace  wire {
 
 		bool process_startup_packet(Packet *pkt);
 
-		void send_error_response(std::vector<std::pair<uchar, std::string>> response);
+		bool send_error_response(std::vector<std::pair<uchar, std::string>> response);
+
+		bool send_ready_for_query(uchar txn_status);
 
 		bool process_packet(Packet *pkt);
 
