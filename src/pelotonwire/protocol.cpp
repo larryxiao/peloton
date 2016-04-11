@@ -114,9 +114,9 @@ namespace wire {
 		if (!packet_endmessage(pkt, &client))
 			return false;
 
-		if (!client.dbname.empty() || !client.user.empty()){
+		if (client.dbname.empty() || client.user.empty()){
 			std::vector<std::pair<uchar, std::string>> responses =
-					{{'S', "FATAL"},{'C', "3D000"}, {'M', "Invalid user or database name"}};
+					{{'S', "FATAL"}, {'M', "Invalid user or database name"}};
 			send_error_response(responses);
 			return false;
 		}
@@ -143,6 +143,24 @@ namespace wire {
 			packet_putint(&pkt, -1, 4);
 			// format code for text
 			packet_putint(&pkt, 0, 2);
+		}
+
+		return packet_endmessage(&pkt, &client);
+	}
+
+	bool PacketManager::put_dummy_data_row(int colcount, int start) {
+		Packet pkt;
+		std::string data;
+		pkt.reset();
+		pkt.msg_type = 'D';
+		packet_putint(&pkt, colcount, 2);
+		for (int i=0; i < colcount; i++) {
+			data = "row" + std::to_string(start+i);
+
+			// add 1 for null-terminator
+			packet_putint(&pkt, data.length() + 1, 4);
+
+			packet_putstring(&pkt, data);
 		}
 
 		return packet_endmessage(&pkt, &client);
@@ -184,14 +202,27 @@ namespace wire {
 
 					if (!put_dummy_row_desc())
 						return false;
-					if(!complete_command(0))
+
+					int start = 0;
+
+					for (int i = 0; i < 5; i++) {
+						put_dummy_data_row(5, start);
+						start += 5;
+					}
+
+					if(!complete_command(5))
 						return false;
 				}
 
-				send_error_response({{'M', "Syntax error"}});
+				// send_error_response({{'M', "Syntax error"}});
 				return send_ready_for_query('I');
 
 			}
+
+			case 'X':
+			std::cout << "Closing client: "
+				return false;
+
 			default:
 				std::cout << "Packet not supported yet" << std::endl;
 		}

@@ -66,7 +66,7 @@ namespace  wire {
 
 		bool put_dummy_row_desc();
 
-		// bool put_dummy_data_row();
+		bool put_dummy_data_row(int colcount, int start);
 
 		bool complete_command(int rows);
 
