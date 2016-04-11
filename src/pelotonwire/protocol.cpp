@@ -114,7 +114,7 @@ namespace wire {
 		if (!packet_endmessage(pkt, &client))
 			return false;
 
-		if (client.dbname.empty() || client.user.empty()){
+		if (!client.dbname.empty() || !client.user.empty()){
 			std::vector<std::pair<uchar, std::string>> responses =
 					{{'S', "FATAL"},{'C', "3D000"}, {'M', "Invalid user or database name"}};
 			send_error_response(responses);
@@ -188,9 +188,9 @@ namespace wire {
 						return false;
 				}
 
-				send_ready_for_query('I');
+				send_error_response({{'M', "Syntax error"}});
+				return send_ready_for_query('I');
 
-				break;
 			}
 			default:
 				std::cout << "Packet not supported yet" << std::endl;
@@ -211,6 +211,9 @@ namespace wire {
 			packet_putbyte(&pkt, entry.first);
 			packet_putstring(&pkt, entry.second);
 		}
+
+		// put null terminator
+		packet_putbyte(&pkt, 0);
 
 		// don't care if write finished or not, we are closing anyway
 		return packet_endmessage(&pkt, &client);
