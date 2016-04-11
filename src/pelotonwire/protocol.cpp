@@ -2,13 +2,18 @@
 // Created by siddharth on 31/3/16.
 //
 
-#include "protocol.h"
+#include "marshall.h"
+#include <boost/algorithm/string.hpp>
 
 #define PROTO_MAJOR_VERSION(x) x >> 16
 
 namespace peloton {
 namespace wire {
 
+	/* TXN state definitions */
+	uchar TXN_IDLE = 'I';
+	uchar TXN_BLOCK = 'T';
+	uchar TXN_FAIL = 'E';
 
 	/*
 	 * read_packet - Tries to read a single packet, returns true on success,
@@ -49,7 +54,7 @@ namespace wire {
 		}
 
 		// packet size includes initial bytes read as well
-		pkt_size = ntohl(pkt_size) - initial_read_size;
+		pkt_size = ntohl(pkt_size) - sizeof(int32_t);
 
 		if (!client.sock->read_bytes(pkt->buf, static_cast<size_t >(pkt_size))) {
 			// nothing more to read
@@ -106,7 +111,7 @@ namespace wire {
 		pkt->reset();
 		pkt->msg_type = 'R';
 		packet_putint(pkt, 0, 4);
-		if (!client.sock->write_bytes(pkt->buf, pkt->len, pkt->msg_type))
+		if (!packet_endmessage(pkt, &client))
 			return false;
 
 		if (client.dbname.empty() || client.user.empty()){
@@ -118,6 +123,65 @@ namespace wire {
 
 		// send auth-ok
 		return send_ready_for_query(TXN_IDLE);
+	}
+
+	/*
+	 * put_dummy_row_desc - Prepare a dummy row description packet
+	 */
+	bool PacketManager::put_dummy_row_desc() {
+		Packet pkt;
+		pkt.reset();
+		pkt.msg_type = 'T';
+		packet_putint(&pkt, 5, 2);
+		for (int i=0; i < 5; i++) {
+			auto field = "F" + std::to_string(i);
+			packet_putstring(&pkt, field);
+			packet_putint(&pkt, 0, 4);
+			packet_putint(&pkt, 0, 2);
+			packet_putint(&pkt, 0, 4);
+			packet_putint(&pkt, 10, 2);
+			packet_putint(&pkt, -1, 4);
+			// format code for text
+			packet_putint(&pkt, 0, 2);
+		}
+
+		return packet_endmessage(&pkt, &client);
+	}
+
+	/*
+	 * process_packet - Main switch block; process incoming packets
+	 */
+	bool PacketManager::process_packet(Packet *pkt) {
+		Packet resp;
+		switch(pkt->msg_type){
+			case 'Q':
+			{
+				std::string q_str = packet_getstring(pkt, pkt->len);
+				std::cout << "Query Received: " << q_str << std::endl;
+
+				std::vector<std::string> queries;
+				boost::split(queries, q_str, boost::is_any_of(";"));
+
+				for (auto &query : queries) {
+					if (query.empty()) {
+						resp.reset();
+						resp.msg_type = 'I';
+						if (!packet_endmessage(&resp, &client))
+							return false;
+						if (!send_ready_for_query(TXN_IDLE))
+							return false;
+					}
+
+					if (!put_dummy_row_desc())
+						return false;
+				}
+
+				break;
+			}
+			default:
+				std::cout << "Packet not supported yet" << std::endl;
+		}
+		return true;
 	}
 
 	/*
@@ -135,7 +199,7 @@ namespace wire {
 		}
 
 		// don't care if write finished or not, we are closing anyway
-		return client.sock->write_bytes(pkt.buf, pkt.len, pkt.msg_type);
+		return packet_endmessage(&pkt, &client);
 	}
 
 	bool PacketManager::send_ready_for_query(uchar txn_status) {
@@ -144,7 +208,7 @@ namespace wire {
 
 		packet_putbyte(&pkt, txn_status);
 
-		return client.sock->write_bytes(pkt.buf, pkt.len, pkt.msg_type);
+		return packet_endmessage(&pkt, &client);
 	}
 
 	/*
@@ -162,10 +226,17 @@ namespace wire {
 
 		if (!process_startup_packet(&pkt)) {
 			close_client();
-			// return;
+			return;
 		}
 
-		// close_client();
+		pkt.reset();
+		while(read_packet(&pkt, true)) {
+			if (!process_packet(&pkt)) {
+				close_client();
+				return;
+			}
+			pkt.reset();
+		}
 	}
 
 }

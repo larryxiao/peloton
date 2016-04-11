@@ -135,15 +135,16 @@ namespace wire {
 				return true;
 			} else {
 				// read what is available for non-trivial window
-				if (window > 0)
+				if (window > 0) {
 					pkt_buf.insert(std::end(pkt_buf), std::begin(rbuf.buf) + rbuf.buf_ptr,
-												 std::end(rbuf.buf));
+												 std::begin(rbuf.buf) + rbuf.buf_size);
 
-				// update bytes leftover
-				bytes -= window;
+					// update bytes leftover
+					bytes -= window;
 
-				// update pkt_buf_idx
-				pkt_buf_idx += window;
+					// update pkt_buf_idx
+					pkt_buf_idx += window;
+				}
 
 				// refill buffer, reset buf ptr here
 				if (!refill_read_buffer()) {

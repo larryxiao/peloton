@@ -144,5 +144,9 @@ namespace wire {
 		pkt->len += len;
 	}
 
+	bool packet_endmessage(Packet *pkt, Client *client) {
+		return client->sock->write_bytes(pkt->buf, pkt->len, pkt->msg_type);
+	}
+
 }
 }

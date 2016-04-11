@@ -2,22 +2,23 @@
 // Created by siddharth on 31/3/16.
 //
 
-#ifndef PELOTON_PROTOCOL_H
-#define PELOTON_PROTOCOL_H
+#ifndef WIRE_H
+#define WIRE_H
 
-#include "marshall.h"
 #include "socket_base.h"
 #include <vector>
 #include <string>
 #include <iostream>
 #include <unordered_map>
 
+#define BUFFER_INIT_SIZE 100
+
 namespace peloton {
 namespace  wire {
 
-	uchar TXN_IDLE = 'I';
-	uchar TXN_BLOCK = 'T';
-	uchar TXN_FAIL = 'E';
+	typedef std::vector<uchar> PktBuf;
+
+	extern uchar TXN_IDLE, TXN_BLOCK, TXN_FAIL;
 
 	struct Client {
 		SocketManager<PktBuf> *sock;
@@ -27,6 +28,25 @@ namespace  wire {
 
 		inline Client(SocketManager<PktBuf> *sock) : sock(sock)
 		{ }
+	};
+
+	struct Packet {
+		PktBuf buf;
+		size_t len;
+		size_t ptr;
+		uchar msg_type;
+
+		// reserve buf's size as maximum packet size
+		inline Packet() {
+			reset();
+		}
+
+		inline void reset() {
+			buf.resize(BUFFER_INIT_SIZE);
+			buf.shrink_to_fit();
+			buf.clear();
+			len = ptr = msg_type = 0;
+		}
 	};
 
 
@@ -44,6 +64,8 @@ namespace  wire {
 
 		bool process_packet(Packet *pkt);
 
+		bool put_dummy_row_desc();
+
 		void close_client();
 
 	public :
@@ -55,4 +77,4 @@ namespace  wire {
 }
 }
 
-#endif //PELOTON_PROTOCOL_H
+#endif //WIRE_H

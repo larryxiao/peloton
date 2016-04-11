@@ -9,33 +9,12 @@
 #include <vector>
 #include <string>
 #include "socket_base.h"
-
-#define BUFFER_INIT_SIZE 100
+#include "wire.h"
 
 namespace peloton {
 namespace wire {
 
 	typedef unsigned char uchar;
-	typedef std::vector<uchar> PktBuf;
-
-	struct Packet {
-		PktBuf buf;
-		size_t len;
-		size_t ptr;
-		uchar msg_type;
-
-		// reserve buf's size as maximum packet size
-		inline Packet() {
-			reset();
-		}
-
-		inline void reset() {
-			buf.resize(BUFFER_INIT_SIZE);
-			buf.shrink_to_fit();
-			buf.clear();
-			len = ptr = msg_type = 0;
-		}
-	};
 
 	/*
 	 * Marshallers
@@ -47,6 +26,8 @@ namespace wire {
 	extern void packet_putint(Packet *pkt, int n, int base);
 
 	extern void packet_putcbytes(Packet *pkt, const uchar *b, int len);
+
+	extern bool packet_endmessage(Packet *pkt, Client *client);
 
 	/*
 	 * Unmarshallers
