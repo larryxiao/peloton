@@ -66,6 +66,8 @@ namespace  wire {
 
 		bool put_dummy_row_desc();
 
+		bool complete_command(int rows);
+
 		void close_client();
 
 	public :

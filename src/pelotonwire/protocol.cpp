@@ -148,6 +148,16 @@ namespace wire {
 		return packet_endmessage(&pkt, &client);
 	}
 
+	bool PacketManager::complete_command(int rows) {
+		Packet pkt;
+		pkt.reset();
+		pkt.msg_type = 'C';
+		std::string tag = "SELECT " + std::to_string(rows);
+		packet_putstring(&pkt, tag);
+
+		return packet_endmessage(&pkt, &client);
+	}
+
 	/*
 	 * process_packet - Main switch block; process incoming packets
 	 */
@@ -174,7 +184,11 @@ namespace wire {
 
 					if (!put_dummy_row_desc())
 						return false;
+					if(!complete_command(0))
+						return false;
 				}
+
+				send_ready_for_query('I');
 
 				break;
 			}
