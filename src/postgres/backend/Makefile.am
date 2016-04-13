@@ -245,17 +245,6 @@ postgres_backend_FILES = \
 						 postgres/backend/lib/hyperloglog.cpp \
 						 postgres/backend/lib/ilist.cpp \
 						 postgres/backend/lib/pairingheap.cpp \
-						 postgres/backend/libpq/auth.cpp \
-						 postgres/backend/libpq/be-fsstubs.cpp \
-						 postgres/backend/libpq/be-secure.cpp \
-						 postgres/backend/libpq/crypt.cpp \
-						 postgres/backend/libpq/hba.cpp \
-						 postgres/backend/libpq/ip.cpp \
-						 postgres/backend/libpq/md5.cpp \
-						 postgres/backend/libpq/pqcomm.cpp \
-						 postgres/backend/libpq/pqformat.cpp \
-						 postgres/backend/libpq/pqmq.cpp \
-						 postgres/backend/libpq/pqsignal.cpp \
 						 postgres/backend/lib/rbtree.cpp \
 						 postgres/backend/lib/stringinfo.cpp \
 						 postgres/backend/main/main.cpp \
@@ -592,7 +581,7 @@ postgres_backend_FILES = \
 
 postgres_backend_INCLUDES = \
 							-I$(srcdir)/postgres/include \
-							-I$(srcdir)/postgres/backend
+							-I$(srcdir)/libpq/include
 
 
 BUILT_SOURCES += postgres/backend/parser/gram.h

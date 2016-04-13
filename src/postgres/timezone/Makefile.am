@@ -13,4 +13,7 @@ postgres_timezone_FILES = \
 
 postgres_timezone_INCLUDES = \
 							 -I$(srcdir)/postgres/include \
-							 -I$(srcdir)/postgres/backend
+							 -I$(srcdir)/postgres/backend \
+							 -I$(srcdir)/libpq/backend \
+						     -I$(srcdir)/libpq/include
+

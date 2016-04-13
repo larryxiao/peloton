@@ -19,4 +19,6 @@ postgres_common_FILES = \
 
 postgres_common_INCLUDES = \
 						   -I$(srcdir)/postgres/include \
-						   -I$(srcdir)/postgres/backend				
+						   -I$(srcdir)/postgres/backend	\
+						   -I$(srcdir)/libpq/backend \
+						   -I$(srcdir)/libpq/include
