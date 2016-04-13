@@ -16,7 +16,7 @@
 
 #include "backend/common/types.h"
 
-#include "postgres/include/postgres_ext.h"
+#include "libpq/include/postgres_ext.h"
 
 namespace peloton {
 namespace bridge {

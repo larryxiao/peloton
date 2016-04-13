@@ -77,8 +77,8 @@ libpeloton_la_SOURCES = \
 libpeloton_la_CPPFLAGS = $(AM_CPPFLAGS) \
 						 -I$(srcdir)/postgres/include \
 						 -I$(srcdir)/postgres/backend \
-						 -I$(srcdir)/libpq/include \
 						 -I$(srcdir)/libpq/backend \
+						 -I$(srcdir)/libpq/include \
 						 -I$(srcdir)/ \
 						 -I. -I$(top_srcdir)/src -I.. \
 						 -I /opt/local/include \
@@ -102,6 +102,9 @@ libpelotonpg_la_SOURCES = \
 libpelotonpg_la_CPPFLAGS = $(AM_CPPFLAGS) \
 						 -I$(srcdir)/postgres/include \
 						 -I$(srcdir)/postgres/backend \
+						 -I$(srcdir)/libpq/include \
+						 -I$(srcdir)/libpq/backend \
+						 -I$(srcdir)/libpq/port \
 						 -I$(srcdir)/ \
 						 -I. -I$(top_srcdir)/src -I.. \
 						 $(third_party_INCLUDES)

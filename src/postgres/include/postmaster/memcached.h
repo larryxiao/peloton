@@ -5,7 +5,7 @@
 #ifndef MEMCACHED_SOCKET_H
 #define MEMCACHED_SOCKET_H
 
-#include "../libpq/libpq-be.h"
+#include "libpq/libpq-be.h"
 
 #define MC_SOCK_BUFFER_SIZE_BYTES 8192
 

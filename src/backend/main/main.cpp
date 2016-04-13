@@ -12,7 +12,7 @@
 
 #include <unistd.h>
 
-#include "postgres/include/postgres.h"
+#include "libpq/include/postgres.h"
 
 #include "postgres/include/bootstrap/bootstrap.h"
 #include "postgres/include/common/username.h"
