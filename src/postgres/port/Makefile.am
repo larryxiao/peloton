@@ -45,6 +45,7 @@ postgres_port_INCLUDES = \
 						 -I$(srcdir)/postgres/include \
 						 -I$(srcdir)/postgres/backend \
 						 -I$(srcdir)/libpq/backend \
-					   	 -I$(srcdir)/libpq/include
+					   	 -I$(srcdir)/libpq/include \
+					   	 -I$(srcdir)/libpq/port
 
 						 
