@@ -16,13 +16,13 @@
 
 #include "postgres/include/bootstrap/bootstrap.h"
 #include "postgres/include/common/username.h"
-#include "postgres/include/postmaster/postmaster.h"
+#include "libpq/include/postmaster/postmaster.h"
 #include "postgres/include/storage/barrier.h"
-#include "postgres/include/storage/s_lock.h"
+#include "libpq/include/storage/s_lock.h"
 #include "postgres/include/storage/spin.h"
-#include "postgres/include/tcop/tcopprot.h"
+#include "libpq/include/tcop/tcopprot.h"
 #include "postgres/include/utils/help_config.h"
-#include "postgres/include/utils/memutils.h"
+#include "libpq/include/utils/memutils.h"
 #include "postgres/include/utils/pg_locale.h"
 #include "postgres/include/utils/ps_status.h"
 

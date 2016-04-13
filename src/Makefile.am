@@ -31,10 +31,10 @@ include $(srcdir)/backend/storage/Makefile.am
 include $(srcdir)/backend/logging/Makefile.am
 include $(srcdir)/backend/benchmark/Makefile.am
 
-# include $(srcdir)/postgres/backend/Makefile.am
-# include $(srcdir)/postgres/common/Makefile.am
-# include $(srcdir)/postgres/port/Makefile.am
-# include $(srcdir)/postgres/timezone/Makefile.am
+include $(srcdir)/postgres/backend/Makefile.am
+include $(srcdir)/postgres/common/Makefile.am
+include $(srcdir)/postgres/port/Makefile.am
+include $(srcdir)/postgres/timezone/Makefile.am
 
 include $(top_srcdir)/third_party/Makefile.am
 
@@ -44,7 +44,7 @@ bin_PROGRAMS = \
 			   logger
 
 lib_LTLIBRARIES += libpeloton.la
-# lib_LTLIBRARIES += libpelotonpg.la
+lib_LTLIBRARIES += libpelotonpg.la
 lib_LTLIBRARIES += libpelotonlibpq.la
 
 DEFAULT_INCLUDES =
@@ -92,31 +92,31 @@ libpeloton_la_LDFLAGS =
 # LIBPELOTONPG
 ######################################################################
 
-# libpelotonpg_la_SOURCES = \
-#			$(postgres_backend_FILES) \
-#			$(postgres_common_FILES) \
-#			$(postgres_port_FILES) \
-#			$(postgres_timezone_FILES) \
-#			$(third_party_FILES)
+libpelotonpg_la_SOURCES = \
+		$(postgres_backend_FILES) \
+		$(postgres_common_FILES) \
+		$(postgres_port_FILES) \
+		$(postgres_timezone_FILES) \
+		$(third_party_FILES)
 
-#libpelotonpg_la_CPPFLAGS = $(AM_CPPFLAGS) \
-#						 -I$(srcdir)/postgres/include \
-#						 -I$(srcdir)/postgres/backend \
-#						 -I$(srcdir)/libpq/include \
-#						 -I$(srcdir)/libpq/backend \
-#						 -I$(srcdir)/libpq/port \
-#						 -I$(srcdir)/ \
-#						 -I. -I$(top_srcdir)/src -I.. \
-#						 $(third_party_INCLUDES)
+libpelotonpg_la_CPPFLAGS = $(AM_CPPFLAGS) \
+					 -I$(srcdir)/postgres/include \
+					 -I$(srcdir)/postgres/backend \
+					 -I$(srcdir)/libpq/include \
+					 -I$(srcdir)/libpq/backend \
+					 -I$(srcdir)/libpq/port \
+					 -I$(srcdir)/ \
+					 -I. -I$(top_srcdir)/src -I.. \
+					 $(third_party_INCLUDES)
 
-# libpelotonpg_la_CXXFLAGS = $(AM_CXXFLAGS) \
-#			  -Wno-unused-variable -Wno-unused-but-set-variable \
-#			  -Wno-unused-parameter -Wno-missing-field-initializers \
-#			  -Wno-array-bounds -Wno-clobbered -Wno-strict-overflow \
-#			  -Wno-sign-compare -Wno-write-strings \
-#			  -msse4.2
-#			  
-# libpelotonpg_la_LDFLAGS = -lprotobuf
+libpelotonpg_la_CXXFLAGS = $(AM_CXXFLAGS) \
+		  -Wno-unused-variable -Wno-unused-but-set-variable \
+		  -Wno-unused-parameter -Wno-missing-field-initializers \
+		  -Wno-array-bounds -Wno-clobbered -Wno-strict-overflow \
+		  -Wno-sign-compare -Wno-write-strings \
+		  -msse4.2
+			  
+libpelotonpg_la_LDFLAGS = -lprotobuf
 
 ######################################################################
 # LIBPELOTONLIBPQ
@@ -150,6 +150,6 @@ peloton_SOURCES = backend/main/main.cpp
 peloton_LDFLAGS = 
 peloton_CPPFLAGS = -I. -I$(top_srcdir)/src -I.. $(postgres_common_INCLUDES) $(AM_CPPFLAGS)
 
-peloton_LDADD = libpelotonlibpq.la libpeloton.la # libpelotonpg.la 
+peloton_LDADD = libpeloton.la libpelotonpg.la libpelotonlibpq.la
 
 

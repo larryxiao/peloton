@@ -10,4 +10,4 @@ backend_FILES = \
 backend_INCLUDES = \
 				   -I$(srcdir)/backend \
 				   -I$(srcdir)/libpq/backend \
-                  	-I$(srcdir)/libpq/include
+                   -I$(srcdir)/libpq/include
