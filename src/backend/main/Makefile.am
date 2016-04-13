@@ -8,4 +8,6 @@ backend_FILES = \
 				backend/main/kernel.cpp
 
 backend_INCLUDES = \
-				   -I$(srcdir)/backend
+				   -I$(srcdir)/backend \
+				   -I$(srcdir)/libpq/backend \
+                  	-I$(srcdir)/libpq/include

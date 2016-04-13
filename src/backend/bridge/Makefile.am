@@ -51,4 +51,6 @@ bridge_FILES = \
 			   
 
 bridge_INCLUDES = \
-                  -I$(srcdir)/backend/bridge
+                  -I$(srcdir)/backend/bridge \
+                  -I$(srcdir)/libpq/backend \
+                  -I$(srcdir)/libpq/include

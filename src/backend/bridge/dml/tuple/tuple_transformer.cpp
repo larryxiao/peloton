@@ -26,7 +26,7 @@
 #include "utils/numeric.h"
 #include "postgres_ext.h"
 
-#include "postgres/include/utils/array.h"
+#include "utils/array.h"
 
 namespace peloton {
 namespace bridge {

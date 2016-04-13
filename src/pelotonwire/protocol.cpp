@@ -220,7 +220,7 @@ namespace wire {
 			}
 
 			case 'X':
-			std::cout << "Closing client: "
+			std::cout << "Closing client: ";
 				return false;
 
 			default:

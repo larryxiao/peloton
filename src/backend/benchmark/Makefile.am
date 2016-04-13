@@ -17,7 +17,9 @@ hyadapt_SOURCES =  \
 hyadapt_LDFLAGS =
 hyadapt_CPPFLAGS = -I. -I$(top_srcdir)/src -I.. $(postgres_common_INCLUDES) $(AM_CPPFLAGS)  \
 				   $(third_party_INCLUDES) \
-				   -I$(srcdir)/backend/benchmark
+				   -I$(srcdir)/backend/benchmark \
+				   -I$(srcdir)/libpq/backend \
+                   -I$(srcdir)/libpq/include
  
 hyadapt_LDADD = libpelotonpg.la libpeloton.la -lpthread
 
