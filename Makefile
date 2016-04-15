@@ -1,6 +1,6 @@
 srcdir = src
-builddir = build
-wiredir = $(srcdir)/pelotonwire
+builddir = build/local
+wiredir = $(srcdir)/backend/wire
 WIRE_INCLUDES = -I$(wiredir)/*.h
 
 CXX = g++
@@ -13,7 +13,7 @@ INCLUDES = $(WIRE_INCLUDES)
 AM_CXXFLAGS = $(DEBUG_CXXFLAGS) -std=c++11 -fPIC -fpermissive \
 	-fno-strict-aliasing
 SHELL = /bin/bash
-LIBTOOL = $(SHELL) $(builddir)/libtool
+LIBTOOL = $(SHELL) build/libtool
 AM_LDFLAGS = -static -pthread
 LDFLAGS = -L/usr/lib -L/usr/lib
 
