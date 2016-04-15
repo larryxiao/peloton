@@ -3653,8 +3653,7 @@ static void LaunchBackendTask(Backend *bn, Port *port, bool is_memcached) {
 
   // save backend variables if we are not memcached
 
-  param =
-      (BackendParameters *)malloc(sizeof(BackendParameters));
+  param = (BackendParameters *)malloc(sizeof(BackendParameters));
 
   save_backend_variables(param, port);
 
@@ -3684,7 +3683,7 @@ static int BackendStartup(Port *port, bool is_memcached) {
    *
    */
 
-  bn = (Backend *) malloc(sizeof(Backend));
+  bn = (Backend *)malloc(sizeof(Backend));
   if (!bn) {
     ereport(LOG, (errcode(ERRCODE_OUT_OF_MEMORY), errmsg("out of memory")));
     return STATUS_ERROR;
@@ -3697,7 +3696,6 @@ static int BackendStartup(Port *port, bool is_memcached) {
    */
   MyCancelKey = PostmasterRandom();
   bn->cancel_key = MyCancelKey;
-
 
   /* Pass down canAcceptConnections state */
   port->canAcceptConnections = canAcceptConnections();
@@ -3715,7 +3713,6 @@ static int BackendStartup(Port *port, bool is_memcached) {
 
   /* Hasn't asked to be notified about any bgworkers yet */
   bn->bgworker_notify = false;
-
 
 #ifdef EXEC_BACKEND
   pid = backend_forkexec(port);
@@ -3932,16 +3929,15 @@ static void BackendInitialize(Port *port, bool is_memcached) {
     status = ProcessStartupPacket(port, false);
 
     /*
-		 * Stop here if it was bad or a cancel packet.  ProcessStartupPacket
-		 * already did any appropriate error reporting.
-		 */
+         * Stop here if it was bad or a cancel packet.  ProcessStartupPacket
+         * already did any appropriate error reporting.
+         */
     if (status != STATUS_OK) proc_exit(0);
   } else {
     // memcached credentials
     port->database_name = memcached_dbname;
     port->user_name = memcached_username;
   }
-
 
   /*
    * Now that we have the user and database name, we can set the process

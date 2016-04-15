@@ -17,6 +17,7 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <iostream>
+#include "backend/logging/logger.h"
 
 #define SOCKET_BUFFER_SIZE 8192
 #define MAX_CONNECTIONS 64
@@ -86,13 +87,11 @@ namespace wire {
 
 	extern void start_server(Server *server);
 
-	template <typename P, typename B>
-	void client_handler(int *clientfd);
+ 	template <typename P, typename B>
+	void client_handler(std::unique_ptr<int> clientfd);
 
 	template <typename P, typename B>
 	void handle_connections(Server *server);
-
-	extern void error(const std::string &msg, bool if_exit = true);
 
 
 	/*
@@ -107,7 +106,7 @@ namespace wire {
 
 	template <typename P, typename B>
 	void handle_connections(Server *server) {
-		int *clientfd, connfd, clilen;
+		int connfd, clilen;
 		struct sockaddr_in cli_addr;
 		clilen = sizeof(cli_addr);
 		for (;;) {
@@ -116,11 +115,13 @@ namespace wire {
 											(struct sockaddr *) &cli_addr,
 											(socklen_t *) &clilen);
 			if (connfd < 0){
-				error("Server error: Connection not established", false);
+				LOG_ERROR("Server error: Connection not established");
+				exit(EXIT_FAILURE);
 			}
 
-			clientfd = new int(connfd);
-			std::thread client_thread(client_handler<P, B>, clientfd);
+			std::unique_ptr<int>clientfd(new int(connfd));
+
+			std::thread client_thread(client_handler<P, B>, std::move(clientfd));
 			client_thread.detach();
 		}
 	}
@@ -132,10 +133,9 @@ namespace wire {
 	 * 		type for the protocol's buffer (B)
 	 */
 	template <typename P, typename B>
-	void client_handler(int *clientfd) {
+	void client_handler(std::unique_ptr<int> clientfd) {
 		int fd = *clientfd;
-		delete clientfd;
-		std::cout << "Client fd:" << fd << std::endl;
+		LOG_INFO("Client fd: %d", fd);
 		SocketManager<B> sm(fd);
 		P p(&sm);
 		p.manage_packets();

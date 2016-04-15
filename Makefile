@@ -1,12 +1,12 @@
 srcdir = src
-builddir = build/local
+builddir = local_build
 wiredir = $(srcdir)/backend/wire
 WIRE_INCLUDES = -I$(wiredir)/*.h
 
 CXX = g++
 CXXLD = g++
 DEFS = -DHAVE_CONFIG_H
-CPPFLAGS =  -I/usr/include
+CPPFLAGS =  -I/usr/include -I$(srcdir)/
 CXXFLAGS = -O0 -DNVML
 DEBUG_CXXFLAGS = -O0 -g -ggdb -Wall -Wextra -Werror
 INCLUDES = $(WIRE_INCLUDES)
@@ -39,6 +39,11 @@ clean:
 
 stylecheck:
 	clang-format-3.6 --style=file ./src/postgres/backend/postmaster/postmaster.cpp | diff ./src/postgres/backend/postmaster/postmaster.cpp -
+	clang-format-3.6 --style=file ./src/backend/wire/socket_base.cpp | diff ./src/backend/wire/socket_base.cpp -
+	clang-format-3.6 --style=file ./src/backend/wire/marshall.cpp | diff ./src/backend/wire/marshall.cpp -
+	clang-format-3.6 --style=file ./src/backend/wire/protocol.cpp | diff ./src/backend/wire/protocol.cpp -
+	
 style:
 	clang-format-3.6 --style=file -i ./src/postgres/backend/postmaster/postmaster.cpp
 	clang-format-3.6 --style=file -i ./src/postgres/backend/tcop/postgres.cpp
+	clang-format-3.6 --style=file -i ./src/backend/wire/*.cpp

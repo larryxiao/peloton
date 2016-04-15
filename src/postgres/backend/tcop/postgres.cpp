@@ -207,7 +207,7 @@ static void SigHupHandler(SIGNAL_ARGS);
 static void log_disconnections(int code, Datum arg);
 
 // memcached helpers
-static void parse_select_result_cols(StringInfoData *buf, std::string& result);
+static void parse_select_result_cols(StringInfoData *buf, std::string &result);
 
 /* ----------------------------------------------------------------
  *		routines to obtain user input
@@ -816,7 +816,7 @@ List *pg_plan_queries(List *querytrees, int cursorOptions,
  * Execute a "simple Query" protocol message.
  */
 static void exec_simple_query(const char *query_string,
-                              MemcachedState* mc_state = nullptr) {
+                              MemcachedState *mc_state = nullptr) {
   CommandDest dest = whereToSendOutput;
   MemoryContext oldcontext;
   List *parsetree_list;
@@ -3636,7 +3636,6 @@ void PostgresMain(int argc, char *argv[], const char *dbname,
           exec_simple_query(query_string);
         }
 
-
         send_ready_for_query = true;
       } break;
 
@@ -3866,7 +3865,6 @@ void PostgresMain(int argc, char *argv[], const char *dbname,
 
 /* Memcached socket function implementations */
 bool MemcachedSocket::refill_buffer() {
-
   ssize_t bytes_read;
 
   // our buffer is to be emptied
@@ -3885,10 +3883,10 @@ bool MemcachedSocket::refill_buffer() {
   for (;;) {
     //  try to fill the available space in the buffer
     bytes_read = read(port->sock, &buffer[buf_ptr],
-                      MC_SOCK_BUFFER_SIZE_BYTES - buf_size );
+                      MC_SOCK_BUFFER_SIZE_BYTES - buf_size);
 
-    if (bytes_read < 0 ) {
-      if ( errno == EINTR) {
+    if (bytes_read < 0) {
+      if (errno == EINTR) {
         // interrupts are OK
         continue;
       }
@@ -3896,7 +3894,7 @@ bool MemcachedSocket::refill_buffer() {
       // otherwise, report error
       ereport(COMMERROR,
               (errcode_for_socket_access(),
-                  errmsg("MC_SOCKET: could not receive data from client: %m")));
+               errmsg("MC_SOCKET: could not receive data from client: %m")));
       return false;
     }
 
@@ -3920,7 +3918,7 @@ bool MemcachedSocket::read_line(std::string &new_line) {
     // check if buffer has been exhausted
     if (buf_ptr >= buf_size) {
       // printf("\n Refilling Buffer \n");
-      if(!refill_buffer()) {
+      if (!refill_buffer()) {
         // failure, propagate
         return false;
       }
@@ -3931,10 +3929,10 @@ bool MemcachedSocket::read_line(std::string &new_line) {
     // printf("start buf_ptr:%zu, buf_size:%zu\n", buf_ptr, buf_size);
     // search the buffer for \r\n
     auto pos = buffer.find(rn, buf_ptr);
-    if ( pos == std::string::npos ) {
+    if (pos == std::string::npos) {
       // no \r\n found, concat buf to new_line and continue
       // start from current location, go till end
-      size_t substr_size = buf_size-buf_ptr;
+      size_t substr_size = buf_size - buf_ptr;
       // edge case, last char \r? ignore it temporarily
       if (buffer.back() == '\r') {
         substr_size--;
@@ -3947,13 +3945,14 @@ bool MemcachedSocket::read_line(std::string &new_line) {
     } else {
       // printf("Substring:%s (NL)\n", buffer.substr(buf_ptr, pos).c_str());
       // update new line till '\r'
-      new_line += buffer.substr(buf_ptr, pos-buf_ptr);
+      new_line += buffer.substr(buf_ptr, pos - buf_ptr);
 
       // printf("buf_ptr: %zu, pos: pos-2 char:%c\n", buffer[pos-2]);
       // update buf ptr location to after \r\n
-      buf_ptr = pos+2;
+      buf_ptr = pos + 2;
 
-      // printf("New line: %s, Post read, buf_ptr:%zu, buf_size:%zu\n", new_line.c_str(), buf_ptr, buf_size);
+      // printf("New line: %s, Post read, buf_ptr:%zu, buf_size:%zu\n",
+      // new_line.c_str(), buf_ptr, buf_size);
 
       return true;
     }
@@ -3975,11 +3974,10 @@ bool MemcachedSocket::write_response(const std::string &response) {
     }
 
     // weird edge case?
-    if (result == 0 && response.size() !=0) {
+    if (result == 0 && response.size() != 0) {
       // fatal
       return false;
     }
-
 
     // we are ok
     return true;
@@ -4019,7 +4017,7 @@ void MemcachedMain(int argc, char *argv[], Port *port) {
     if (dbname == NULL)
       ereport(FATAL,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-                  errmsg("%s: no database nor user name specified", progname)));
+               errmsg("%s: no database nor user name specified", progname)));
   }
 
   /* Acquire configuration parameters, unless inherited from postmaster */
@@ -4339,7 +4337,7 @@ void MemcachedMain(int argc, char *argv[], Port *port) {
     query_line.clear();
     query_result.clear();
 
-    if(mc_sock.read_line(query_line)) {
+    if (mc_sock.read_line(query_line)) {
       printf("\n\nRead line (%d): %s (NEWLINE)\n", ++i, query_line.c_str());
       auto mc_state = new MemcachedState();
       exec_simple_query(&query_line[0], mc_state);
@@ -4347,7 +4345,7 @@ void MemcachedMain(int argc, char *argv[], Port *port) {
       if (mc_state->result.len > 0) {
         // echo response
         parse_select_result_cols(&mc_state->result, query_result);
-        printf("\nMC_RESULT:%s\n",query_result.c_str());
+        printf("\nMC_RESULT:%s\n", query_result.c_str());
         if (!mc_sock.write_response(query_result + "\r\n")) {
           printf("\nWrite line failed, terminating thread\n");
           terminate = true;
@@ -4369,7 +4367,7 @@ void MemcachedMain(int argc, char *argv[], Port *port) {
 /* Print all the attribute values for query result
  * in StringInfoData format
  */
-static void parse_select_result_cols(StringInfoData *buf, std::string& result) {
+static void parse_select_result_cols(StringInfoData *buf, std::string &result) {
   //  printf("Reached\n");
   //  for (int i=0; i< buf->len; i++){
   //    printf("%d\t", buf->data[i]);
@@ -4381,7 +4379,7 @@ static void parse_select_result_cols(StringInfoData *buf, std::string& result) {
   int nattrs = pq_getmsgint(buf, 2);
   // printf("\nnattrs:%d\n", nattrs);
   int col_length;
-  for (int i=0; i < nattrs; i++) {
+  for (int i = 0; i < nattrs; i++) {
     buf->len += 4;
     col_length = pq_getmsgint(buf, 4);
     // printf("\nresult:%d\n", col_length);
