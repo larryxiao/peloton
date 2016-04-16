@@ -3,6 +3,7 @@
 //
 
 #include "marshall.h"
+#include <stdio.h>
 #include <boost/algorithm/string.hpp>
 
 #define PROTO_MAJOR_VERSION(x) x >> 16
@@ -16,18 +17,18 @@ uchar TXN_BLOCK = 'T';
 uchar TXN_FAIL = 'E';
 
 void print_packet(Packet *pkt) {
-  LOG_INFO("{");
+  printf("{");
   if (pkt->msg_type) {
-    LOG_INFO("%d,", pkt->msg_type);
+    printf("%d,", pkt->msg_type);
   }
   std::string size_field = std::to_string(pkt->len + 4);
   for(size_t i=0; i < size_field.length(); i++ ) {
-    LOG_INFO("%d,", size_field[i]);
+    printf("%d,", size_field[i]);
   }
   for(auto ele : pkt->buf) {
-    LOG_INFO("%d,", ele);
+    printf("%d,", ele);
   }
-  LOG_INFO("}\n");
+  printf("}\n");
 }
 
 /*
