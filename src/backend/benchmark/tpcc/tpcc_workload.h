@@ -2,9 +2,9 @@
 //
 //                         PelotonDB
 //
-// logger.cpp
+// workload.h
 //
-// Identification: benchmark/logger/logger.h
+// Identification: benchmark/tpcc/workload.h
 //
 // Copyright (c) 2015, Carnegie Mellon University Database Group
 //
@@ -12,14 +12,22 @@
 
 #pragma once
 
-#include "backend/benchmark/logger/logger_configuration.h"
+#include "backend/benchmark/tpcc/tpcc_configuration.h"
+#include "backend/benchmark/tpcc/tpcc_loader.h"
 
 namespace peloton {
+
+namespace storage{
+class DataTable;
+}
+
 namespace benchmark {
-namespace logger {
+namespace tpcc {
 
 extern configuration state;
 
-}  // namespace logger
+double RunWorkload();
+
+}  // namespace tpcc
 }  // namespace benchmark
 }  // namespace peloton

@@ -40,7 +40,9 @@ include $(top_srcdir)/third_party/Makefile.am
 bin_PROGRAMS = \
 			   peloton \
 			   hyadapt \
-			   logger
+			   logger \
+			   ycsb \
+			   tpcc
 
 lib_LTLIBRARIES += libpeloton.la
 lib_LTLIBRARIES += libpelotonpg.la
@@ -83,7 +85,7 @@ libpeloton_la_CPPFLAGS = $(AM_CPPFLAGS) \
 
 libpeloton_la_CXXFLAGS = $(AM_CXXFLAGS)
 
-libpeloton_la_LDFLAGS =
+libpeloton_la_LDFLAGS = -levent -lprotobuf -lpthread -levent_pthreads
 
 ######################################################################
 # LIBPELOTONPG

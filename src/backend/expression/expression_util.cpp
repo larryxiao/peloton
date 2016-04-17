@@ -1,12 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                         PelotonDB
+//                         Peloton
 //
 // expression_util.cpp
 //
 // Identification: src/backend/expression/expression_util.cpp
 //
-// Copyright (c) 2015, Carnegie Mellon University Database Group
+// Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
@@ -23,6 +23,7 @@
 #include "backend/expression/hash_range_expression.h"
 #include "backend/expression/operator_expression.h"
 #include "backend/expression/comparison_expression.h"
+#include "backend/expression/case_expression.h"
 #include "backend/expression/conjunction_expression.h"
 #include "backend/expression/constant_value_expression.h"
 #include "backend/expression/tuple_value_expression.h"
@@ -35,7 +36,7 @@
 #include "backend/expression/string_expression.h"
 #include "backend/expression/date_expression.h"
 #include "backend/expression/vector_comparison_expression.h"
-
+#include "backend/expression/nullif_expression.h"
 #include <json_spirit.h>
 
 namespace peloton {
@@ -62,14 +63,14 @@ AbstractExpression *ExpressionUtil::HashRangeFactory(PlannerDomValue obj) {
 // Parse JSON parameters to create a subquery expression
 AbstractExpression *ExpressionUtil::SubqueryFactory(
     ExpressionType subqueryType, PlannerDomValue obj,
-    const std::vector<AbstractExpression *> *args) {
+    const std::vector<AbstractExpression *> &args) {
   int subqueryId = obj.valueForKey("SUBQUERY_ID").asInt();
   std::vector<int> paramIdxs;
   if (obj.hasNonNullKey("PARAM_IDX")) {
     PlannerDomValue params = obj.valueForKey("PARAM_IDX");
     size_t paramSize = params.arrayLen();
     paramIdxs.reserve(paramSize);
-    if (args == NULL || args->size() != paramSize) {
+    if (args.size() != paramSize) {
       throw Exception("subqueryFactory: parameter indexes/tve count .Ismatch");
     }
     for (size_t i = 0; i < paramSize; ++i) {
@@ -108,9 +109,7 @@ AbstractExpression *SubqueryComparisonFactory(
         static_cast<QuantifierType>(obj.valueForKey("QUANTIFIER").asInt());
   }
   SubqueryExpression *l_subquery = dynamic_cast<SubqueryExpression *>(l);
-
   SubqueryExpression *r_subquery = dynamic_cast<SubqueryExpression *>(r);
-
   if (l_subquery != NULL && r_subquery != NULL) {
     switch (c) {
       case (EXPRESSION_TYPE_COMPARE_EQUAL):
@@ -474,6 +473,10 @@ AbstractExpression *ExpressionUtil::OperatorFactory(
       ret = new OperatorExpression<OpPlus>(et, first, second);
       break;
 
+    case EXPRESSION_TYPE_OPERATOR_UNARY_MINUS:
+      ret = new OperatorUnaryMinusExpression(first);
+      break;
+
     case (EXPRESSION_TYPE_OPERATOR_MINUS):
       ret = new OperatorExpression<OpMinus>(et, first, second);
       break;
@@ -546,6 +549,9 @@ AbstractExpression *ExpressionUtil::OperatorFactory(
     case (EXPRESSION_TYPE_EXTRACT):
       ret = new ExtractExpression(first, second);
       break;
+    case (EXPRESSION_TYPE_DATE_TO_TIMESTAMP):
+      ret = new DateToTimestampExpression(first);
+      break;
     case (EXPRESSION_TYPE_OPERATOR_CONCAT):
       throw ExpressionException("Concat operator not yet supported.");
 
@@ -566,17 +572,6 @@ AbstractExpression *ExpressionUtil::CastFactory(ValueType vt,
 AbstractExpression *ExpressionUtil::CastFactory(PostgresValueType type,
                                                 AbstractExpression *child) {
   return new expression::CastExpression(type, child);
-}
-
-AbstractExpression *ExpressionUtil::CaseWhenFactory(ValueType vt,
-                                                    AbstractExpression *lc,
-                                                    AbstractExpression *rc) {
-  OperatorAlternativeExpression *alternative =
-      dynamic_cast<OperatorAlternativeExpression *>(rc);
-  if (!rc) {
-    throw Exception("operator case when has incorrect expression");
-  }
-  return new OperatorCaseWhenExpression(vt, lc, alternative);
 }
 
 // provide an interface for creating constant value expressions that
@@ -735,9 +730,8 @@ AbstractExpression *ExpressionUtil::ConstantValueFactory(
 }
 
 AbstractExpression *ExpressionUtil::VectorFactory(
-    ValueType elementType, const std::vector<AbstractExpression *> *arguments) {
-  assert(arguments);
-  return new VectorExpression(elementType, *arguments);
+    ValueType elementType, const std::vector<AbstractExpression *> &arguments) {
+  return new VectorExpression(elementType, arguments);
 }
 
 AbstractExpression *ExpressionUtil::ParameterValueFactory(int idx) {
@@ -882,21 +876,14 @@ AbstractExpression *ExpressionUtil::ConjunctionFactory(
   }
 }
 
-void raiseFunctionFactoryError(const std::string &nameString, int functionId,
-                               const std::vector<AbstractExpression *> *args) {
+void RaiseFunctionFactoryError(const std::string &nameString, int functionId,
+                               const std::vector<AbstractExpression *> &args) {
   char fn_message[1024];
-  if (args) {
-    snprintf(fn_message, sizeof(fn_message),
-             "Internal Error: SQL function '%s' with ID (%d) with (%d) "
-             "parameters.Is not implemented in VoltDB (or may have been "
-             "incorrectly parsed)",
-             nameString.c_str(), functionId, (int)args->size());
-  } else {
-    snprintf(fn_message, sizeof(fn_message),
-             "Internal Error: SQL function '%s' with ID (%d) was serialized "
-             "without its required parameters .Ist.",
-             nameString.c_str(), functionId);
-  }
+  snprintf(fn_message, sizeof(fn_message),
+           "Internal Error: SQL function '%s' with ID (%d) with (%d) "
+           "parameters.Is not implemented in VoltDB (or may have been "
+           "incorrectly parsed)",
+           nameString.c_str(), functionId, (int)args.size());
   // DEBUG_ASSERT_OR_THROW_OR_CRASH(false, fn_message);
   throw Exception(fn_message);
 }
@@ -908,7 +895,7 @@ void raiseFunctionFactoryError(const std::string &nameString, int functionId,
 AbstractExpression *ExpressionUtil::ExpressionFactory(
     PlannerDomValue obj, ExpressionType et, ValueType vt, int vs,
     AbstractExpression *lc, AbstractExpression *rc,
-    const std::vector<AbstractExpression *> *args) {
+    const std::vector<AbstractExpression *> &args) {
   AbstractExpression *ret = NULL;
 
   switch (et) {
@@ -953,10 +940,7 @@ AbstractExpression *ExpressionUtil::ExpressionFactory(
     case (EXPRESSION_TYPE_FUNCTION): {
       // add the function id
       int functionId = obj.valueForKey("FUNCTION_ID").asInt();
-
-      if (args) {
-        ret = FunctionFactory(functionId, args);
-      }
+      ret = FunctionFactory(functionId, args);
 
       if (!ret) {
         std::string nameString;
@@ -965,7 +949,7 @@ AbstractExpression *ExpressionUtil::ExpressionFactory(
         } else {
           nameString = "?";
         }
-        raiseFunctionFactoryError(nameString, functionId, args);
+        RaiseFunctionFactoryError(nameString, functionId, args);
       }
     } break;
 
@@ -1003,12 +987,10 @@ AbstractExpression *ExpressionUtil::ExpressionFactory(
     case (EXPRESSION_TYPE_HASH_RANGE):
       ret = HashRangeFactory(obj);
       break;
-    case (EXPRESSION_TYPE_OPERATOR_CASE_WHEN):
-      ret = CaseWhenFactory(vt, lc, rc);
-      break;
-    case (EXPRESSION_TYPE_OPERATOR_ALTERNATIVE):
-      ret = new OperatorAlternativeExpression(lc, rc);
-      break;
+    // Anyway, this function is not implemented. comment out.
+    //    case (EXPRESSION_TYPE_OPERATOR_ALTERNATIVE):
+    //      ret = new OperatorAlternativeExpression(lc, rc);
+    //      break;
 
     // Subquery
     case (EXPRESSION_TYPE_ROW_SUBQUERY):
