@@ -1,0 +1,27 @@
+#####################################################
+#													#
+#	PELOTON WIRE									#
+#													#
+#####################################################
+
+Basic implementation of the Postgres wire protocol for Peloton.
+
+This currently exists as a standalone server devoid of query parser,
+planner or any other DB internals. 
+Only server side of the protocol is covered.
+
+Packets supported
+-----------------
+-> From PSQL
+	* StartupMessage (F)
+	* Query (Q)
+
+-> At Server
+	* AuthenticationOk (R)
+	* ErrorResponse (E)
+	* ReadyForQuery (Z)
+	* EmptyQueryResponse (I)
+ 	* RowDescription (T)
+	* DataRow (D)
+	* CommandComplete (C)
+
