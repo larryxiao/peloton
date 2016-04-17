@@ -19,15 +19,14 @@ namespace wire {
 	/*
 	 * Marshallers
 	 */
-	extern void packet_putbyte(Packet *pkt, const uchar c);
+	extern void packet_putbyte(std::unique_ptr<Packet>& pkt, const uchar c);
 
-	extern void packet_putstring(Packet *pkt, std::string& str);
+	extern void packet_putstring(std::unique_ptr<Packet>& pkt, std::string& str);
 
-	extern void packet_putint(Packet *pkt, int n, int base);
+	extern void packet_putint(std::unique_ptr<Packet>& pkt, int n, int base);
 
-	extern void packet_putcbytes(Packet *pkt, const uchar *b, int len);
-
-	extern bool packet_endmessage(Packet *pkt, Client *client);
+	extern void packet_putcbytes(std::unique_ptr<Packet>& pkt, const uchar *b,
+															 int len);
 
 	/*
 	 * Unmarshallers
@@ -40,7 +39,13 @@ namespace wire {
 
 	extern std::string get_string_token(Packet *pkt);
 
+	/*
+	 * Socket layer interface
+	 */
+	extern bool write_packets(std::vector<std::unique_ptr<Packet>>& packets,
+														Client *client);
 
+	extern bool read_packet(Packet *pkt, bool has_type_field, Client *client);
 }
 }
 #endif //PELOTON_MARSHALL_H

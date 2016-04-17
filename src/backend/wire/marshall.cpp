@@ -1,5 +1,5 @@
 //
-// Created by siddharth on 4/4/16.
+// Created by Siddharth Santurkar on 4/4/16.
 //
 
 #include "marshall.h"
@@ -108,12 +108,12 @@ std::string get_string_token(Packet *pkt) {
   return std::string(start, find_itr);
 }
 
-void packet_putbyte(Packet *pkt, const uchar c) {
+void packet_putbyte(std::unique_ptr<Packet>& pkt, const uchar c) {
   pkt->buf.push_back(c);
   pkt->len++;
 }
 
-void packet_putstring(Packet *pkt, std::string &str) {
+void packet_putstring(std::unique_ptr<Packet>& pkt, std::string &str) {
   pkt->buf.insert(std::end(pkt->buf), std::begin(str), std::end(str));
   // add null character
   pkt->buf.push_back(0);
@@ -121,7 +121,7 @@ void packet_putstring(Packet *pkt, std::string &str) {
   pkt->len += str.size() + 1;
 }
 
-void packet_putint(Packet *pkt, int n, int base) {
+void packet_putint(std::unique_ptr<Packet>& pkt, int n, int base) {
   switch (base) {
     case 2:
       n = htons(n);
@@ -139,13 +139,76 @@ void packet_putint(Packet *pkt, int n, int base) {
   packet_putcbytes(pkt, reinterpret_cast<uchar *>(&n), base);
 }
 
-void packet_putcbytes(Packet *pkt, const uchar *b, int len) {
+void packet_putcbytes(std::unique_ptr<Packet>& pkt, const uchar *b, int len) {
   pkt->buf.insert(std::end(pkt->buf), b, b + len);
   pkt->len += len;
 }
 
-bool packet_endmessage(Packet *pkt, Client *client) {
-  return client->sock->write_bytes(pkt->buf, pkt->len, pkt->msg_type);
+
+/*
+ * read_packet - Tries to read a single packet, returns true on success,
+ * 		false on failure. Accepts pointer to an empty packet, and if the
+ * 		expected packet contains a type field. The function does a preliminary
+ * 		read to fetch the size value and then reads the rest of the packet.
+ *
+ * 		Assume: Packet length field is always 32-bit int
+ */
+
+bool read_packet(Packet *pkt, bool has_type_field, Client *client) {
+  uint32_t pkt_size = 0, initial_read_size = sizeof(int32_t);
+
+  if (has_type_field)
+  // need to read type character as well
+  initial_read_size++;
+
+  // reads the type and size of packet
+  PktBuf init_pkt;
+
+  // read first size_field_end bytes
+  if (!client->sock->read_bytes(init_pkt,
+                                static_cast<size_t>(initial_read_size))) {
+    // nothing more to read
+    return false;
+  }
+
+  if (has_type_field) {
+    // packet includes type byte as well
+    pkt->msg_type = init_pkt[0];
+
+    // extract packet size
+    std::copy(init_pkt.begin() + 1, init_pkt.end(),
+              reinterpret_cast<uchar *>(&pkt_size));
+  } else {
+    // directly extract packet size
+    std::copy(init_pkt.begin(), init_pkt.end(),
+              reinterpret_cast<uchar *>(&pkt_size));
+  }
+
+  // packet size includes initial bytes read as well
+  pkt_size = ntohl(pkt_size) - sizeof(int32_t);
+
+  if (!client->sock->read_bytes(pkt->buf, static_cast<size_t>(pkt_size))) {
+    // nothing more to read
+    return false;
+  }
+
+  pkt->len = pkt_size;
+
+  return true;
 }
+
+bool write_packets(std::vector<std::unique_ptr<Packet>>& packets,
+                   Client *client) {
+  for (size_t i=0; i < packets.size(); i++) {
+    auto pkt = packets[i].get();
+    if(!client->sock->buffer_write_bytes(pkt->buf, pkt->len, pkt->msg_type))
+      return false;
+  }
+
+  // clear packets
+  packets.clear();
+  return client->sock->flush_write_buffer();
 }
-}
+
+} // end wire
+} // end peloton

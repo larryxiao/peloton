@@ -16,7 +16,11 @@
 namespace peloton {
 namespace  wire {
 
+	struct Packet;
+
 	typedef std::vector<uchar> PktBuf;
+
+	typedef std::vector<std::unique_ptr<Packet>> ResponseBuffer;
 
 	extern uchar TXN_IDLE, TXN_BLOCK, TXN_FAIL;
 
@@ -54,27 +58,29 @@ namespace  wire {
 
 		Client client;
 
-		bool read_packet(Packet *pkt, bool has_type_field);
+		void send_error_response(
+				std::vector<std::pair<uchar, std::string>> error_status,
+				ResponseBuffer& responses);
 
-		bool process_startup_packet(Packet *pkt);
+		void send_ready_for_query(uchar txn_status, ResponseBuffer& responses);
 
-		bool send_error_response(std::vector<std::pair<uchar, std::string>> response);
+		void put_dummy_row_desc(ResponseBuffer& responses);
 
-		bool send_ready_for_query(uchar txn_status);
+		void put_dummy_data_row(int colcount, int start,
+														ResponseBuffer& responses);
 
-		bool process_packet(Packet *pkt);
-
-		bool put_dummy_row_desc();
-
-		bool put_dummy_data_row(int colcount, int start);
-
-		bool complete_command(int rows);
+		void complete_command(int rows, ResponseBuffer& responses);
 
 		void close_client();
 
 	public :
 		inline PacketManager(SocketManager<PktBuf> *sock) : client(sock)
 		{}
+
+		bool process_startup_packet(
+				Packet *pkt, ResponseBuffer& responses);
+
+		bool process_packet(Packet *pkt, ResponseBuffer& responses);
 
 		void manage_packets();
 	};

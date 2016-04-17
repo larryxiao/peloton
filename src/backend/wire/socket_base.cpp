@@ -78,7 +78,7 @@ bool SocketManager<B>::refill_read_buffer() {
 }
 
 template <typename B>
-bool SocketManager<B>::write_socket() {
+bool SocketManager<B>::flush_write_buffer() {
   ssize_t written_bytes = 0;
   wbuf.buf_ptr = 0;
   // still outstanding bytes
@@ -106,8 +106,7 @@ bool SocketManager<B>::write_socket() {
   }
 
   // buffer is empty
-  wbuf.buf_ptr = 0;
-  wbuf.buf_size = wbuf.get_max_size();
+  wbuf.reset();
 
   // we are ok
   return true;
@@ -161,13 +160,9 @@ bool SocketManager<B>::read_bytes(B &pkt_buf, size_t bytes) {
 }
 
 template <typename B>
-bool SocketManager<B>::write_bytes(B &pkt_buf, size_t len, uchar type) {
+bool SocketManager<B>::buffer_write_bytes(B &pkt_buf, size_t len, uchar type) {
   size_t window, pkt_buf_ptr = 0;
   int len_nb;  // length in network byte order
-  // reset write buffer
-  wbuf.reset();
-
-  wbuf.buf_size = wbuf.get_max_size();
 
   // assuming wbuf is large enough to
   // fit type and size fields in one go
@@ -184,10 +179,11 @@ bool SocketManager<B>::write_bytes(B &pkt_buf, size_t len, uchar type) {
             std::begin(wbuf.buf) + wbuf.buf_ptr);
 
   wbuf.buf_ptr += sizeof(int32_t);
+  wbuf.buf_size = wbuf.buf_ptr;
 
   // fill the contents
   while (len) {
-    window = wbuf.buf_size - wbuf.buf_ptr;
+    window = wbuf.get_max_size() - wbuf.buf_ptr;
 
     if (len <= window) {
       // contents fit in window
@@ -196,7 +192,7 @@ bool SocketManager<B>::write_bytes(B &pkt_buf, size_t len, uchar type) {
                 std::begin(wbuf.buf) + wbuf.buf_ptr);
       wbuf.buf_ptr += len;
       wbuf.buf_size = wbuf.buf_ptr;
-      return write_socket();
+      return true;
     } else {
       // non-trivial window
       std::copy(std::begin(pkt_buf) + pkt_buf_ptr,
@@ -205,8 +201,9 @@ bool SocketManager<B>::write_bytes(B &pkt_buf, size_t len, uchar type) {
       pkt_buf_ptr += window;
       len -= window;
 
+      wbuf.buf_size = wbuf.get_max_size();
       // write failure
-      if (!write_socket()) return false;
+      if (!flush_write_buffer()) return false;
     }
   }
   return true;

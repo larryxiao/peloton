@@ -19,7 +19,7 @@
 #include <iostream>
 #include "backend/logging/logger.h"
 
-#define SOCKET_BUFFER_SIZE 8192
+#define SOCKET_BUFFER_SIZE 5
 #define MAX_CONNECTIONS 64
 
 namespace peloton {
@@ -71,15 +71,15 @@ namespace wire {
 	private:
 		bool refill_read_buffer();
 
-		bool write_socket();
-
 	public:
 		inline SocketManager(int sock_fd) : sock_fd(sock_fd)
 		{}
 
 		bool read_bytes(B& pkt_buf, size_t bytes);
 
-		bool write_bytes(B& pkt_buf, size_t len, uchar type);
+		bool buffer_write_bytes(B& pkt_buf, size_t len, uchar type);
+
+		bool flush_write_buffer();
 
 		void close_socket();
 
