@@ -37,68 +37,62 @@
 #include "executor/nodeUnique.h"
 #include "utils/memutils.h"
 
-
 /* ----------------------------------------------------------------
  *		ExecUnique
  * ----------------------------------------------------------------
  */
-TupleTableSlot *				/* return: a tuple or NULL */
-ExecUnique(UniqueState *node)
-{
-	Unique	   *plannode = (Unique *) node->ps.plan;
-	TupleTableSlot *resultTupleSlot;
-	TupleTableSlot *slot;
-	PlanState  *outerPlan;
+TupleTableSlot * /* return: a tuple or NULL */
+    ExecUnique(UniqueState *node) {
+  Unique *plannode = (Unique *)node->ps.plan;
+  TupleTableSlot *resultTupleSlot;
+  TupleTableSlot *slot;
+  PlanState *outerPlan;
 
-	/*
-	 * get information from the node
-	 */
-	outerPlan = outerPlanState(node);
-	resultTupleSlot = node->ps.ps_ResultTupleSlot;
+  /*
+   * get information from the node
+   */
+  outerPlan = outerPlanState(node);
+  resultTupleSlot = node->ps.ps_ResultTupleSlot;
 
-	/*
-	 * now loop, returning only non-duplicate tuples. We assume that the
-	 * tuples arrive in sorted order so we can detect duplicates easily. The
-	 * first tuple of each group is returned.
-	 */
-	for (;;)
-	{
-		/*
-		 * fetch a tuple from the outer subplan
-		 */
-		slot = ExecProcNode(outerPlan);
-		if (TupIsNull(slot))
-		{
-			/* end of subplan, so we're done */
-			ExecClearTuple(resultTupleSlot);
-			return NULL;
-		}
+  /*
+   * now loop, returning only non-duplicate tuples. We assume that the
+   * tuples arrive in sorted order so we can detect duplicates easily. The
+   * first tuple of each group is returned.
+   */
+  for (;;) {
+    /*
+     * fetch a tuple from the outer subplan
+     */
+    slot = ExecProcNode(outerPlan);
+    if (TupIsNull(slot)) {
+      /* end of subplan, so we're done */
+      ExecClearTuple(resultTupleSlot);
+      return NULL;
+    }
 
-		/*
-		 * Always return the first tuple from the subplan.
-		 */
-		if (TupIsNull(resultTupleSlot))
-			break;
+    /*
+     * Always return the first tuple from the subplan.
+     */
+    if (TupIsNull(resultTupleSlot)) break;
 
-		/*
-		 * Else test if the new___ tuple and the previously returned tuple match.
-		 * If so then we loop back and fetch another new___ tuple from the
-		 * subplan.
-		 */
-		if (!execTuplesMatch(slot, resultTupleSlot,
-							 plannode->numCols, plannode->uniqColIdx,
-							 node->eqfunctions,
-							 node->tempContext))
-			break;
-	}
+    /*
+     * Else test if the new___ tuple and the previously returned tuple match.
+     * If so then we loop back and fetch another new___ tuple from the
+     * subplan.
+     */
+    if (!execTuplesMatch(slot, resultTupleSlot, plannode->numCols,
+                         plannode->uniqColIdx, node->eqfunctions,
+                         node->tempContext))
+      break;
+  }
 
-	/*
-	 * We have a new___ tuple different from the previous saved tuple (if any).
-	 * Save it and return it.  We must copy it because the source subplan
-	 * won't guarantee that this source tuple is still accessible after
-	 * fetching the next source tuple.
-	 */
-	return ExecCopySlot(resultTupleSlot, slot);
+  /*
+   * We have a new___ tuple different from the previous saved tuple (if any).
+   * Save it and return it.  We must copy it because the source subplan
+   * won't guarantee that this source tuple is still accessible after
+   * fetching the next source tuple.
+   */
+  return ExecCopySlot(resultTupleSlot, slot);
 }
 
 /* ----------------------------------------------------------------
@@ -108,60 +102,54 @@ ExecUnique(UniqueState *node)
  *		the node's subplan.
  * ----------------------------------------------------------------
  */
-UniqueState *
-ExecInitUnique(Unique *node, EState *estate, int eflags)
-{
-	UniqueState *uniquestate;
+UniqueState *ExecInitUnique(Unique *node, EState *estate, int eflags) {
+  UniqueState *uniquestate;
 
-	/* check for unsupported flags */
-	Assert(!(eflags & (EXEC_FLAG_BACKWARD | EXEC_FLAG_MARK)));
+  /* check for unsupported flags */
+  Assert(!(eflags & (EXEC_FLAG_BACKWARD | EXEC_FLAG_MARK)));
 
-	/*
-	 * create state structure
-	 */
-	uniquestate = makeNode(UniqueState);
-	uniquestate->ps.plan = (Plan *) node;
-	uniquestate->ps.state = estate;
+  /*
+   * create state structure
+   */
+  uniquestate = makeNode(UniqueState);
+  uniquestate->ps.plan = (Plan *)node;
+  uniquestate->ps.state = estate;
 
-	/*
-	 * Miscellaneous initialization
-	 *
-	 * Unique nodes have no ExprContext initialization because they never call
-	 * ExecQual or ExecProject.  But they do need a per-tuple memory context
-	 * anyway for calling execTuplesMatch.
-	 */
-	uniquestate->tempContext =
-		AllocSetContextCreate(CurrentMemoryContext,
-							  "Unique",
-							  ALLOCSET_DEFAULT_MINSIZE,
-							  ALLOCSET_DEFAULT_INITSIZE,
-							  ALLOCSET_DEFAULT_MAXSIZE);
+  /*
+   * Miscellaneous initialization
+   *
+   * Unique nodes have no ExprContext initialization because they never call
+   * ExecQual or ExecProject.  But they do need a per-tuple memory context
+   * anyway for calling execTuplesMatch.
+   */
+  uniquestate->tempContext = AllocSetContextCreate(
+      CurrentMemoryContext, "Unique", ALLOCSET_DEFAULT_MINSIZE,
+      ALLOCSET_DEFAULT_INITSIZE, ALLOCSET_DEFAULT_MAXSIZE);
 
-	/*
-	 * Tuple table initialization
-	 */
-	ExecInitResultTupleSlot(estate, &uniquestate->ps);
+  /*
+   * Tuple table initialization
+   */
+  ExecInitResultTupleSlot(estate, &uniquestate->ps);
 
-	/*
-	 * then initialize outer plan
-	 */
-	outerPlanState(uniquestate) = ExecInitNode(outerPlan(node), estate, eflags);
+  /*
+   * then initialize outer plan
+   */
+  outerPlanState(uniquestate) = ExecInitNode(outerPlan(node), estate, eflags);
 
-	/*
-	 * unique nodes do no projections, so initialize projection info for this
-	 * node appropriately
-	 */
-	ExecAssignResultTypeFromTL(&uniquestate->ps);
-	uniquestate->ps.ps_ProjInfo = NULL;
+  /*
+   * unique nodes do no projections, so initialize projection info for this
+   * node appropriately
+   */
+  ExecAssignResultTypeFromTL(&uniquestate->ps);
+  uniquestate->ps.ps_ProjInfo = NULL;
 
-	/*
-	 * Precompute fmgr lookup data for inner loop
-	 */
-	uniquestate->eqfunctions =
-		execTuplesMatchPrepare(node->numCols,
-							   node->uniqOperators);
+  /*
+   * Precompute fmgr lookup data for inner loop
+   */
+  uniquestate->eqfunctions =
+      execTuplesMatchPrepare(node->numCols, node->uniqOperators);
 
-	return uniquestate;
+  return uniquestate;
 }
 
 /* ----------------------------------------------------------------
@@ -171,28 +159,22 @@ ExecInitUnique(Unique *node, EState *estate, int eflags)
  *		to this node.
  * ----------------------------------------------------------------
  */
-void
-ExecEndUnique(UniqueState *node)
-{
-	/* clean up tuple table */
-	ExecClearTuple(node->ps.ps_ResultTupleSlot);
+void ExecEndUnique(UniqueState *node) {
+  /* clean up tuple table */
+  ExecClearTuple(node->ps.ps_ResultTupleSlot);
 
-	MemoryContextDelete(node->tempContext);
+  MemoryContextDelete(node->tempContext);
 
-	ExecEndNode(outerPlanState(node));
+  ExecEndNode(outerPlanState(node));
 }
 
+void ExecReScanUnique(UniqueState *node) {
+  /* must clear result tuple so first input tuple is returned */
+  ExecClearTuple(node->ps.ps_ResultTupleSlot);
 
-void
-ExecReScanUnique(UniqueState *node)
-{
-	/* must clear result tuple so first input tuple is returned */
-	ExecClearTuple(node->ps.ps_ResultTupleSlot);
-
-	/*
-	 * if chgParam of subnode is not null then plan will be re-scanned by
-	 * first ExecProcNode.
-	 */
-	if (node->ps.lefttree->chgParam == NULL)
-		ExecReScan(node->ps.lefttree);
+  /*
+   * if chgParam of subnode is not null then plan will be re-scanned by
+   * first ExecProcNode.
+   */
+  if (node->ps.lefttree->chgParam == NULL) ExecReScan(node->ps.lefttree);
 }

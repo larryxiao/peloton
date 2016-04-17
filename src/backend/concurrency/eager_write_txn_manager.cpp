@@ -335,7 +335,8 @@ bool EagerWriteTxnManager::PerformUpdate(const oid_t &tile_group_id,
   auto tile_group_header =
       catalog::Manager::GetInstance().GetTileGroup(tile_group_id)->GetHeader();
   auto new_tile_group_header = catalog::Manager::GetInstance()
-      .GetTileGroup(new_location.block)->GetHeader();
+                                   .GetTileGroup(new_location.block)
+                                   ->GetHeader();
   // Decrease reader count
   DecreaseReaderCount(tile_group_header, tuple_id);
 
@@ -394,7 +395,8 @@ bool EagerWriteTxnManager::PerformDelete(const oid_t &tile_group_id,
   auto tile_group_header =
       catalog::Manager::GetInstance().GetTileGroup(tile_group_id)->GetHeader();
   auto new_tile_group_header = catalog::Manager::GetInstance()
-      .GetTileGroup(new_location.block)->GetHeader();
+                                   .GetTileGroup(new_location.block)
+                                   ->GetHeader();
   // Decrease reader count
   DecreaseReaderCount(tile_group_header, tuple_id);
 
@@ -552,7 +554,7 @@ Result EagerWriteTxnManager::CommitTransaction() {
                                                 INITIAL_TXN_ID);
 
         assert(EXTRACT_READ_COUNT(
-            tile_group_header->GetTransactionId(tuple_slot)) == 0);
+                   tile_group_header->GetTransactionId(tuple_slot)) == 0);
         tile_group_header->SetTransactionId(tuple_slot, INITIAL_TXN_ID);
 
       } else if (tuple_entry.second == RW_TYPE_DELETE) {

@@ -1,5 +1,5 @@
 //
-// Created by siddharth on 25/3/16.
+// Created by Siddharth Santurkar on 25/3/16.
 //
 
 #ifndef MEMCACHED_SOCKET_H
@@ -10,8 +10,8 @@
 #define MC_SOCK_BUFFER_SIZE_BYTES 8192
 
 // memcached db login credentials
-extern char *memcached_dbname;
-extern char *memcached_username;
+extern std::string memcached_dbname;
+extern std::string memcached_username;
 
 /* wrapper over pgsocket used for memcached */
 struct MemcachedSocket {

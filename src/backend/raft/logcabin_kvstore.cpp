@@ -39,18 +39,14 @@ KVStoreEntry *LogcabinKVStore::GetEntry(KVStoreKey *key) {
  *
  * @return True or false based on binding.
  */
-bool LogcabinKVStore::RemoveEntry(KVStoreKey *key) {
-  return false;
-}
+bool LogcabinKVStore::RemoveEntry(KVStoreKey *key) { return false; }
 
 /**
  * @brief Checks if an entry exists in Key Value Store
  *
  * @return True or false based on existence of entry
  */
-bool LogcabinKVStore::ContainsEntry(KVStoreKey *key) {
-  return false;
-}
+bool LogcabinKVStore::ContainsEntry(KVStoreKey *key) { return false; }
 
 }  // End kvstore namespace
 }  // End peloton namespace

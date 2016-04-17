@@ -19,14 +19,12 @@
 /*
  *	makeInteger
  */
-Value *
-makeInteger(long i)
-{
-	Value	   *v = makeNode(Value);
+Value *makeInteger(long i) {
+  Value *v = makeNode(Value);
 
-	v->type = T_Integer;
-	v->val.ival = i;
-	return v;
+  v->type = T_Integer;
+  v->val.ival = i;
+  return v;
 }
 
 /*
@@ -34,14 +32,12 @@ makeInteger(long i)
  *
  * Caller is responsible for passing a palloc'd string.
  */
-Value *
-makeFloat(char *numericStr)
-{
-	Value	   *v = makeNode(Value);
+Value *makeFloat(char *numericStr) {
+  Value *v = makeNode(Value);
 
-	v->type = T_Float;
-	v->val.str = numericStr;
-	return v;
+  v->type = T_Float;
+  v->val.str = numericStr;
+  return v;
 }
 
 /*
@@ -49,14 +45,12 @@ makeFloat(char *numericStr)
  *
  * Caller is responsible for passing a palloc'd string.
  */
-Value *
-makeString(char *str)
-{
-	Value	   *v = makeNode(Value);
+Value *makeString(char *str) {
+  Value *v = makeNode(Value);
 
-	v->type = T_String;
-	v->val.str = str;
-	return v;
+  v->type = T_String;
+  v->val.str = str;
+  return v;
 }
 
 /*
@@ -64,12 +58,10 @@ makeString(char *str)
  *
  * Caller is responsible for passing a palloc'd string.
  */
-Value *
-makeBitString(char *str)
-{
-	Value	   *v = makeNode(Value);
+Value *makeBitString(char *str) {
+  Value *v = makeNode(Value);
 
-	v->type = T_BitString;
-	v->val.str = str;
-	return v;
+  v->type = T_BitString;
+  v->val.str = str;
+  return v;
 }

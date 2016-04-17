@@ -30,18 +30,16 @@ void Usage(FILE *out) {
           "   -t --transactions      :  # of transactions \n"
           "   -c --column_count      :  # of columns \n"
           "   -u --write_ratio       :  Fraction of updates \n"
-          "   -b --backend_count     :  # of backends \n"
-          );
+          "   -b --backend_count     :  # of backends \n");
   exit(EXIT_FAILURE);
 }
 
-static struct option opts[] = {
-    {"scale-factor", optional_argument, NULL, 'k'},
-    {"transactions", optional_argument, NULL, 't'},
-    {"column_count", optional_argument, NULL, 'c'},
-    {"update_ratio", optional_argument, NULL, 'u'},
-    {"backend_count", optional_argument, NULL, 'b'},
-    {NULL, 0, NULL, 0}};
+static struct option opts[] = {{"scale-factor", optional_argument, NULL, 'k'},
+                               {"transactions", optional_argument, NULL, 't'},
+                               {"column_count", optional_argument, NULL, 'c'},
+                               {"update_ratio", optional_argument, NULL, 'u'},
+                               {"backend_count", optional_argument, NULL, 'b'},
+                               {NULL, 0, NULL, 0}};
 
 void ValidateScaleFactor(const configuration &state) {
   if (state.scale_factor <= 0) {
@@ -89,7 +87,6 @@ void ValidateTransactionCount(const configuration &state) {
 }
 
 void ParseArguments(int argc, char *argv[], configuration &state) {
-
   // Default Values
   state.scale_factor = 1;
   state.transaction_count = 10000;
@@ -138,7 +135,6 @@ void ParseArguments(int argc, char *argv[], configuration &state) {
   ValidateUpdateRatio(state);
   ValidateBackendCount(state);
   ValidateTransactionCount(state);
-
 }
 
 }  // namespace ycsb

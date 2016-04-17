@@ -48,9 +48,8 @@ static void BuildRuntimeKey(
  *          8. unary op
  * @return Pointer to the constructed AbstractPlan.
  */
-std::unique_ptr<planner::AbstractPlan>
-PlanTransformer::TransformIndexScan(const IndexScanPlanState *iss_plan_state,
-                                    const TransformOptions options) {
+std::unique_ptr<planner::AbstractPlan> PlanTransformer::TransformIndexScan(
+    const IndexScanPlanState *iss_plan_state, const TransformOptions options) {
   /* info needed to initialize plan node */
 
   planner::IndexScanPlan::IndexScanDesc index_scan_desc;
@@ -262,8 +261,7 @@ static void BuildRuntimeKey(
  *          8. unary op
  * @return Pointer to the constructed AbstractPlan.
  */
-std::unique_ptr<planner::AbstractPlan>
-PlanTransformer::TransformIndexOnlyScan(
+std::unique_ptr<planner::AbstractPlan> PlanTransformer::TransformIndexOnlyScan(
     const IndexOnlyScanPlanState *ioss_plan_state,
     const TransformOptions options) {
   /* info needed to initialize plan node */
@@ -334,8 +332,7 @@ PlanTransformer::TransformIndexOnlyScan(
  *
  * @return Pointer to the constructed AbstractPlan
  */
-std::unique_ptr<planner::AbstractPlan>
-PlanTransformer::TransformBitmapHeapScan(
+std::unique_ptr<planner::AbstractPlan> PlanTransformer::TransformBitmapHeapScan(
     const BitmapHeapScanPlanState *bhss_plan_state,
     const TransformOptions options) {
   planner::IndexScanPlan::IndexScanDesc index_scan_desc;

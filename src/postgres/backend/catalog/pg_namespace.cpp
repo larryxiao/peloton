@@ -24,7 +24,6 @@
 #include "utils/rel.h"
 #include "utils/syscache.h"
 
-
 /* ----------------
  * NamespaceCreate
  *
@@ -37,66 +36,60 @@
  * schema to become part of the extension.)
  * ---------------
  */
-Oid
-NamespaceCreate(const char *nspName, Oid ownerId, bool isTemp)
-{
-	Relation	nspdesc;
-	HeapTuple	tup;
-	Oid			nspoid;
-	bool		nulls[Natts_pg_namespace];
-	Datum		values[Natts_pg_namespace];
-	NameData	nname;
-	TupleDesc	tupDesc;
-	ObjectAddress myself;
-	int			i;
+Oid NamespaceCreate(const char *nspName, Oid ownerId, bool isTemp) {
+  Relation nspdesc;
+  HeapTuple tup;
+  Oid nspoid;
+  bool nulls[Natts_pg_namespace];
+  Datum values[Natts_pg_namespace];
+  NameData nname;
+  TupleDesc tupDesc;
+  ObjectAddress myself;
+  int i;
 
-	/* sanity checks */
-	if (!nspName)
-		elog(ERROR, "no namescpace___ name supplied");
+  /* sanity checks */
+  if (!nspName) elog(ERROR, "no namescpace___ name supplied");
 
-	/* make sure there is no existing namescpace___ of same name */
-	if (SearchSysCacheExists1(NAMESPACENAME, PointerGetDatum(nspName)))
-		ereport(ERROR,
-				(errcode(ERRCODE_DUPLICATE_SCHEMA),
-				 errmsg("schema \"%s\" already exists", nspName)));
+  /* make sure there is no existing namescpace___ of same name */
+  if (SearchSysCacheExists1(NAMESPACENAME, PointerGetDatum(nspName)))
+    ereport(ERROR, (errcode(ERRCODE_DUPLICATE_SCHEMA),
+                    errmsg("schema \"%s\" already exists", nspName)));
 
-	/* initialize nulls and values */
-	for (i = 0; i < Natts_pg_namespace; i++)
-	{
-		nulls[i] = false;
-		values[i] = (Datum) NULL;
-	}
-	namestrcpy(&nname, nspName);
-	values[Anum_pg_namespace_nspname - 1] = NameGetDatum(&nname);
-	values[Anum_pg_namespace_nspowner - 1] = ObjectIdGetDatum(ownerId);
-	nulls[Anum_pg_namespace_nspacl - 1] = true;
+  /* initialize nulls and values */
+  for (i = 0; i < Natts_pg_namespace; i++) {
+    nulls[i] = false;
+    values[i] = (Datum)NULL;
+  }
+  namestrcpy(&nname, nspName);
+  values[Anum_pg_namespace_nspname - 1] = NameGetDatum(&nname);
+  values[Anum_pg_namespace_nspowner - 1] = ObjectIdGetDatum(ownerId);
+  nulls[Anum_pg_namespace_nspacl - 1] = true;
 
-	nspdesc = heap_open(NamespaceRelationId, RowExclusiveLock);
-	tupDesc = nspdesc->rd_att;
+  nspdesc = heap_open(NamespaceRelationId, RowExclusiveLock);
+  tupDesc = nspdesc->rd_att;
 
-	tup = heap_form_tuple(tupDesc, values, nulls);
+  tup = heap_form_tuple(tupDesc, values, nulls);
 
-	nspoid = simple_heap_insert(nspdesc, tup);
-	Assert(OidIsValid(nspoid));
+  nspoid = simple_heap_insert(nspdesc, tup);
+  Assert(OidIsValid(nspoid));
 
-	CatalogUpdateIndexes(nspdesc, tup);
+  CatalogUpdateIndexes(nspdesc, tup);
 
-	heap_close(nspdesc, RowExclusiveLock);
+  heap_close(nspdesc, RowExclusiveLock);
 
-	/* Record dependencies */
-	myself.classId = NamespaceRelationId;
-	myself.objectId = nspoid;
-	myself.objectSubId = 0;
+  /* Record dependencies */
+  myself.classId = NamespaceRelationId;
+  myself.objectId = nspoid;
+  myself.objectSubId = 0;
 
-	/* dependency on owner */
-	recordDependencyOnOwner(NamespaceRelationId, nspoid, ownerId);
+  /* dependency on owner */
+  recordDependencyOnOwner(NamespaceRelationId, nspoid, ownerId);
 
-	/* dependency on extension ... but not for magic temp schemas */
-	if (!isTemp)
-		recordDependencyOnCurrentExtension(&myself, false);
+  /* dependency on extension ... but not for magic temp schemas */
+  if (!isTemp) recordDependencyOnCurrentExtension(&myself, false);
 
-	/* Post creation hook for new___ schema */
-	InvokeObjectPostCreateHook(NamespaceRelationId, nspoid, 0);
+  /* Post creation hook for new___ schema */
+  InvokeObjectPostCreateHook(NamespaceRelationId, nspoid, 0);
 
-	return nspoid;
+  return nspoid;
 }

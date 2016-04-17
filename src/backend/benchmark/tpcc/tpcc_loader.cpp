@@ -132,21 +132,17 @@ const bool unique_index = false;
 const bool allocate = true;
 
 index::IndexMetadata* BuildIndexMetadata(const std::vector<oid_t>& key_attrs,
-                                         const catalog::Schema *tuple_schema,
+                                         const catalog::Schema* tuple_schema,
                                          std::string index_name,
-                                         oid_t index_oid){
-
-  catalog::Schema *key_schema;
-  index::IndexMetadata *index_metadata;
+                                         oid_t index_oid) {
+  catalog::Schema* key_schema;
+  index::IndexMetadata* index_metadata;
 
   key_schema = catalog::Schema::CopySchema(tuple_schema, key_attrs);
   key_schema->SetIndexedColumns(key_attrs);
 
   index_metadata = new index::IndexMetadata(
-      index_name,
-      index_oid,
-      INDEX_TYPE_BTREE,
-      INDEX_CONSTRAINT_TYPE_INVALID,
+      index_name, index_oid, INDEX_TYPE_BTREE, INDEX_CONSTRAINT_TYPE_INVALID,
       tuple_schema, key_schema, unique_index);
 
   return index_metadata;
@@ -171,35 +167,41 @@ void CreateWarehouseTable() {
   // Create schema first
   std::vector<catalog::Column> warehouse_columns;
 
-  auto w_id_column = catalog::Column(VALUE_TYPE_SMALLINT, GetTypeSize(VALUE_TYPE_SMALLINT), "W_ID", is_inlined);
+  auto w_id_column =
+      catalog::Column(VALUE_TYPE_SMALLINT, GetTypeSize(VALUE_TYPE_SMALLINT),
+                      "W_ID", is_inlined);
   warehouse_columns.push_back(w_id_column);
-  auto w_name_column = catalog::Column(VALUE_TYPE_VARCHAR, warehouse_name_length, "W_NAME", is_inlined);
+  auto w_name_column = catalog::Column(
+      VALUE_TYPE_VARCHAR, warehouse_name_length, "W_NAME", is_inlined);
   warehouse_columns.push_back(w_name_column);
-  auto w_street_1_column = catalog::Column(VALUE_TYPE_VARCHAR, street_length, "W_STREET_1", is_inlined);
+  auto w_street_1_column = catalog::Column(VALUE_TYPE_VARCHAR, street_length,
+                                           "W_STREET_1", is_inlined);
   warehouse_columns.push_back(w_street_1_column);
-  auto w_street_2_column = catalog::Column(VALUE_TYPE_VARCHAR, street_length, "W_STREET_2", is_inlined);
+  auto w_street_2_column = catalog::Column(VALUE_TYPE_VARCHAR, street_length,
+                                           "W_STREET_2", is_inlined);
   warehouse_columns.push_back(w_street_2_column);
-  auto w_city_column = catalog::Column(VALUE_TYPE_VARCHAR, city_length, "W_CITY", is_inlined);
+  auto w_city_column =
+      catalog::Column(VALUE_TYPE_VARCHAR, city_length, "W_CITY", is_inlined);
   warehouse_columns.push_back(w_city_column);
-  auto w_state_column = catalog::Column(VALUE_TYPE_VARCHAR, state_length, "W_STATE", is_inlined);
+  auto w_state_column =
+      catalog::Column(VALUE_TYPE_VARCHAR, state_length, "W_STATE", is_inlined);
   warehouse_columns.push_back(w_state_column);
-  auto w_zip_column = catalog::Column(VALUE_TYPE_VARCHAR, zip_length, "W_ZIP", is_inlined);
+  auto w_zip_column =
+      catalog::Column(VALUE_TYPE_VARCHAR, zip_length, "W_ZIP", is_inlined);
   warehouse_columns.push_back(w_zip_column);
-  auto w_tax_column = catalog::Column(VALUE_TYPE_DOUBLE, GetTypeSize(VALUE_TYPE_DOUBLE), "W_TAX", is_inlined);
+  auto w_tax_column = catalog::Column(
+      VALUE_TYPE_DOUBLE, GetTypeSize(VALUE_TYPE_DOUBLE), "W_TAX", is_inlined);
   warehouse_columns.push_back(w_tax_column);
-  auto w_ytd_column = catalog::Column(VALUE_TYPE_DOUBLE, GetTypeSize(VALUE_TYPE_DOUBLE), "W_YTD", is_inlined);
+  auto w_ytd_column = catalog::Column(
+      VALUE_TYPE_DOUBLE, GetTypeSize(VALUE_TYPE_DOUBLE), "W_YTD", is_inlined);
   warehouse_columns.push_back(w_ytd_column);
 
-  catalog::Schema *table_schema = new catalog::Schema(warehouse_columns);
+  catalog::Schema* table_schema = new catalog::Schema(warehouse_columns);
   std::string table_name("WAREHOUSE");
 
   warehouse_table = storage::TableFactory::GetDataTable(
-      tpcc_database_oid,
-      warehouse_table_oid,
-      table_schema, table_name,
-      DEFAULT_TUPLES_PER_TILEGROUP,
-      own_schema,
-      adapt_table);
+      tpcc_database_oid, warehouse_table_oid, table_schema, table_name,
+      DEFAULT_TUPLES_PER_TILEGROUP, own_schema, adapt_table);
 
   tpcc_database->AddTable(warehouse_table);
 
@@ -207,14 +209,12 @@ void CreateWarehouseTable() {
   std::vector<oid_t> key_attrs;
   key_attrs = {0};
 
-  index::IndexMetadata* index_metadata = BuildIndexMetadata(key_attrs,
-                                                            warehouse_table->GetSchema(),
-                                                            "warehouse_pkey",
-                                                            warehouse_table_pkey_index_oid);
+  index::IndexMetadata* index_metadata =
+      BuildIndexMetadata(key_attrs, warehouse_table->GetSchema(),
+                         "warehouse_pkey", warehouse_table_pkey_index_oid);
 
-  index::Index *pkey_index = index::IndexFactory::GetInstance(index_metadata);
+  index::Index* pkey_index = index::IndexFactory::GetInstance(index_metadata);
   warehouse_table->AddIndex(pkey_index);
-
 }
 
 void CreateDistrictTable() {
@@ -238,39 +238,48 @@ void CreateDistrictTable() {
   // Create schema first
   std::vector<catalog::Column> district_columns;
 
-  auto d_id_column = catalog::Column(VALUE_TYPE_TINYINT, GetTypeSize(VALUE_TYPE_TINYINT), "D_ID", is_inlined);
+  auto d_id_column = catalog::Column(
+      VALUE_TYPE_TINYINT, GetTypeSize(VALUE_TYPE_TINYINT), "D_ID", is_inlined);
   district_columns.push_back(d_id_column);
-  auto d_w_id_column = catalog::Column(VALUE_TYPE_SMALLINT, GetTypeSize(VALUE_TYPE_SMALLINT), "D_W_ID", is_inlined);
+  auto d_w_id_column =
+      catalog::Column(VALUE_TYPE_SMALLINT, GetTypeSize(VALUE_TYPE_SMALLINT),
+                      "D_W_ID", is_inlined);
   district_columns.push_back(d_w_id_column);
-  auto d_name_column = catalog::Column(VALUE_TYPE_VARCHAR, district_name_length, "D_NAME", is_inlined);
+  auto d_name_column = catalog::Column(VALUE_TYPE_VARCHAR, district_name_length,
+                                       "D_NAME", is_inlined);
   district_columns.push_back(d_name_column);
-  auto d_street_1_column = catalog::Column(VALUE_TYPE_VARCHAR, street_length, "D_STREET_1", is_inlined);
+  auto d_street_1_column = catalog::Column(VALUE_TYPE_VARCHAR, street_length,
+                                           "D_STREET_1", is_inlined);
   district_columns.push_back(d_street_1_column);
-  auto d_street_2_column = catalog::Column(VALUE_TYPE_VARCHAR, street_length, "D_STREET_2", is_inlined);
+  auto d_street_2_column = catalog::Column(VALUE_TYPE_VARCHAR, street_length,
+                                           "D_STREET_2", is_inlined);
   district_columns.push_back(d_street_2_column);
-  auto d_city_column = catalog::Column(VALUE_TYPE_VARCHAR, city_length, "D_CITY", is_inlined);
+  auto d_city_column =
+      catalog::Column(VALUE_TYPE_VARCHAR, city_length, "D_CITY", is_inlined);
   district_columns.push_back(d_city_column);
-  auto d_state_column = catalog::Column(VALUE_TYPE_VARCHAR, state_length, "D_STATE", is_inlined);
+  auto d_state_column =
+      catalog::Column(VALUE_TYPE_VARCHAR, state_length, "D_STATE", is_inlined);
   district_columns.push_back(d_state_column);
-  auto d_zip_column = catalog::Column(VALUE_TYPE_VARCHAR, zip_length, "D_ZIP", is_inlined);
+  auto d_zip_column =
+      catalog::Column(VALUE_TYPE_VARCHAR, zip_length, "D_ZIP", is_inlined);
   district_columns.push_back(d_zip_column);
-  auto d_tax_column = catalog::Column(VALUE_TYPE_DOUBLE, GetTypeSize(VALUE_TYPE_DOUBLE), "D_TAX", is_inlined);
+  auto d_tax_column = catalog::Column(
+      VALUE_TYPE_DOUBLE, GetTypeSize(VALUE_TYPE_DOUBLE), "D_TAX", is_inlined);
   district_columns.push_back(d_tax_column);
-  auto d_ytd_column = catalog::Column(VALUE_TYPE_DOUBLE, GetTypeSize(VALUE_TYPE_DOUBLE), "D_YTD", is_inlined);
+  auto d_ytd_column = catalog::Column(
+      VALUE_TYPE_DOUBLE, GetTypeSize(VALUE_TYPE_DOUBLE), "D_YTD", is_inlined);
   district_columns.push_back(d_ytd_column);
-  auto d_next_o_id_column = catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER), "D_NEXT_O_ID", is_inlined);
+  auto d_next_o_id_column =
+      catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER),
+                      "D_NEXT_O_ID", is_inlined);
   district_columns.push_back(d_next_o_id_column);
 
-  catalog::Schema *table_schema = new catalog::Schema(district_columns);
+  catalog::Schema* table_schema = new catalog::Schema(district_columns);
   std::string table_name("DISTRICT");
 
   district_table = storage::TableFactory::GetDataTable(
-      tpcc_database_oid,
-      district_table_oid,
-      table_schema, table_name,
-      DEFAULT_TUPLES_PER_TILEGROUP,
-      own_schema,
-      adapt_table);
+      tpcc_database_oid, district_table_oid, table_schema, table_name,
+      DEFAULT_TUPLES_PER_TILEGROUP, own_schema, adapt_table);
 
   tpcc_database->AddTable(district_table);
 
@@ -278,14 +287,12 @@ void CreateDistrictTable() {
   std::vector<oid_t> key_attrs;
   key_attrs = {0, 1};
 
-  index::IndexMetadata* index_metadata = BuildIndexMetadata(key_attrs,
-                                                            district_table->GetSchema(),
-                                                            "district_pkey",
-                                                            district_table_pkey_index_oid);
+  index::IndexMetadata* index_metadata =
+      BuildIndexMetadata(key_attrs, district_table->GetSchema(),
+                         "district_pkey", district_table_pkey_index_oid);
 
-  index::Index *pkey_index = index::IndexFactory::GetInstance(index_metadata);
+  index::Index* pkey_index = index::IndexFactory::GetInstance(index_metadata);
   district_table->AddIndex(pkey_index);
-
 }
 
 void CreateItemTable() {
@@ -303,27 +310,29 @@ void CreateItemTable() {
   // Create schema first
   std::vector<catalog::Column> item_columns;
 
-  auto i_id_column = catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER), "I_ID", is_inlined);
+  auto i_id_column = catalog::Column(
+      VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER), "I_ID", is_inlined);
   item_columns.push_back(i_id_column);
-  auto i_im_id_column = catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER), "I_IM_ID", is_inlined);
+  auto i_im_id_column =
+      catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER),
+                      "I_IM_ID", is_inlined);
   item_columns.push_back(i_im_id_column);
-  auto i_name_column = catalog::Column(VALUE_TYPE_VARCHAR, name_length, "I_NAME", is_inlined);
+  auto i_name_column =
+      catalog::Column(VALUE_TYPE_VARCHAR, name_length, "I_NAME", is_inlined);
   item_columns.push_back(i_name_column);
-  auto i_price_column = catalog::Column(VALUE_TYPE_DOUBLE, GetTypeSize(VALUE_TYPE_DOUBLE), "I_PRICE", is_inlined);
+  auto i_price_column = catalog::Column(
+      VALUE_TYPE_DOUBLE, GetTypeSize(VALUE_TYPE_DOUBLE), "I_PRICE", is_inlined);
   item_columns.push_back(i_price_column);
-  auto i_data_column = catalog::Column(VALUE_TYPE_VARCHAR, data_length, "I_DATA", is_inlined);
+  auto i_data_column =
+      catalog::Column(VALUE_TYPE_VARCHAR, data_length, "I_DATA", is_inlined);
   item_columns.push_back(i_data_column);
 
-  catalog::Schema *table_schema = new catalog::Schema(item_columns);
+  catalog::Schema* table_schema = new catalog::Schema(item_columns);
   std::string table_name("ITEM");
 
   item_table = storage::TableFactory::GetDataTable(
-      tpcc_database_oid,
-      item_table_oid,
-      table_schema, table_name,
-      DEFAULT_TUPLES_PER_TILEGROUP,
-      own_schema,
-      adapt_table);
+      tpcc_database_oid, item_table_oid, table_schema, table_name,
+      DEFAULT_TUPLES_PER_TILEGROUP, own_schema, adapt_table);
 
   tpcc_database->AddTable(item_table);
 
@@ -331,14 +340,12 @@ void CreateItemTable() {
   std::vector<oid_t> key_attrs;
   key_attrs = {0};
 
-  index::IndexMetadata* index_metadata = BuildIndexMetadata(key_attrs,
-                                                            item_table->GetSchema(),
-                                                            "item_pkey",
-                                                            item_table_pkey_index_oid);
+  index::IndexMetadata* index_metadata =
+      BuildIndexMetadata(key_attrs, item_table->GetSchema(), "item_pkey",
+                         item_table_pkey_index_oid);
 
-  index::Index *pkey_index = index::IndexFactory::GetInstance(index_metadata);
+  index::Index* pkey_index = index::IndexFactory::GetInstance(index_metadata);
   item_table->AddIndex(pkey_index);
-
 }
 
 void CreateCustomerTable() {
@@ -367,7 +374,8 @@ void CreateCustomerTable() {
      C_DATA VARCHAR(500),
      PRIMARY KEY (C_W_ID,C_D_ID,C_ID),
      UNIQUE (C_W_ID,C_D_ID,C_LAST,C_FIRST),
-     CONSTRAINT C_FKEY_D FOREIGN KEY (C_D_ID, C_W_ID) REFERENCES DISTRICT (D_ID, D_W_ID)
+     CONSTRAINT C_FKEY_D FOREIGN KEY (C_D_ID, C_W_ID) REFERENCES DISTRICT (D_ID,
+     D_W_ID)
      );
      CREATE INDEX IDX_CUSTOMER ON CUSTOMER (C_W_ID,C_D_ID,C_LAST);
    */
@@ -375,59 +383,85 @@ void CreateCustomerTable() {
   // Create schema first
   std::vector<catalog::Column> customer_columns;
 
-  auto c_id_column = catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER), "C_ID", is_inlined);
+  auto c_id_column = catalog::Column(
+      VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER), "C_ID", is_inlined);
   customer_columns.push_back(c_id_column);
-  auto c_d_id_column = catalog::Column(VALUE_TYPE_TINYINT, GetTypeSize(VALUE_TYPE_TINYINT), "C_D_ID", is_inlined);
+  auto c_d_id_column =
+      catalog::Column(VALUE_TYPE_TINYINT, GetTypeSize(VALUE_TYPE_TINYINT),
+                      "C_D_ID", is_inlined);
   customer_columns.push_back(c_d_id_column);
-  auto c_w_id_column = catalog::Column(VALUE_TYPE_SMALLINT, GetTypeSize(VALUE_TYPE_SMALLINT), "C_W_ID", is_inlined);
+  auto c_w_id_column =
+      catalog::Column(VALUE_TYPE_SMALLINT, GetTypeSize(VALUE_TYPE_SMALLINT),
+                      "C_W_ID", is_inlined);
   customer_columns.push_back(c_w_id_column);
-  auto c_first_name_column = catalog::Column(VALUE_TYPE_VARCHAR, name_length, "C_FIRST", is_inlined);
+  auto c_first_name_column =
+      catalog::Column(VALUE_TYPE_VARCHAR, name_length, "C_FIRST", is_inlined);
   customer_columns.push_back(c_first_name_column);
-  auto c_middle_name_column = catalog::Column(VALUE_TYPE_VARCHAR, middle_name_length, "C_MIDDLE", is_inlined);
+  auto c_middle_name_column = catalog::Column(
+      VALUE_TYPE_VARCHAR, middle_name_length, "C_MIDDLE", is_inlined);
   customer_columns.push_back(c_middle_name_column);
-  auto c_last_name_column = catalog::Column(VALUE_TYPE_VARCHAR, name_length, "C_LAST", is_inlined);
+  auto c_last_name_column =
+      catalog::Column(VALUE_TYPE_VARCHAR, name_length, "C_LAST", is_inlined);
   customer_columns.push_back(c_last_name_column);
-  auto c_street_1_column = catalog::Column(VALUE_TYPE_VARCHAR, street_length, "C_STREET_1", is_inlined);
+  auto c_street_1_column = catalog::Column(VALUE_TYPE_VARCHAR, street_length,
+                                           "C_STREET_1", is_inlined);
   customer_columns.push_back(c_street_1_column);
-  auto c_street_2_column = catalog::Column(VALUE_TYPE_VARCHAR, street_length, "C_STREET_2", is_inlined);
+  auto c_street_2_column = catalog::Column(VALUE_TYPE_VARCHAR, street_length,
+                                           "C_STREET_2", is_inlined);
   customer_columns.push_back(c_street_2_column);
-  auto c_city_column = catalog::Column(VALUE_TYPE_VARCHAR, city_length, "C_CITY", is_inlined);
+  auto c_city_column =
+      catalog::Column(VALUE_TYPE_VARCHAR, city_length, "C_CITY", is_inlined);
   customer_columns.push_back(c_city_column);
-  auto c_state_column = catalog::Column(VALUE_TYPE_VARCHAR, state_length, "C_STATE", is_inlined);
+  auto c_state_column =
+      catalog::Column(VALUE_TYPE_VARCHAR, state_length, "C_STATE", is_inlined);
   customer_columns.push_back(c_state_column);
-  auto c_zip_column = catalog::Column(VALUE_TYPE_VARCHAR, zip_length, "C_ZIP", is_inlined);
+  auto c_zip_column =
+      catalog::Column(VALUE_TYPE_VARCHAR, zip_length, "C_ZIP", is_inlined);
   customer_columns.push_back(c_zip_column);
-  auto c_phone_column = catalog::Column(VALUE_TYPE_VARCHAR, phone_length, "C_PHONE", is_inlined);
+  auto c_phone_column =
+      catalog::Column(VALUE_TYPE_VARCHAR, phone_length, "C_PHONE", is_inlined);
   customer_columns.push_back(c_phone_column);
-  auto c_since_column = catalog::Column(VALUE_TYPE_TIMESTAMP, GetTypeSize(VALUE_TYPE_TIMESTAMP), "C_SINCE", is_inlined);
+  auto c_since_column =
+      catalog::Column(VALUE_TYPE_TIMESTAMP, GetTypeSize(VALUE_TYPE_TIMESTAMP),
+                      "C_SINCE", is_inlined);
   customer_columns.push_back(c_since_column);
-  auto c_credit_column = catalog::Column(VALUE_TYPE_VARCHAR, credit_length, "C_CREDIT", is_inlined);
+  auto c_credit_column = catalog::Column(VALUE_TYPE_VARCHAR, credit_length,
+                                         "C_CREDIT", is_inlined);
   customer_columns.push_back(c_credit_column);
-  auto c_credit_lim_column = catalog::Column(VALUE_TYPE_DOUBLE, GetTypeSize(VALUE_TYPE_DOUBLE), "C_CREDIT_LIM", is_inlined);
+  auto c_credit_lim_column =
+      catalog::Column(VALUE_TYPE_DOUBLE, GetTypeSize(VALUE_TYPE_DOUBLE),
+                      "C_CREDIT_LIM", is_inlined);
   customer_columns.push_back(c_credit_lim_column);
-  auto c_discount_column = catalog::Column(VALUE_TYPE_DOUBLE, GetTypeSize(VALUE_TYPE_DOUBLE), "C_DISCOUNT", is_inlined);
+  auto c_discount_column =
+      catalog::Column(VALUE_TYPE_DOUBLE, GetTypeSize(VALUE_TYPE_DOUBLE),
+                      "C_DISCOUNT", is_inlined);
   customer_columns.push_back(c_discount_column);
-  auto c_balance_column = catalog::Column(VALUE_TYPE_DOUBLE, GetTypeSize(VALUE_TYPE_DOUBLE), "C_BALANCE", is_inlined);
+  auto c_balance_column =
+      catalog::Column(VALUE_TYPE_DOUBLE, GetTypeSize(VALUE_TYPE_DOUBLE),
+                      "C_BALANCE", is_inlined);
   customer_columns.push_back(c_balance_column);
-  auto c_ytd_payment_column = catalog::Column(VALUE_TYPE_DOUBLE, GetTypeSize(VALUE_TYPE_DOUBLE), "C_YTD_PAYMENT", is_inlined);
+  auto c_ytd_payment_column =
+      catalog::Column(VALUE_TYPE_DOUBLE, GetTypeSize(VALUE_TYPE_DOUBLE),
+                      "C_YTD_PAYMENT", is_inlined);
   customer_columns.push_back(c_ytd_payment_column);
-  auto c_payment_column = catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER), "C_PAYMENT_CNT", is_inlined);
+  auto c_payment_column =
+      catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER),
+                      "C_PAYMENT_CNT", is_inlined);
   customer_columns.push_back(c_payment_column);
-  auto c_delivery_column = catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER), "C_DELIVERY_CNT", is_inlined);
+  auto c_delivery_column =
+      catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER),
+                      "C_DELIVERY_CNT", is_inlined);
   customer_columns.push_back(c_delivery_column);
-  auto c_data_column = catalog::Column(VALUE_TYPE_VARCHAR, data_length, "C_DATA", is_inlined);
+  auto c_data_column =
+      catalog::Column(VALUE_TYPE_VARCHAR, data_length, "C_DATA", is_inlined);
   customer_columns.push_back(c_data_column);
 
-  catalog::Schema *table_schema = new catalog::Schema(customer_columns);
+  catalog::Schema* table_schema = new catalog::Schema(customer_columns);
   std::string table_name("CUSTOMER");
 
   customer_table = storage::TableFactory::GetDataTable(
-      tpcc_database_oid,
-      customer_table_oid,
-      table_schema, table_name,
-      DEFAULT_TUPLES_PER_TILEGROUP,
-      own_schema,
-      adapt_table);
+      tpcc_database_oid, customer_table_oid, table_schema, table_name,
+      DEFAULT_TUPLES_PER_TILEGROUP, own_schema, adapt_table);
 
   tpcc_database->AddTable(customer_table);
 
@@ -435,25 +469,22 @@ void CreateCustomerTable() {
   std::vector<oid_t> key_attrs;
   key_attrs = {0, 1, 2};
 
-  index::IndexMetadata* index_metadata = BuildIndexMetadata(key_attrs,
-                                                            customer_table->GetSchema(),
-                                                            "customer_pkey",
-                                                            customer_table_pkey_index_oid);
+  index::IndexMetadata* index_metadata =
+      BuildIndexMetadata(key_attrs, customer_table->GetSchema(),
+                         "customer_pkey", customer_table_pkey_index_oid);
 
-  index::Index *pkey_index = index::IndexFactory::GetInstance(index_metadata);
+  index::Index* pkey_index = index::IndexFactory::GetInstance(index_metadata);
   customer_table->AddIndex(pkey_index);
 
   // Secondary index on C_W_ID, C_D_ID, C_LAST
   key_attrs = {1, 2, 5};
 
-  index_metadata = BuildIndexMetadata(key_attrs,
-                                      customer_table->GetSchema(),
-                                      "customer_skey",
-                                      customer_table_skey_index_oid);
+  index_metadata =
+      BuildIndexMetadata(key_attrs, customer_table->GetSchema(),
+                         "customer_skey", customer_table_skey_index_oid);
 
-  index::Index *skey_index = index::IndexFactory::GetInstance(index_metadata);
+  index::Index* skey_index = index::IndexFactory::GetInstance(index_metadata);
   customer_table->AddIndex(skey_index);
-
 }
 
 void CreateHistoryTable() {
@@ -467,44 +498,56 @@ void CreateHistoryTable() {
     H_DATE TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     H_AMOUNT FLOAT DEFAULT NULL,
     H_DATA VARCHAR(32) DEFAULT NULL,
-    CONSTRAINT H_FKEY_C FOREIGN KEY (H_C_ID, H_C_D_ID, H_C_W_ID) REFERENCES CUSTOMER (C_ID, C_D_ID, C_W_ID),
-    CONSTRAINT H_FKEY_D FOREIGN KEY (H_D_ID, H_W_ID) REFERENCES DISTRICT (D_ID, D_W_ID)
+    CONSTRAINT H_FKEY_C FOREIGN KEY (H_C_ID, H_C_D_ID, H_C_W_ID) REFERENCES
+    CUSTOMER (C_ID, C_D_ID, C_W_ID),
+    CONSTRAINT H_FKEY_D FOREIGN KEY (H_D_ID, H_W_ID) REFERENCES DISTRICT (D_ID,
+    D_W_ID)
     );
    */
 
   // Create schema first
   std::vector<catalog::Column> history_columns;
 
-  auto h_c_id_column = catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER), "H_C_ID", is_inlined);
+  auto h_c_id_column =
+      catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER),
+                      "H_C_ID", is_inlined);
   history_columns.push_back(h_c_id_column);
-  auto h_c_d_id_column = catalog::Column(VALUE_TYPE_TINYINT, GetTypeSize(VALUE_TYPE_TINYINT), "H_C_D_ID", is_inlined);
+  auto h_c_d_id_column =
+      catalog::Column(VALUE_TYPE_TINYINT, GetTypeSize(VALUE_TYPE_TINYINT),
+                      "H_C_D_ID", is_inlined);
   history_columns.push_back(h_c_d_id_column);
-  auto h_c_w_id_column = catalog::Column(VALUE_TYPE_SMALLINT, GetTypeSize(VALUE_TYPE_SMALLINT), "H_C_W_ID", is_inlined);
+  auto h_c_w_id_column =
+      catalog::Column(VALUE_TYPE_SMALLINT, GetTypeSize(VALUE_TYPE_SMALLINT),
+                      "H_C_W_ID", is_inlined);
   history_columns.push_back(h_c_w_id_column);
-  auto h_d_id_column = catalog::Column(VALUE_TYPE_TINYINT, GetTypeSize(VALUE_TYPE_TINYINT), "H_D_ID", is_inlined);
+  auto h_d_id_column =
+      catalog::Column(VALUE_TYPE_TINYINT, GetTypeSize(VALUE_TYPE_TINYINT),
+                      "H_D_ID", is_inlined);
   history_columns.push_back(h_d_id_column);
-  auto h_w_id_column = catalog::Column(VALUE_TYPE_SMALLINT, GetTypeSize(VALUE_TYPE_SMALLINT), "H_W_ID", is_inlined);
+  auto h_w_id_column =
+      catalog::Column(VALUE_TYPE_SMALLINT, GetTypeSize(VALUE_TYPE_SMALLINT),
+                      "H_W_ID", is_inlined);
   history_columns.push_back(h_w_id_column);
-  auto h_date_column = catalog::Column(VALUE_TYPE_TIMESTAMP, GetTypeSize(VALUE_TYPE_TIMESTAMP), "H_DATE", is_inlined);
+  auto h_date_column =
+      catalog::Column(VALUE_TYPE_TIMESTAMP, GetTypeSize(VALUE_TYPE_TIMESTAMP),
+                      "H_DATE", is_inlined);
   history_columns.push_back(h_date_column);
-  auto h_amount_column = catalog::Column(VALUE_TYPE_DOUBLE, GetTypeSize(VALUE_TYPE_DOUBLE), "H_AMOUNT", is_inlined);
+  auto h_amount_column =
+      catalog::Column(VALUE_TYPE_DOUBLE, GetTypeSize(VALUE_TYPE_DOUBLE),
+                      "H_AMOUNT", is_inlined);
   history_columns.push_back(h_amount_column);
-  auto h_data_column = catalog::Column(VALUE_TYPE_VARCHAR, history_data_length, "H_DATA", is_inlined);
+  auto h_data_column = catalog::Column(VALUE_TYPE_VARCHAR, history_data_length,
+                                       "H_DATA", is_inlined);
   history_columns.push_back(h_data_column);
 
-  catalog::Schema *table_schema = new catalog::Schema(history_columns);
+  catalog::Schema* table_schema = new catalog::Schema(history_columns);
   std::string table_name("HISTORY");
 
   history_table = storage::TableFactory::GetDataTable(
-      tpcc_database_oid,
-      history_table_oid,
-      table_schema, table_name,
-      DEFAULT_TUPLES_PER_TILEGROUP,
-      own_schema,
-      adapt_table);
+      tpcc_database_oid, history_table_oid, table_schema, table_name,
+      DEFAULT_TUPLES_PER_TILEGROUP, own_schema, adapt_table);
 
   tpcc_database->AddTable(history_table);
-
 }
 
 void CreateStockTable() {
@@ -534,51 +577,69 @@ void CreateStockTable() {
   // Create schema first
   std::vector<catalog::Column> stock_columns;
 
-  auto s_i_id_column = catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER), "S_I_ID", is_inlined);
+  auto s_i_id_column =
+      catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER),
+                      "S_I_ID", is_inlined);
   stock_columns.push_back(s_i_id_column);
-  auto s_w_id_column = catalog::Column(VALUE_TYPE_SMALLINT, GetTypeSize(VALUE_TYPE_SMALLINT), "S_W_ID", is_inlined);
+  auto s_w_id_column =
+      catalog::Column(VALUE_TYPE_SMALLINT, GetTypeSize(VALUE_TYPE_SMALLINT),
+                      "S_W_ID", is_inlined);
   stock_columns.push_back(s_w_id_column);
-  auto s_quantity_column = catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER), "S_QUANTITY", is_inlined);
+  auto s_quantity_column =
+      catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER),
+                      "S_QUANTITY", is_inlined);
   stock_columns.push_back(s_quantity_column);
-  auto s_dist_01_column = catalog::Column(VALUE_TYPE_VARCHAR, dist_length, "S_DIST_01", is_inlined);
+  auto s_dist_01_column =
+      catalog::Column(VALUE_TYPE_VARCHAR, dist_length, "S_DIST_01", is_inlined);
   stock_columns.push_back(s_dist_01_column);
-  auto s_dist_02_column = catalog::Column(VALUE_TYPE_VARCHAR, dist_length, "S_DIST_02", is_inlined);
+  auto s_dist_02_column =
+      catalog::Column(VALUE_TYPE_VARCHAR, dist_length, "S_DIST_02", is_inlined);
   stock_columns.push_back(s_dist_02_column);
-  auto s_dist_03_column = catalog::Column(VALUE_TYPE_VARCHAR, dist_length, "S_DIST_03", is_inlined);
+  auto s_dist_03_column =
+      catalog::Column(VALUE_TYPE_VARCHAR, dist_length, "S_DIST_03", is_inlined);
   stock_columns.push_back(s_dist_03_column);
-  auto s_dist_04_column = catalog::Column(VALUE_TYPE_VARCHAR, dist_length, "S_DIST_04", is_inlined);
+  auto s_dist_04_column =
+      catalog::Column(VALUE_TYPE_VARCHAR, dist_length, "S_DIST_04", is_inlined);
   stock_columns.push_back(s_dist_04_column);
-  auto s_dist_05_column = catalog::Column(VALUE_TYPE_VARCHAR, dist_length, "S_DIST_05", is_inlined);
+  auto s_dist_05_column =
+      catalog::Column(VALUE_TYPE_VARCHAR, dist_length, "S_DIST_05", is_inlined);
   stock_columns.push_back(s_dist_05_column);
-  auto s_dist_06_column = catalog::Column(VALUE_TYPE_VARCHAR, dist_length, "S_DIST_06", is_inlined);
+  auto s_dist_06_column =
+      catalog::Column(VALUE_TYPE_VARCHAR, dist_length, "S_DIST_06", is_inlined);
   stock_columns.push_back(s_dist_06_column);
-  auto s_dist_07_column = catalog::Column(VALUE_TYPE_VARCHAR, dist_length, "S_DIST_07", is_inlined);
+  auto s_dist_07_column =
+      catalog::Column(VALUE_TYPE_VARCHAR, dist_length, "S_DIST_07", is_inlined);
   stock_columns.push_back(s_dist_07_column);
-  auto s_dist_08_column = catalog::Column(VALUE_TYPE_VARCHAR, dist_length, "S_DIST_08", is_inlined);
+  auto s_dist_08_column =
+      catalog::Column(VALUE_TYPE_VARCHAR, dist_length, "S_DIST_08", is_inlined);
   stock_columns.push_back(s_dist_08_column);
-  auto s_dist_09_column = catalog::Column(VALUE_TYPE_VARCHAR, dist_length, "S_DIST_09", is_inlined);
+  auto s_dist_09_column =
+      catalog::Column(VALUE_TYPE_VARCHAR, dist_length, "S_DIST_09", is_inlined);
   stock_columns.push_back(s_dist_09_column);
-  auto s_dist_10_column = catalog::Column(VALUE_TYPE_VARCHAR, dist_length, "S_DIST_10", is_inlined);
+  auto s_dist_10_column =
+      catalog::Column(VALUE_TYPE_VARCHAR, dist_length, "S_DIST_10", is_inlined);
   stock_columns.push_back(s_dist_10_column);
-  auto s_ytd_column = catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER), "S_YTD", is_inlined);
+  auto s_ytd_column = catalog::Column(
+      VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER), "S_YTD", is_inlined);
   stock_columns.push_back(s_ytd_column);
-  auto s_order_cnt_column = catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER), "S_ORDER_CNT", is_inlined);
+  auto s_order_cnt_column =
+      catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER),
+                      "S_ORDER_CNT", is_inlined);
   stock_columns.push_back(s_order_cnt_column);
-  auto s_discount_cnt_column = catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER), "S_REMOTE_CNT", is_inlined);
+  auto s_discount_cnt_column =
+      catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER),
+                      "S_REMOTE_CNT", is_inlined);
   stock_columns.push_back(s_discount_cnt_column);
-  auto s_data_column = catalog::Column(VALUE_TYPE_VARCHAR, data_length, "S_DATA", is_inlined);
+  auto s_data_column =
+      catalog::Column(VALUE_TYPE_VARCHAR, data_length, "S_DATA", is_inlined);
   stock_columns.push_back(s_data_column);
 
-  catalog::Schema *table_schema = new catalog::Schema(stock_columns);
+  catalog::Schema* table_schema = new catalog::Schema(stock_columns);
   std::string table_name("STOCK");
 
   stock_table = storage::TableFactory::GetDataTable(
-      tpcc_database_oid,
-      stock_table_oid,
-      table_schema, table_name,
-      DEFAULT_TUPLES_PER_TILEGROUP,
-      own_schema,
-      adapt_table);
+      tpcc_database_oid, stock_table_oid, table_schema, table_name,
+      DEFAULT_TUPLES_PER_TILEGROUP, own_schema, adapt_table);
 
   tpcc_database->AddTable(stock_table);
 
@@ -586,14 +647,12 @@ void CreateStockTable() {
   std::vector<oid_t> key_attrs;
   key_attrs = {0, 1};
 
-  index::IndexMetadata* index_metadata = BuildIndexMetadata(key_attrs,
-                                                            stock_table->GetSchema(),
-                                                            "stock_pkey",
-                                                            stock_table_pkey_index_oid);
+  index::IndexMetadata* index_metadata =
+      BuildIndexMetadata(key_attrs, stock_table->GetSchema(), "stock_pkey",
+                         stock_table_pkey_index_oid);
 
-  index::Index *pkey_index = index::IndexFactory::GetInstance(index_metadata);
+  index::Index* pkey_index = index::IndexFactory::GetInstance(index_metadata);
   stock_table->AddIndex(pkey_index);
-
 }
 
 void CreateOrdersTable() {
@@ -609,7 +668,8 @@ void CreateOrdersTable() {
    O_ALL_LOCAL INTEGER DEFAULT NULL,
    PRIMARY KEY (O_W_ID,O_D_ID,O_ID),
    UNIQUE (O_W_ID,O_D_ID,O_C_ID,O_ID),
-   CONSTRAINT O_FKEY_C FOREIGN KEY (O_C_ID, O_D_ID, O_W_ID) REFERENCES CUSTOMER (C_ID, C_D_ID, C_W_ID)
+   CONSTRAINT O_FKEY_C FOREIGN KEY (O_C_ID, O_D_ID, O_W_ID) REFERENCES CUSTOMER
+   (C_ID, C_D_ID, C_W_ID)
    );
    CREATE INDEX IDX_ORDERS ON ORDERS (O_W_ID,O_D_ID,O_C_ID);
    */
@@ -617,33 +677,44 @@ void CreateOrdersTable() {
   // Create schema first
   std::vector<catalog::Column> orders_columns;
 
-  auto o_id_column = catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER), "O_ID", is_inlined);
+  auto o_id_column = catalog::Column(
+      VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER), "O_ID", is_inlined);
   orders_columns.push_back(o_id_column);
-  auto o_c_id_column = catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER), "O_C_ID", is_inlined);
+  auto o_c_id_column =
+      catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER),
+                      "O_C_ID", is_inlined);
   orders_columns.push_back(o_c_id_column);
-  auto o_d_id_column = catalog::Column(VALUE_TYPE_TINYINT, GetTypeSize(VALUE_TYPE_TINYINT), "O_D_ID", is_inlined);
+  auto o_d_id_column =
+      catalog::Column(VALUE_TYPE_TINYINT, GetTypeSize(VALUE_TYPE_TINYINT),
+                      "O_D_ID", is_inlined);
   orders_columns.push_back(o_d_id_column);
-  auto o_w_id_column = catalog::Column(VALUE_TYPE_SMALLINT, GetTypeSize(VALUE_TYPE_SMALLINT), "O_W_ID", is_inlined);
+  auto o_w_id_column =
+      catalog::Column(VALUE_TYPE_SMALLINT, GetTypeSize(VALUE_TYPE_SMALLINT),
+                      "O_W_ID", is_inlined);
   orders_columns.push_back(o_w_id_column);
-  auto o_entry_d_column = catalog::Column(VALUE_TYPE_TIMESTAMP, GetTypeSize(VALUE_TYPE_TIMESTAMP), "O_ENTRY_D", is_inlined);
+  auto o_entry_d_column =
+      catalog::Column(VALUE_TYPE_TIMESTAMP, GetTypeSize(VALUE_TYPE_TIMESTAMP),
+                      "O_ENTRY_D", is_inlined);
   orders_columns.push_back(o_entry_d_column);
-  auto o_carrier_id_column = catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER), "O_CARRIER_ID", is_inlined);
+  auto o_carrier_id_column =
+      catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER),
+                      "O_CARRIER_ID", is_inlined);
   orders_columns.push_back(o_carrier_id_column);
-  auto o_ol_cnt_column = catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER), "O_OL_CNT", is_inlined);
+  auto o_ol_cnt_column =
+      catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER),
+                      "O_OL_CNT", is_inlined);
   orders_columns.push_back(o_ol_cnt_column);
-  auto o_all_local_column = catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER), "O_ALL_LOCAL", is_inlined);
+  auto o_all_local_column =
+      catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER),
+                      "O_ALL_LOCAL", is_inlined);
   orders_columns.push_back(o_all_local_column);
 
-  catalog::Schema *table_schema = new catalog::Schema(orders_columns);
+  catalog::Schema* table_schema = new catalog::Schema(orders_columns);
   std::string table_name("ORDERS");
 
   orders_table = storage::TableFactory::GetDataTable(
-      tpcc_database_oid,
-      orders_table_oid,
-      table_schema, table_name,
-      DEFAULT_TUPLES_PER_TILEGROUP,
-      own_schema,
-      adapt_table);
+      tpcc_database_oid, orders_table_oid, table_schema, table_name,
+      DEFAULT_TUPLES_PER_TILEGROUP, own_schema, adapt_table);
 
   tpcc_database->AddTable(orders_table);
 
@@ -651,25 +722,22 @@ void CreateOrdersTable() {
   std::vector<oid_t> key_attrs;
   key_attrs = {0, 2, 3};
 
-  index::IndexMetadata* index_metadata = BuildIndexMetadata(key_attrs,
-                                                            orders_table->GetSchema(),
-                                                            "orders_pkey",
-                                                            orders_table_pkey_index_oid);
+  index::IndexMetadata* index_metadata =
+      BuildIndexMetadata(key_attrs, orders_table->GetSchema(), "orders_pkey",
+                         orders_table_pkey_index_oid);
 
-  index::Index *pkey_index = index::IndexFactory::GetInstance(index_metadata);
+  index::Index* pkey_index = index::IndexFactory::GetInstance(index_metadata);
   orders_table->AddIndex(pkey_index);
 
   // Secondary index on O_C_ID, O_D_ID, O_W_ID
   key_attrs = {1, 2, 3};
 
-  index_metadata =  BuildIndexMetadata(key_attrs,
-                                       orders_table->GetSchema(),
-                                       "orders_skey",
-                                       orders_table_skey_index_oid);
+  index_metadata =
+      BuildIndexMetadata(key_attrs, orders_table->GetSchema(), "orders_skey",
+                         orders_table_skey_index_oid);
 
-  index::Index *skey_index = index::IndexFactory::GetInstance(index_metadata);
+  index::Index* skey_index = index::IndexFactory::GetInstance(index_metadata);
   orders_table->AddIndex(skey_index);
-
 }
 
 void CreateNewOrderTable() {
@@ -679,30 +747,33 @@ void CreateNewOrderTable() {
    NO_D_ID TINYINT DEFAULT '0' NOT NULL,
    NO_W_ID SMALLINT DEFAULT '0' NOT NULL,
    CONSTRAINT NO_PK_TREE PRIMARY KEY (NO_D_ID,NO_W_ID,NO_O_ID),
-   CONSTRAINT NO_FKEY_O FOREIGN KEY (NO_O_ID, NO_D_ID, NO_W_ID) REFERENCES ORDERS (O_ID, O_D_ID, O_W_ID)
+   CONSTRAINT NO_FKEY_O FOREIGN KEY (NO_O_ID, NO_D_ID, NO_W_ID) REFERENCES
+   ORDERS (O_ID, O_D_ID, O_W_ID)
    );
    */
 
   // Create schema first
   std::vector<catalog::Column> new_order_columns;
 
-  auto no_o_id_column = catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER), "NO_O_ID", is_inlined);
+  auto no_o_id_column =
+      catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER),
+                      "NO_O_ID", is_inlined);
   new_order_columns.push_back(no_o_id_column);
-  auto no_d_id_column = catalog::Column(VALUE_TYPE_TINYINT, GetTypeSize(VALUE_TYPE_TINYINT), "NO_D_ID", is_inlined);
+  auto no_d_id_column =
+      catalog::Column(VALUE_TYPE_TINYINT, GetTypeSize(VALUE_TYPE_TINYINT),
+                      "NO_D_ID", is_inlined);
   new_order_columns.push_back(no_d_id_column);
-  auto no_w_id_column = catalog::Column(VALUE_TYPE_SMALLINT, GetTypeSize(VALUE_TYPE_SMALLINT), "NO_W_ID", is_inlined);
+  auto no_w_id_column =
+      catalog::Column(VALUE_TYPE_SMALLINT, GetTypeSize(VALUE_TYPE_SMALLINT),
+                      "NO_W_ID", is_inlined);
   new_order_columns.push_back(no_w_id_column);
 
-  catalog::Schema *table_schema = new catalog::Schema(new_order_columns);
+  catalog::Schema* table_schema = new catalog::Schema(new_order_columns);
   std::string table_name("NEW_ORDER");
 
   new_order_table = storage::TableFactory::GetDataTable(
-      tpcc_database_oid,
-      new_order_table_oid,
-      table_schema, table_name,
-      DEFAULT_TUPLES_PER_TILEGROUP,
-      own_schema,
-      adapt_table);
+      tpcc_database_oid, new_order_table_oid, table_schema, table_name,
+      DEFAULT_TUPLES_PER_TILEGROUP, own_schema, adapt_table);
 
   tpcc_database->AddTable(new_order_table);
 
@@ -710,14 +781,12 @@ void CreateNewOrderTable() {
   std::vector<oid_t> key_attrs;
   key_attrs = {0, 1, 2};
 
-  index::IndexMetadata* index_metadata = BuildIndexMetadata(key_attrs,
-                                                            new_order_table->GetSchema(),
-                                                            "new_order_pkey",
-                                                            new_order_table_pkey_index_oid);
+  index::IndexMetadata* index_metadata =
+      BuildIndexMetadata(key_attrs, new_order_table->GetSchema(),
+                         "new_order_pkey", new_order_table_pkey_index_oid);
 
-  index::Index *pkey_index = index::IndexFactory::GetInstance(index_metadata);
+  index::Index* pkey_index = index::IndexFactory::GetInstance(index_metadata);
   new_order_table->AddIndex(pkey_index);
-
 }
 
 void CreateOrderLineTable() {
@@ -734,8 +803,10 @@ void CreateOrderLineTable() {
    OL_AMOUNT FLOAT DEFAULT NULL,
    OL_DIST_INFO VARCHAR(32) DEFAULT NULL,
    PRIMARY KEY (OL_W_ID,OL_D_ID,OL_O_ID,OL_NUMBER),
-   CONSTRAINT OL_FKEY_O FOREIGN KEY (OL_O_ID, OL_D_ID, OL_W_ID) REFERENCES ORDERS (O_ID, O_D_ID, O_W_ID),
-   CONSTRAINT OL_FKEY_S FOREIGN KEY (OL_I_ID, OL_SUPPLY_W_ID) REFERENCES STOCK (S_I_ID, S_W_ID)
+   CONSTRAINT OL_FKEY_O FOREIGN KEY (OL_O_ID, OL_D_ID, OL_W_ID) REFERENCES
+   ORDERS (O_ID, O_D_ID, O_W_ID),
+   CONSTRAINT OL_FKEY_S FOREIGN KEY (OL_I_ID, OL_SUPPLY_W_ID) REFERENCES STOCK
+   (S_I_ID, S_W_ID)
    );
    CREATE INDEX IDX_ORDER_LINE_TREE ON ORDER_LINE (OL_W_ID,OL_D_ID,OL_O_ID);
    */
@@ -743,37 +814,53 @@ void CreateOrderLineTable() {
   // Create schema first
   std::vector<catalog::Column> order_line_columns;
 
-  auto ol_o_id_column = catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER), "OL_O_ID", is_inlined);
+  auto ol_o_id_column =
+      catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER),
+                      "OL_O_ID", is_inlined);
   order_line_columns.push_back(ol_o_id_column);
-  auto ol_d_id_column = catalog::Column(VALUE_TYPE_TINYINT, GetTypeSize(VALUE_TYPE_TINYINT), "OL_D_ID", is_inlined);
+  auto ol_d_id_column =
+      catalog::Column(VALUE_TYPE_TINYINT, GetTypeSize(VALUE_TYPE_TINYINT),
+                      "OL_D_ID", is_inlined);
   order_line_columns.push_back(ol_d_id_column);
-  auto ol_w_id_column = catalog::Column(VALUE_TYPE_SMALLINT, GetTypeSize(VALUE_TYPE_SMALLINT), "OL_W_ID", is_inlined);
+  auto ol_w_id_column =
+      catalog::Column(VALUE_TYPE_SMALLINT, GetTypeSize(VALUE_TYPE_SMALLINT),
+                      "OL_W_ID", is_inlined);
   order_line_columns.push_back(ol_w_id_column);
-  auto ol_number_column = catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER), "OL_NUMBER", is_inlined);
+  auto ol_number_column =
+      catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER),
+                      "OL_NUMBER", is_inlined);
   order_line_columns.push_back(ol_number_column);
-  auto ol_i_id_column = catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER), "OL_I_ID", is_inlined);
+  auto ol_i_id_column =
+      catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER),
+                      "OL_I_ID", is_inlined);
   order_line_columns.push_back(ol_i_id_column);
-  auto ol_supply_w_id_column = catalog::Column(VALUE_TYPE_SMALLINT, GetTypeSize(VALUE_TYPE_SMALLINT), "OL_SUPPLY_W_ID", is_inlined);
+  auto ol_supply_w_id_column =
+      catalog::Column(VALUE_TYPE_SMALLINT, GetTypeSize(VALUE_TYPE_SMALLINT),
+                      "OL_SUPPLY_W_ID", is_inlined);
   order_line_columns.push_back(ol_supply_w_id_column);
-  auto ol_delivery_d_column = catalog::Column(VALUE_TYPE_TIMESTAMP, GetTypeSize(VALUE_TYPE_TIMESTAMP), "OL_DELIVERY_D", is_inlined);
+  auto ol_delivery_d_column =
+      catalog::Column(VALUE_TYPE_TIMESTAMP, GetTypeSize(VALUE_TYPE_TIMESTAMP),
+                      "OL_DELIVERY_D", is_inlined);
   order_line_columns.push_back(ol_delivery_d_column);
-  auto ol_quantity_column = catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER), "OL_QUANTITY", is_inlined);
+  auto ol_quantity_column =
+      catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER),
+                      "OL_QUANTITY", is_inlined);
   order_line_columns.push_back(ol_quantity_column);
-  auto ol_amount_column = catalog::Column(VALUE_TYPE_DOUBLE, GetTypeSize(VALUE_TYPE_DOUBLE), "OL_AMOUNT", is_inlined);
+  auto ol_amount_column =
+      catalog::Column(VALUE_TYPE_DOUBLE, GetTypeSize(VALUE_TYPE_DOUBLE),
+                      "OL_AMOUNT", is_inlined);
   order_line_columns.push_back(ol_amount_column);
-  auto ol_dist_info_column = catalog::Column(VALUE_TYPE_VARCHAR, order_line_dist_info_length, "OL_DIST_INFO", is_inlined);
+  auto ol_dist_info_column =
+      catalog::Column(VALUE_TYPE_VARCHAR, order_line_dist_info_length,
+                      "OL_DIST_INFO", is_inlined);
   order_line_columns.push_back(ol_dist_info_column);
 
-  catalog::Schema *table_schema = new catalog::Schema(order_line_columns);
+  catalog::Schema* table_schema = new catalog::Schema(order_line_columns);
   std::string table_name("ORDER_LINE");
 
   order_line_table = storage::TableFactory::GetDataTable(
-      tpcc_database_oid,
-      order_line_table_oid,
-      table_schema, table_name,
-      DEFAULT_TUPLES_PER_TILEGROUP,
-      own_schema,
-      adapt_table);
+      tpcc_database_oid, order_line_table_oid, table_schema, table_name,
+      DEFAULT_TUPLES_PER_TILEGROUP, own_schema, adapt_table);
 
   tpcc_database->AddTable(order_line_table);
 
@@ -781,29 +868,25 @@ void CreateOrderLineTable() {
   std::vector<oid_t> key_attrs;
   key_attrs = {0, 1, 2, 3};
 
-  index::IndexMetadata* index_metadata = BuildIndexMetadata(key_attrs,
-                                                            order_line_table->GetSchema(),
-                                                            "order_line_pkey",
-                                                            order_line_table_pkey_index_oid);
+  index::IndexMetadata* index_metadata =
+      BuildIndexMetadata(key_attrs, order_line_table->GetSchema(),
+                         "order_line_pkey", order_line_table_pkey_index_oid);
 
-  index::Index *pkey_index = index::IndexFactory::GetInstance(index_metadata);
+  index::Index* pkey_index = index::IndexFactory::GetInstance(index_metadata);
   order_line_table->AddIndex(pkey_index);
 
   // Secondary index on OL_O_ID, OL_D_ID, OL_W_ID
   key_attrs = {0, 1, 2};
 
-  index_metadata =  BuildIndexMetadata(key_attrs,
-                                       order_line_table->GetSchema(),
-                                       "order_line_skey",
-                                       order_line_table_skey_index_oid);
+  index_metadata =
+      BuildIndexMetadata(key_attrs, order_line_table->GetSchema(),
+                         "order_line_skey", order_line_table_skey_index_oid);
 
-  index::Index *skey_index = index::IndexFactory::GetInstance(index_metadata);
+  index::Index* skey_index = index::IndexFactory::GetInstance(index_metadata);
   order_line_table->AddIndex(skey_index);
-
 }
 
 void CreateTPCCDatabase() {
-
   // Clean up
   delete tpcc_database;
   tpcc_database = nullptr;
@@ -830,7 +913,6 @@ void CreateTPCCDatabase() {
   CreateOrdersTable();
   CreateNewOrderTable();
   CreateOrderLineTable();
-
 }
 
 /////////////////////////////////////////////////////////
@@ -841,11 +923,12 @@ std::random_device rd;
 std::mt19937 rng(rd());
 
 std::string GetRandomAlphaNumericString(const size_t string_length) {
-  const char alphanumeric[] = "0123456789"
+  const char alphanumeric[] =
+      "0123456789"
       "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
       "abcdefghijklmnopqrstuvwxyz";
 
-  std::uniform_int_distribution<> dist (0, sizeof(alphanumeric) - 1);
+  std::uniform_int_distribution<> dist(0, sizeof(alphanumeric) - 1);
 
   char repeated_char = alphanumeric[dist(rng)];
   std::string sample(string_length, repeated_char);
@@ -853,35 +936,31 @@ std::string GetRandomAlphaNumericString(const size_t string_length) {
 }
 
 bool GetRandomBoolean(double ratio) {
-  double sample = (double) rand() / RAND_MAX;
+  double sample = (double)rand() / RAND_MAX;
   return (sample < ratio) ? true : false;
 }
 
-int GetRandomInteger(const int lower_bound,
-                     const int upper_bound) {
-  std::uniform_int_distribution<> dist (lower_bound, upper_bound);
+int GetRandomInteger(const int lower_bound, const int upper_bound) {
+  std::uniform_int_distribution<> dist(lower_bound, upper_bound);
 
   int sample = dist(rng);
   return sample;
 }
 
-int GetRandomIntegerExcluding(const int lower_bound,
-                              const int upper_bound,
+int GetRandomIntegerExcluding(const int lower_bound, const int upper_bound,
                               const int exclude_sample) {
   int sample;
-  if(lower_bound == upper_bound)
-    return lower_bound;
+  if (lower_bound == upper_bound) return lower_bound;
 
   while (1) {
     sample = GetRandomInteger(lower_bound, upper_bound);
-    if (sample != exclude_sample)
-      break;
+    if (sample != exclude_sample) break;
   }
   return sample;
 }
 
 double GetRandomDouble(const double lower_bound, const double upper_bound) {
-  std::uniform_real_distribution<> dist (lower_bound, upper_bound);
+  std::uniform_real_distribution<> dist(lower_bound, upper_bound);
 
   double sample = dist(rng);
   return sample;
@@ -889,53 +968,52 @@ double GetRandomDouble(const double lower_bound, const double upper_bound) {
 
 std::string GetStreetName() {
   std::vector<std::string> street_names = {
-      "5835 Alderson St", "117  Ettwein St", "1400 Fairstead Ln", "1501 Denniston St", "898  Flemington St",
-      "2325 Eldridge St", "924  Lilac St", "4299 Minnesota St", "5498 Northumberland St", "5534 Phillips Ave"
-  };
+      "5835 Alderson St",  "117  Ettwein St",    "1400 Fairstead Ln",
+      "1501 Denniston St", "898  Flemington St", "2325 Eldridge St",
+      "924  Lilac St",     "4299 Minnesota St",  "5498 Northumberland St",
+      "5534 Phillips Ave"};
 
-  std::uniform_int_distribution<> dist (0, street_names.size() - 1);
+  std::uniform_int_distribution<> dist(0, street_names.size() - 1);
   return street_names[dist(rng)];
 }
 
 std::string GetZipCode() {
-  std::vector<std::string> zip_codes = {
-      "15215", "14155", "80284", "61845", "23146",
-      "21456", "12345", "21561", "87752", "91095"
-  };
+  std::vector<std::string> zip_codes = {"15215", "14155", "80284", "61845",
+                                        "23146", "21456", "12345", "21561",
+                                        "87752", "91095"};
 
-  std::uniform_int_distribution<> dist (0, zip_codes.size() - 1);
+  std::uniform_int_distribution<> dist(0, zip_codes.size() - 1);
   return zip_codes[dist(rng)];
 }
 
 std::string GetCityName() {
   std::vector<std::string> city_names = {
-      "Madison", "Pittsburgh", "New York", "Seattle", "San Francisco",
-      "Berkeley", "Palo Alto", "Los Angeles", "Boston", "Redwood Shores"
-  };
+      "Madison",  "Pittsburgh", "New York",    "Seattle", "San Francisco",
+      "Berkeley", "Palo Alto",  "Los Angeles", "Boston",  "Redwood Shores"};
 
-  std::uniform_int_distribution<> dist (0, city_names.size() - 1);
+  std::uniform_int_distribution<> dist(0, city_names.size() - 1);
   return city_names[dist(rng)];
 }
 
 std::string GetStateName() {
-  std::vector<std::string> state_names = {
-      "WI", "PA", "NY", "WA", "CA", "MA"
-  };
+  std::vector<std::string> state_names = {"WI", "PA", "NY", "WA", "CA", "MA"};
 
-  std::uniform_int_distribution<> dist (0, state_names.size() - 1);
+  std::uniform_int_distribution<> dist(0, state_names.size() - 1);
   return state_names[dist(rng)];
 }
 
 int GetTimeStamp() {
-  auto time_stamp = std::chrono::duration_cast<std::chrono::milliseconds>(
-      std::chrono::system_clock::now().time_since_epoch()).count();
+  auto time_stamp =
+      std::chrono::duration_cast<std::chrono::milliseconds>(
+          std::chrono::system_clock::now().time_since_epoch()).count();
   return time_stamp;
 }
 
-std::unique_ptr<storage::Tuple> BuildItemTuple(const int item_id,
-                                               const std::unique_ptr<VarlenPool>& pool) {
+std::unique_ptr<storage::Tuple> BuildItemTuple(
+    const int item_id, const std::unique_ptr<VarlenPool>& pool) {
   auto item_table_schema = item_table->GetSchema();
-  std::unique_ptr<storage::Tuple> item_tuple(new storage::Tuple(item_table_schema, allocate));
+  std::unique_ptr<storage::Tuple> item_tuple(
+      new storage::Tuple(item_table_schema, allocate));
 
   // I_ID
   item_tuple->SetValue(0, ValueFactory::GetIntegerValue(item_id), nullptr);
@@ -954,26 +1032,33 @@ std::unique_ptr<storage::Tuple> BuildItemTuple(const int item_id,
   return item_tuple;
 }
 
-std::unique_ptr<storage::Tuple> BuildWarehouseTuple(const int warehouse_id,
-                                                    const std::unique_ptr<VarlenPool>& pool) {
+std::unique_ptr<storage::Tuple> BuildWarehouseTuple(
+    const int warehouse_id, const std::unique_ptr<VarlenPool>& pool) {
   auto warehouse_table_schema = warehouse_table->GetSchema();
-  std::unique_ptr<storage::Tuple> warehouse_tuple(new storage::Tuple(warehouse_table_schema, allocate));
+  std::unique_ptr<storage::Tuple> warehouse_tuple(
+      new storage::Tuple(warehouse_table_schema, allocate));
 
   // W_ID
-  warehouse_tuple->SetValue(0, ValueFactory::GetIntegerValue(warehouse_id), nullptr);
+  warehouse_tuple->SetValue(0, ValueFactory::GetIntegerValue(warehouse_id),
+                            nullptr);
   // W_NAME
   auto w_name = GetRandomAlphaNumericString(warehouse_name_length);
-  warehouse_tuple->SetValue(1, ValueFactory::GetStringValue(w_name), pool.get());
+  warehouse_tuple->SetValue(1, ValueFactory::GetStringValue(w_name),
+                            pool.get());
   // W_STREET_1, W_STREET_2
   auto w_street = GetStreetName();
-  warehouse_tuple->SetValue(2, ValueFactory::GetStringValue(w_street), pool.get());
-  warehouse_tuple->SetValue(3, ValueFactory::GetStringValue(w_street), pool.get());
+  warehouse_tuple->SetValue(2, ValueFactory::GetStringValue(w_street),
+                            pool.get());
+  warehouse_tuple->SetValue(3, ValueFactory::GetStringValue(w_street),
+                            pool.get());
   // W_CITY
   auto w_city = GetCityName();
-  warehouse_tuple->SetValue(4, ValueFactory::GetStringValue(w_city), pool.get());
+  warehouse_tuple->SetValue(4, ValueFactory::GetStringValue(w_city),
+                            pool.get());
   // W_STATE
   auto w_state = GetStateName();
-  warehouse_tuple->SetValue(5, ValueFactory::GetStringValue(w_state), pool.get());
+  warehouse_tuple->SetValue(5, ValueFactory::GetStringValue(w_state),
+                            pool.get());
   // W_ZIP
   auto w_zip = GetZipCode();
   warehouse_tuple->SetValue(6, ValueFactory::GetStringValue(w_zip), pool.get());
@@ -981,34 +1066,41 @@ std::unique_ptr<storage::Tuple> BuildWarehouseTuple(const int warehouse_id,
   double w_tax = GetRandomDouble(warehouse_min_tax, warehouse_max_tax);
   warehouse_tuple->SetValue(7, ValueFactory::GetDoubleValue(w_tax), nullptr);
   // W_YTD
-  warehouse_tuple->SetValue(8, ValueFactory::GetDoubleValue(warehouse_initial_ytd), nullptr);
+  warehouse_tuple->SetValue(
+      8, ValueFactory::GetDoubleValue(warehouse_initial_ytd), nullptr);
 
   return warehouse_tuple;
 }
 
-std::unique_ptr<storage::Tuple> BuildDistrictTuple(const int district_id,
-                                                   const int warehouse_id,
-                                                   const std::unique_ptr<VarlenPool>& pool) {
+std::unique_ptr<storage::Tuple> BuildDistrictTuple(
+    const int district_id, const int warehouse_id,
+    const std::unique_ptr<VarlenPool>& pool) {
   auto district_table_schema = district_table->GetSchema();
-  std::unique_ptr<storage::Tuple> district_tuple(new storage::Tuple(district_table_schema, allocate));
+  std::unique_ptr<storage::Tuple> district_tuple(
+      new storage::Tuple(district_table_schema, allocate));
 
   // D_ID
-  district_tuple->SetValue(0, ValueFactory::GetIntegerValue(district_id), nullptr);
+  district_tuple->SetValue(0, ValueFactory::GetIntegerValue(district_id),
+                           nullptr);
   // D_W_ID
-  district_tuple->SetValue(1, ValueFactory::GetSmallIntValue(warehouse_id), nullptr);
+  district_tuple->SetValue(1, ValueFactory::GetSmallIntValue(warehouse_id),
+                           nullptr);
   // D_NAME
   auto d_name = GetRandomAlphaNumericString(district_name_length);
   district_tuple->SetValue(2, ValueFactory::GetStringValue(d_name), pool.get());
   // D_STREET_1, D_STREET_2
   auto d_street = GetStreetName();
-  district_tuple->SetValue(3, ValueFactory::GetStringValue(d_street), pool.get());
-  district_tuple->SetValue(4, ValueFactory::GetStringValue(d_street), pool.get());
+  district_tuple->SetValue(3, ValueFactory::GetStringValue(d_street),
+                           pool.get());
+  district_tuple->SetValue(4, ValueFactory::GetStringValue(d_street),
+                           pool.get());
   // D_CITY
   auto d_city = GetCityName();
   district_tuple->SetValue(5, ValueFactory::GetStringValue(d_city), pool.get());
   // D_STATE
   auto d_state = GetStateName();
-  district_tuple->SetValue(6, ValueFactory::GetStringValue(d_state), pool.get());
+  district_tuple->SetValue(6, ValueFactory::GetStringValue(d_state),
+                           pool.get());
   // D_ZIP
   auto d_zip = GetZipCode();
   district_tuple->SetValue(7, ValueFactory::GetStringValue(d_zip), pool.get());
@@ -1016,100 +1108,127 @@ std::unique_ptr<storage::Tuple> BuildDistrictTuple(const int district_id,
   double d_tax = GetRandomDouble(district_min_tax, district_max_tax);
   district_tuple->SetValue(8, ValueFactory::GetDoubleValue(d_tax), nullptr);
   // D_YTD
-  district_tuple->SetValue(9, ValueFactory::GetDoubleValue(district_initial_ytd), nullptr);
+  district_tuple->SetValue(
+      9, ValueFactory::GetDoubleValue(district_initial_ytd), nullptr);
   // D_NEXT_O_ID
   auto next_o_id = state.customers_per_district + 1;
-  district_tuple->SetValue(10, ValueFactory::GetIntegerValue(next_o_id), nullptr);
+  district_tuple->SetValue(10, ValueFactory::GetIntegerValue(next_o_id),
+                           nullptr);
 
   return district_tuple;
 }
 
-std::unique_ptr<storage::Tuple> BuildCustomerTuple(const int customer_id,
-                                                   const int district_id,
-                                                   const int warehouse_id,
-                                                   const std::unique_ptr<VarlenPool>& pool) {
+std::unique_ptr<storage::Tuple> BuildCustomerTuple(
+    const int customer_id, const int district_id, const int warehouse_id,
+    const std::unique_ptr<VarlenPool>& pool) {
   auto customer_table_schema = customer_table->GetSchema();
-  std::unique_ptr<storage::Tuple> customer_tuple(new storage::Tuple(customer_table_schema, allocate));
+  std::unique_ptr<storage::Tuple> customer_tuple(
+      new storage::Tuple(customer_table_schema, allocate));
 
   // C_ID
-  customer_tuple->SetValue(0, ValueFactory::GetIntegerValue(customer_id), nullptr);
+  customer_tuple->SetValue(0, ValueFactory::GetIntegerValue(customer_id),
+                           nullptr);
   // C_D_ID
-  customer_tuple->SetValue(1, ValueFactory::GetTinyIntValue(district_id), nullptr);
+  customer_tuple->SetValue(1, ValueFactory::GetTinyIntValue(district_id),
+                           nullptr);
   // C_W_ID
-  customer_tuple->SetValue(2, ValueFactory::GetSmallIntValue(warehouse_id), nullptr);
+  customer_tuple->SetValue(2, ValueFactory::GetSmallIntValue(warehouse_id),
+                           nullptr);
   // C_FIRST, C_MIDDLE, C_LAST
   auto c_first = GetRandomAlphaNumericString(name_length);
   auto c_middle = GetRandomAlphaNumericString(middle_name_length);
-  customer_tuple->SetValue(3, ValueFactory::GetStringValue(c_first), pool.get());
-  customer_tuple->SetValue(4, ValueFactory::GetStringValue(c_middle), pool.get());
-  customer_tuple->SetValue(5, ValueFactory::GetStringValue(c_first), pool.get());
+  customer_tuple->SetValue(3, ValueFactory::GetStringValue(c_first),
+                           pool.get());
+  customer_tuple->SetValue(4, ValueFactory::GetStringValue(c_middle),
+                           pool.get());
+  customer_tuple->SetValue(5, ValueFactory::GetStringValue(c_first),
+                           pool.get());
   // C_STREET_1, C_STREET_2
   auto c_street = GetStreetName();
-  customer_tuple->SetValue(6, ValueFactory::GetStringValue(c_street), pool.get());
-  customer_tuple->SetValue(7, ValueFactory::GetStringValue(c_street), pool.get());
+  customer_tuple->SetValue(6, ValueFactory::GetStringValue(c_street),
+                           pool.get());
+  customer_tuple->SetValue(7, ValueFactory::GetStringValue(c_street),
+                           pool.get());
   // C_CITY
   auto c_city = GetCityName();
   customer_tuple->SetValue(8, ValueFactory::GetStringValue(c_city), pool.get());
   // C_STATE
   auto c_state = GetStateName();
-  customer_tuple->SetValue(9, ValueFactory::GetStringValue(c_state), pool.get());
+  customer_tuple->SetValue(9, ValueFactory::GetStringValue(c_state),
+                           pool.get());
   // C_ZIP
   auto c_zip = GetZipCode();
   customer_tuple->SetValue(10, ValueFactory::GetStringValue(c_zip), pool.get());
   // C_PHONE
   auto c_phone = GetRandomAlphaNumericString(phone_length);
-  customer_tuple->SetValue(11, ValueFactory::GetStringValue(c_phone), pool.get());
+  customer_tuple->SetValue(11, ValueFactory::GetStringValue(c_phone),
+                           pool.get());
   // C_SINCE_TIMESTAMP
   auto c_since_timestamp = GetTimeStamp();
-  customer_tuple->SetValue(12, ValueFactory::GetTimestampValue(c_since_timestamp) , nullptr);
+  customer_tuple->SetValue(
+      12, ValueFactory::GetTimestampValue(c_since_timestamp), nullptr);
   // C_CREDIT
   auto c_bad_credit = GetRandomBoolean(customers_bad_credit_ratio);
-  auto c_credit = c_bad_credit ? customers_bad_credit: customers_good_credit;
-  customer_tuple->SetValue(13, ValueFactory::GetStringValue(c_credit), pool.get());
+  auto c_credit = c_bad_credit ? customers_bad_credit : customers_good_credit;
+  customer_tuple->SetValue(13, ValueFactory::GetStringValue(c_credit),
+                           pool.get());
   // C_CREDIT_LIM
-  customer_tuple->SetValue(14, ValueFactory::GetDoubleValue(customers_init_credit_lim), nullptr);
+  customer_tuple->SetValue(
+      14, ValueFactory::GetDoubleValue(customers_init_credit_lim), nullptr);
   // C_DISCOUNT
-  double c_discount = GetRandomDouble(customers_min_discount, customers_max_discount);
-  customer_tuple->SetValue(15, ValueFactory::GetDoubleValue(c_discount), nullptr);
+  double c_discount =
+      GetRandomDouble(customers_min_discount, customers_max_discount);
+  customer_tuple->SetValue(15, ValueFactory::GetDoubleValue(c_discount),
+                           nullptr);
   // C_BALANCE
-  customer_tuple->SetValue(16, ValueFactory::GetDoubleValue(customers_init_balance), nullptr);
+  customer_tuple->SetValue(
+      16, ValueFactory::GetDoubleValue(customers_init_balance), nullptr);
   // C_YTD_PAYMENT
-  customer_tuple->SetValue(17, ValueFactory::GetDoubleValue(customers_init_ytd), nullptr);
+  customer_tuple->SetValue(17, ValueFactory::GetDoubleValue(customers_init_ytd),
+                           nullptr);
   // C_PAYMENT_CNT
-  customer_tuple->SetValue(18, ValueFactory::GetDoubleValue(customers_init_payment_cnt), nullptr);
+  customer_tuple->SetValue(
+      18, ValueFactory::GetDoubleValue(customers_init_payment_cnt), nullptr);
   // C_DELIVERY_CNT
-  customer_tuple->SetValue(19, ValueFactory::GetDoubleValue(customers_init_delivery_cnt), nullptr);
+  customer_tuple->SetValue(
+      19, ValueFactory::GetDoubleValue(customers_init_delivery_cnt), nullptr);
   // C_DATA
   auto c_data = GetRandomAlphaNumericString(data_length);
-  customer_tuple->SetValue(20, ValueFactory::GetStringValue(c_data), pool.get());
+  customer_tuple->SetValue(20, ValueFactory::GetStringValue(c_data),
+                           pool.get());
 
   return customer_tuple;
 }
 
-std::unique_ptr<storage::Tuple> BuildHistoryTuple(const int customer_id,
-                                                  const int district_id,
-                                                  const int warehouse_id,
-                                                  const int history_district_id,
-                                                  const int history_warehouse_id,
-                                                  const std::unique_ptr<VarlenPool>& pool) {
+std::unique_ptr<storage::Tuple> BuildHistoryTuple(
+    const int customer_id, const int district_id, const int warehouse_id,
+    const int history_district_id, const int history_warehouse_id,
+    const std::unique_ptr<VarlenPool>& pool) {
   auto history_table_schema = history_table->GetSchema();
-  std::unique_ptr<storage::Tuple> history_tuple(new storage::Tuple(history_table_schema, allocate));
+  std::unique_ptr<storage::Tuple> history_tuple(
+      new storage::Tuple(history_table_schema, allocate));
 
   // H_C_ID
-  history_tuple->SetValue(0, ValueFactory::GetIntegerValue(customer_id), nullptr);
+  history_tuple->SetValue(0, ValueFactory::GetIntegerValue(customer_id),
+                          nullptr);
   // H_C_D_ID
-  history_tuple->SetValue(1, ValueFactory::GetTinyIntValue(district_id), nullptr);
+  history_tuple->SetValue(1, ValueFactory::GetTinyIntValue(district_id),
+                          nullptr);
   // H_C_W_ID
-  history_tuple->SetValue(2, ValueFactory::GetSmallIntValue(warehouse_id), nullptr);
+  history_tuple->SetValue(2, ValueFactory::GetSmallIntValue(warehouse_id),
+                          nullptr);
   // H_D_ID
-  history_tuple->SetValue(3, ValueFactory::GetTinyIntValue(history_district_id), nullptr);
+  history_tuple->SetValue(3, ValueFactory::GetTinyIntValue(history_district_id),
+                          nullptr);
   // H_W_ID
-  history_tuple->SetValue(4, ValueFactory::GetSmallIntValue(history_warehouse_id), nullptr);
+  history_tuple->SetValue(
+      4, ValueFactory::GetSmallIntValue(history_warehouse_id), nullptr);
   // H_DATE
   auto h_date = GetTimeStamp();
-  history_tuple->SetValue(5, ValueFactory::GetTimestampValue(h_date) , nullptr);
+  history_tuple->SetValue(5, ValueFactory::GetTimestampValue(h_date), nullptr);
   // H_AMOUNT
-  history_tuple->SetValue(6, ValueFactory::GetDoubleValue(history_init_amount), nullptr);
+  history_tuple->SetValue(6, ValueFactory::GetDoubleValue(history_init_amount),
+                          nullptr);
   // H_DATA
   auto h_data = GetRandomAlphaNumericString(history_data_length);
   history_tuple->SetValue(7, ValueFactory::GetStringValue(h_data), pool.get());
@@ -1123,7 +1242,8 @@ std::unique_ptr<storage::Tuple> BuildOrdersTuple(const int orders_id,
                                                  const bool new_order,
                                                  const int o_ol_cnt) {
   auto orders_table_schema = orders_table->GetSchema();
-  std::unique_ptr<storage::Tuple> orders_tuple(new storage::Tuple(orders_table_schema, allocate));
+  std::unique_ptr<storage::Tuple> orders_tuple(
+      new storage::Tuple(orders_table_schema, allocate));
 
   // O_ID
   orders_tuple->SetValue(0, ValueFactory::GetIntegerValue(orders_id), nullptr);
@@ -1131,22 +1251,28 @@ std::unique_ptr<storage::Tuple> BuildOrdersTuple(const int orders_id,
   auto o_c_id = GetRandomInteger(0, state.customers_per_district);
   orders_tuple->SetValue(1, ValueFactory::GetIntegerValue(o_c_id), nullptr);
   // O_D_ID
-  orders_tuple->SetValue(2, ValueFactory::GetIntegerValue(district_id), nullptr);
+  orders_tuple->SetValue(2, ValueFactory::GetIntegerValue(district_id),
+                         nullptr);
   // O_W_ID
-  orders_tuple->SetValue(3, ValueFactory::GetSmallIntValue(warehouse_id), nullptr);
+  orders_tuple->SetValue(3, ValueFactory::GetSmallIntValue(warehouse_id),
+                         nullptr);
   // O_ENTRY_D
   auto o_entry_d = GetTimeStamp();
-  orders_tuple->SetValue(4, ValueFactory::GetTimestampValue(o_entry_d) , nullptr);
+  orders_tuple->SetValue(4, ValueFactory::GetTimestampValue(o_entry_d),
+                         nullptr);
   // O_CARRIER_ID
   auto o_carrier_id = orders_null_carrier_id;
-  if(new_order == false) {
-    o_carrier_id = GetRandomInteger(orders_min_carrier_id, orders_max_carrier_id);
+  if (new_order == false) {
+    o_carrier_id =
+        GetRandomInteger(orders_min_carrier_id, orders_max_carrier_id);
   }
-  orders_tuple->SetValue(5, ValueFactory::GetIntegerValue(o_carrier_id), nullptr);
+  orders_tuple->SetValue(5, ValueFactory::GetIntegerValue(o_carrier_id),
+                         nullptr);
   // O_OL_CNT
   orders_tuple->SetValue(6, ValueFactory::GetIntegerValue(o_ol_cnt), nullptr);
   // O_ALL_LOCAL
-  orders_tuple->SetValue(7, ValueFactory::GetIntegerValue(orders_init_all_local), nullptr);
+  orders_tuple->SetValue(
+      7, ValueFactory::GetIntegerValue(orders_init_all_local), nullptr);
 
   return orders_tuple;
 }
@@ -1155,67 +1281,81 @@ std::unique_ptr<storage::Tuple> BuildNewOrderTuple(const int orders_id,
                                                    const int district_id,
                                                    const int warehouse_id) {
   auto new_order_table_schema = new_order_table->GetSchema();
-  std::unique_ptr<storage::Tuple> new_order_tuple(new storage::Tuple(new_order_table_schema, allocate));
+  std::unique_ptr<storage::Tuple> new_order_tuple(
+      new storage::Tuple(new_order_table_schema, allocate));
 
   // NO_O_ID
-  new_order_tuple->SetValue(0, ValueFactory::GetIntegerValue(orders_id), nullptr);
+  new_order_tuple->SetValue(0, ValueFactory::GetIntegerValue(orders_id),
+                            nullptr);
   // NO_D_ID
-  new_order_tuple->SetValue(1, ValueFactory::GetIntegerValue(district_id), nullptr);
+  new_order_tuple->SetValue(1, ValueFactory::GetIntegerValue(district_id),
+                            nullptr);
   // NO_W_ID
-  new_order_tuple->SetValue(2, ValueFactory::GetSmallIntValue(warehouse_id), nullptr);
+  new_order_tuple->SetValue(2, ValueFactory::GetSmallIntValue(warehouse_id),
+                            nullptr);
 
   return new_order_tuple;
 }
 
-std::unique_ptr<storage::Tuple> BuildOrderLineTuple(const int orders_id,
-                                                    const int district_id,
-                                                    const int warehouse_id,
-                                                    const int order_line_id,
-                                                    const int ol_supply_w_id,
-                                                    const bool new_order,
-                                                    const std::unique_ptr<VarlenPool>& pool) {
+std::unique_ptr<storage::Tuple> BuildOrderLineTuple(
+    const int orders_id, const int district_id, const int warehouse_id,
+    const int order_line_id, const int ol_supply_w_id, const bool new_order,
+    const std::unique_ptr<VarlenPool>& pool) {
   auto order_line_table_schema = order_line_table->GetSchema();
-  std::unique_ptr<storage::Tuple> order_line_tuple(new storage::Tuple(order_line_table_schema, allocate));
+  std::unique_ptr<storage::Tuple> order_line_tuple(
+      new storage::Tuple(order_line_table_schema, allocate));
 
   // OL_O_ID
-  order_line_tuple->SetValue(0, ValueFactory::GetIntegerValue(orders_id), nullptr);
+  order_line_tuple->SetValue(0, ValueFactory::GetIntegerValue(orders_id),
+                             nullptr);
   // OL_D_ID
-  order_line_tuple->SetValue(1, ValueFactory::GetIntegerValue(district_id), nullptr);
+  order_line_tuple->SetValue(1, ValueFactory::GetIntegerValue(district_id),
+                             nullptr);
   // OL_W_ID
-  order_line_tuple->SetValue(2, ValueFactory::GetSmallIntValue(warehouse_id), nullptr);
+  order_line_tuple->SetValue(2, ValueFactory::GetSmallIntValue(warehouse_id),
+                             nullptr);
   // OL_NUMBER
-  order_line_tuple->SetValue(3, ValueFactory::GetIntegerValue(order_line_id), nullptr);
+  order_line_tuple->SetValue(3, ValueFactory::GetIntegerValue(order_line_id),
+                             nullptr);
   // OL_I_ID
   auto ol_i_id = GetRandomInteger(0, state.item_count);
-  order_line_tuple->SetValue(4, ValueFactory::GetIntegerValue(ol_i_id), nullptr);
+  order_line_tuple->SetValue(4, ValueFactory::GetIntegerValue(ol_i_id),
+                             nullptr);
   // OL_SUPPLY_W_ID
-  order_line_tuple->SetValue(5, ValueFactory::GetSmallIntValue(ol_supply_w_id), nullptr);
+  order_line_tuple->SetValue(5, ValueFactory::GetSmallIntValue(ol_supply_w_id),
+                             nullptr);
   // OL_DELIVERY_D
   int64_t ol_delivery_d = GetTimeStamp();
-  if(new_order == true) {
+  if (new_order == true) {
     ol_delivery_d = PELOTON_INT64_MIN;
   }
-  order_line_tuple->SetValue(6, ValueFactory::GetTimestampValue(ol_delivery_d) , nullptr);
+  order_line_tuple->SetValue(6, ValueFactory::GetTimestampValue(ol_delivery_d),
+                             nullptr);
   // OL_QUANTITY
-  order_line_tuple->SetValue(7, ValueFactory::GetIntegerValue(order_line_init_quantity), nullptr);
+  order_line_tuple->SetValue(
+      7, ValueFactory::GetIntegerValue(order_line_init_quantity), nullptr);
   // OL_AMOUNT
   double ol_amount = 0;
-  if(new_order == true) {
-    ol_amount = GetRandomDouble(order_line_min_amount, order_line_max_ol_quantity * item_max_price);
+  if (new_order == true) {
+    ol_amount = GetRandomDouble(order_line_min_amount,
+                                order_line_max_ol_quantity * item_max_price);
   }
-  order_line_tuple->SetValue(8, ValueFactory::GetDoubleValue(ol_amount), nullptr);
+  order_line_tuple->SetValue(8, ValueFactory::GetDoubleValue(ol_amount),
+                             nullptr);
   // OL_DIST_INFO
   auto ol_dist_info = GetRandomAlphaNumericString(order_line_dist_info_length);
-  order_line_tuple->SetValue(9, ValueFactory::GetStringValue(ol_dist_info), pool.get());
+  order_line_tuple->SetValue(9, ValueFactory::GetStringValue(ol_dist_info),
+                             pool.get());
 
   return order_line_tuple;
 }
 
-std::unique_ptr<storage::Tuple> BuildStockTuple(const int stock_id,
-                                                const int s_w_id,
-                                                const std::unique_ptr<VarlenPool>& pool) {
+std::unique_ptr<storage::Tuple> BuildStockTuple(
+    const int stock_id, const int s_w_id,
+    const std::unique_ptr<VarlenPool>& pool) {
   auto stock_table_schema = stock_table->GetSchema();
-  std::unique_ptr<storage::Tuple> stock_tuple(new storage::Tuple(stock_table_schema, allocate));
+  std::unique_ptr<storage::Tuple> stock_tuple(
+      new storage::Tuple(stock_table_schema, allocate));
 
   // S_I_ID
   stock_tuple->SetValue(0, ValueFactory::GetIntegerValue(stock_id), nullptr);
@@ -1241,10 +1381,12 @@ std::unique_ptr<storage::Tuple> BuildStockTuple(const int stock_id,
   stock_tuple->SetValue(13, ValueFactory::GetIntegerValue(s_ytd), nullptr);
   // S_ORDER_CNT
   auto s_order_cnt = 0;
-  stock_tuple->SetValue(14, ValueFactory::GetIntegerValue(s_order_cnt), nullptr);
+  stock_tuple->SetValue(14, ValueFactory::GetIntegerValue(s_order_cnt),
+                        nullptr);
   // S_REMOTE_CNT
   auto s_remote_cnt = 0;
-  stock_tuple->SetValue(15, ValueFactory::GetIntegerValue(s_remote_cnt), nullptr);
+  stock_tuple->SetValue(15, ValueFactory::GetIntegerValue(s_remote_cnt),
+                        nullptr);
   // S_DATA
   auto s_data = GetRandomAlphaNumericString(data_length);
   stock_tuple->SetValue(16, ValueFactory::GetStringValue(s_data), pool.get());
@@ -1253,15 +1395,13 @@ std::unique_ptr<storage::Tuple> BuildStockTuple(const int stock_id,
 }
 
 void LoadItems() {
-
-  auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+  auto& txn_manager = concurrency::TransactionManagerFactory::GetInstance();
   auto txn = txn_manager.BeginTransaction();
   std::unique_ptr<VarlenPool> pool(new VarlenPool(BACKEND_TYPE_MM));
   std::unique_ptr<executor::ExecutorContext> context(
       new executor::ExecutorContext(txn));
 
   for (auto item_itr = 0; item_itr < state.item_count; item_itr++) {
-
     auto item_tuple = BuildItemTuple(item_itr, pool);
     planner::InsertPlan node(item_table, std::move(item_tuple));
     executor::InsertExecutor executor(&node, context.get());
@@ -1272,103 +1412,120 @@ void LoadItems() {
 }
 
 void LoadWarehouses() {
-  auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+  auto& txn_manager = concurrency::TransactionManagerFactory::GetInstance();
   std::unique_ptr<executor::ExecutorContext> context;
 
   // WAREHOUSES
-  for (auto warehouse_itr = 0; warehouse_itr < state.warehouse_count; warehouse_itr++) {
+  for (auto warehouse_itr = 0; warehouse_itr < state.warehouse_count;
+       warehouse_itr++) {
     std::unique_ptr<VarlenPool> pool(new VarlenPool(BACKEND_TYPE_MM));
 
     auto txn = txn_manager.BeginTransaction();
     context.reset(new executor::ExecutorContext(txn));
 
     auto warehouse_tuple = BuildWarehouseTuple(warehouse_itr, pool);
-    planner::InsertPlan warehouse_node(warehouse_table, std::move(warehouse_tuple));
+    planner::InsertPlan warehouse_node(warehouse_table,
+                                       std::move(warehouse_tuple));
     executor::InsertExecutor warehouse_executor(&warehouse_node, context.get());
     warehouse_executor.Execute();
 
     txn_manager.CommitTransaction();
 
     // DISTRICTS
-    for (auto district_itr = 0; district_itr < state.districts_per_warehouse; district_itr++) {
+    for (auto district_itr = 0; district_itr < state.districts_per_warehouse;
+         district_itr++) {
       auto txn = txn_manager.BeginTransaction();
       context.reset(new executor::ExecutorContext(txn));
 
-      auto district_tuple = BuildDistrictTuple(district_itr, warehouse_itr, pool);
-      planner::InsertPlan district_node(district_table, std::move(district_tuple));
+      auto district_tuple =
+          BuildDistrictTuple(district_itr, warehouse_itr, pool);
+      planner::InsertPlan district_node(district_table,
+                                        std::move(district_tuple));
       executor::InsertExecutor district_executor(&district_node, context.get());
       district_executor.Execute();
 
       txn_manager.CommitTransaction();
 
       // CUSTOMERS
-      for (auto customer_itr = 0; customer_itr < state.customers_per_district; customer_itr++) {
+      for (auto customer_itr = 0; customer_itr < state.customers_per_district;
+           customer_itr++) {
         auto txn = txn_manager.BeginTransaction();
         context.reset(new executor::ExecutorContext(txn));
 
-        auto customer_tuple = BuildCustomerTuple(customer_itr, district_itr, warehouse_itr, pool);
-        planner::InsertPlan customer_node(customer_table, std::move(customer_tuple));
-        executor::InsertExecutor customer_executor(&customer_node, context.get());
+        auto customer_tuple =
+            BuildCustomerTuple(customer_itr, district_itr, warehouse_itr, pool);
+        planner::InsertPlan customer_node(customer_table,
+                                          std::move(customer_tuple));
+        executor::InsertExecutor customer_executor(&customer_node,
+                                                   context.get());
         customer_executor.Execute();
 
         // HISTORY
 
         int history_district_id = district_itr;
         int history_warehouse_id = warehouse_itr;
-        auto history_tuple = BuildHistoryTuple(customer_itr, district_itr, warehouse_itr,
-                                               history_district_id, history_warehouse_id, pool);
-        planner::InsertPlan history_node(history_table, std::move(history_tuple));
+        auto history_tuple =
+            BuildHistoryTuple(customer_itr, district_itr, warehouse_itr,
+                              history_district_id, history_warehouse_id, pool);
+        planner::InsertPlan history_node(history_table,
+                                         std::move(history_tuple));
         executor::InsertExecutor history_executor(&history_node, context.get());
         history_executor.Execute();
 
         txn_manager.CommitTransaction();
 
-      } // END CUSTOMERS
-
+      }  // END CUSTOMERS
 
       // ORDERS
-      for(auto orders_itr = 0; orders_itr < state.customers_per_district; orders_itr++) {
+      for (auto orders_itr = 0; orders_itr < state.customers_per_district;
+           orders_itr++) {
         auto txn = txn_manager.BeginTransaction();
         context.reset(new executor::ExecutorContext(txn));
 
         // New order ?
-        auto new_order_threshold = state.customers_per_district-new_orders_per_district;
+        auto new_order_threshold =
+            state.customers_per_district - new_orders_per_district;
         bool new_order = (orders_itr > new_order_threshold);
         auto o_ol_cnt = GetRandomInteger(orders_min_ol_cnt, orders_max_ol_cnt);
 
-        auto orders_tuple = BuildOrdersTuple(orders_itr, district_itr, warehouse_itr,
-                                             new_order, o_ol_cnt);
+        auto orders_tuple = BuildOrdersTuple(
+            orders_itr, district_itr, warehouse_itr, new_order, o_ol_cnt);
         planner::InsertPlan orders_node(orders_table, std::move(orders_tuple));
         executor::InsertExecutor orders_executor(&orders_node, context.get());
         orders_executor.Execute();
 
         // NEW_ORDER
-        if(new_order){
-          auto new_order_tuple = BuildNewOrderTuple(orders_itr, district_itr, warehouse_itr);
-          planner::InsertPlan new_order_node(new_order_table, std::move(new_order_tuple));
-          executor::InsertExecutor new_order_executor(&new_order_node, context.get());
+        if (new_order) {
+          auto new_order_tuple =
+              BuildNewOrderTuple(orders_itr, district_itr, warehouse_itr);
+          planner::InsertPlan new_order_node(new_order_table,
+                                             std::move(new_order_tuple));
+          executor::InsertExecutor new_order_executor(&new_order_node,
+                                                      context.get());
           new_order_executor.Execute();
         }
 
         // ORDER_LINE
-        for (auto order_line_itr = 0; order_line_itr < o_ol_cnt; order_line_itr++) {
-
+        for (auto order_line_itr = 0; order_line_itr < o_ol_cnt;
+             order_line_itr++) {
           int ol_supply_w_id = warehouse_itr;
-          auto order_line_tuple = BuildOrderLineTuple(orders_itr, district_itr, warehouse_itr,
-                                                      order_line_itr, ol_supply_w_id, new_order, pool);
-          planner::InsertPlan order_line_node(order_line_table, std::move(order_line_tuple));
-          executor::InsertExecutor order_line_executor(&order_line_node, context.get());
+          auto order_line_tuple = BuildOrderLineTuple(
+              orders_itr, district_itr, warehouse_itr, order_line_itr,
+              ol_supply_w_id, new_order, pool);
+          planner::InsertPlan order_line_node(order_line_table,
+                                              std::move(order_line_tuple));
+          executor::InsertExecutor order_line_executor(&order_line_node,
+                                                       context.get());
           order_line_executor.Execute();
         }
 
         txn_manager.CommitTransaction();
-
       }
 
-    } // END DISTRICTS
+    }  // END DISTRICTS
 
     // STOCK
-    for(auto stock_itr = 0; stock_itr < state.item_count; stock_itr++) {
+    for (auto stock_itr = 0; stock_itr < state.item_count; stock_itr++) {
       auto txn = txn_manager.BeginTransaction();
       context.reset(new executor::ExecutorContext(txn));
 
@@ -1381,18 +1538,14 @@ void LoadWarehouses() {
       txn_manager.CommitTransaction();
     }
 
-  } // END WAREHOUSES
-
+  }  // END WAREHOUSES
 }
 
 void LoadTPCCDatabase() {
-
   LoadItems();
 
   LoadWarehouses();
-
 }
-
 
 }  // namespace tpcc
 }  // namespace benchmark

@@ -32,92 +32,79 @@
 #include "storage/lmgr.h"
 #include "utils/rel.h"
 
-
 /*
  * In revmap pages, each item stores an ItemPointerData.  These defines let one
  * find the logical revmap page number and index number of the revmap item for
  * the given heap block number.
  */
 #define HEAPBLK_TO_REVMAP_BLK(pagesPerRange, heapBlk) \
-	((heapBlk / pagesPerRange) / REVMAP_PAGE_MAXITEMS)
+  ((heapBlk / pagesPerRange) / REVMAP_PAGE_MAXITEMS)
 #define HEAPBLK_TO_REVMAP_INDEX(pagesPerRange, heapBlk) \
-	((heapBlk / pagesPerRange) % REVMAP_PAGE_MAXITEMS)
+  ((heapBlk / pagesPerRange) % REVMAP_PAGE_MAXITEMS)
 
-
-struct BrinRevmap
-{
-	Relation	rm_irel;
-	BlockNumber rm_pagesPerRange;
-	BlockNumber rm_lastRevmapPage; /* cached from the metapage */
-	Buffer		rm_metaBuf;
-	Buffer		rm_currBuf;
+struct BrinRevmap {
+  Relation rm_irel;
+  BlockNumber rm_pagesPerRange;
+  BlockNumber rm_lastRevmapPage; /* cached from the metapage */
+  Buffer rm_metaBuf;
+  Buffer rm_currBuf;
 };
 
 /* typedef appears in brin_revmap.h */
 
-
-static BlockNumber revmap_get_blkno(BrinRevmap *revmap,
-				  BlockNumber heapBlk);
+static BlockNumber revmap_get_blkno(BrinRevmap *revmap, BlockNumber heapBlk);
 static Buffer revmap_get_buffer(BrinRevmap *revmap, BlockNumber heapBlk);
 static BlockNumber revmap_extend_and_get_blkno(BrinRevmap *revmap,
-							BlockNumber heapBlk);
+                                               BlockNumber heapBlk);
 static void revmap_physical_extend(BrinRevmap *revmap);
 
 /*
  * Initialize an access object for a range map.  This must be freed by
  * brinRevmapTerminate when caller is done with it.
  */
-BrinRevmap *
-brinRevmapInitialize(Relation idxrel, BlockNumber *pagesPerRange)
-{
-	BrinRevmap *revmap;
-	Buffer		meta;
-	BrinMetaPageData *metadata;
+BrinRevmap *brinRevmapInitialize(Relation idxrel, BlockNumber *pagesPerRange) {
+  BrinRevmap *revmap;
+  Buffer meta;
+  BrinMetaPageData *metadata;
 
-	meta = ReadBuffer(idxrel, BRIN_METAPAGE_BLKNO);
-	LockBuffer(meta, BUFFER_LOCK_SHARE);
-	metadata = (BrinMetaPageData *) PageGetContents(BufferGetPage(meta));
+  meta = ReadBuffer(idxrel, BRIN_METAPAGE_BLKNO);
+  LockBuffer(meta, BUFFER_LOCK_SHARE);
+  metadata = (BrinMetaPageData *)PageGetContents(BufferGetPage(meta));
 
-	revmap = static_cast<BrinRevmap *>(palloc(sizeof(BrinRevmap)));
-	revmap->rm_irel = idxrel;
-	revmap->rm_pagesPerRange = metadata->pagesPerRange;
-	revmap->rm_lastRevmapPage = metadata->lastRevmapPage;
-	revmap->rm_metaBuf = meta;
-	revmap->rm_currBuf = InvalidBuffer;
+  revmap = static_cast<BrinRevmap *>(palloc(sizeof(BrinRevmap)));
+  revmap->rm_irel = idxrel;
+  revmap->rm_pagesPerRange = metadata->pagesPerRange;
+  revmap->rm_lastRevmapPage = metadata->lastRevmapPage;
+  revmap->rm_metaBuf = meta;
+  revmap->rm_currBuf = InvalidBuffer;
 
-	*pagesPerRange = metadata->pagesPerRange;
+  *pagesPerRange = metadata->pagesPerRange;
 
-	LockBuffer(meta, BUFFER_LOCK_UNLOCK);
+  LockBuffer(meta, BUFFER_LOCK_UNLOCK);
 
-	return revmap;
+  return revmap;
 }
 
 /*
  * Release resources associated with a revmap access object.
  */
-void
-brinRevmapTerminate(BrinRevmap *revmap)
-{
-	ReleaseBuffer(revmap->rm_metaBuf);
-	if (revmap->rm_currBuf != InvalidBuffer)
-		ReleaseBuffer(revmap->rm_currBuf);
-	pfree(revmap);
+void brinRevmapTerminate(BrinRevmap *revmap) {
+  ReleaseBuffer(revmap->rm_metaBuf);
+  if (revmap->rm_currBuf != InvalidBuffer) ReleaseBuffer(revmap->rm_currBuf);
+  pfree(revmap);
 }
 
 /*
  * Extend the revmap to cover the given heap block number.
  */
-void
-brinRevmapExtend(BrinRevmap *revmap, BlockNumber heapBlk)
-{
-	BlockNumber	mapBlk PG_USED_FOR_ASSERTS_ONLY;
+void brinRevmapExtend(BrinRevmap *revmap, BlockNumber heapBlk) {
+  BlockNumber mapBlk PG_USED_FOR_ASSERTS_ONLY;
 
-	mapBlk = revmap_extend_and_get_blkno(revmap, heapBlk);
+  mapBlk = revmap_extend_and_get_blkno(revmap, heapBlk);
 
-	/* Ensure the buffer we got is in the expected range */
-	Assert(mapBlk != InvalidBlockNumber &&
-		   mapBlk != BRIN_METAPAGE_BLKNO &&
-		   mapBlk <= revmap->rm_lastRevmapPage);
+  /* Ensure the buffer we got is in the expected range */
+  Assert(mapBlk != InvalidBlockNumber && mapBlk != BRIN_METAPAGE_BLKNO &&
+         mapBlk <= revmap->rm_lastRevmapPage);
 }
 
 /*
@@ -129,15 +116,13 @@ brinRevmapExtend(BrinRevmap *revmap, BlockNumber heapBlk)
  * The returned buffer is also recorded in the revmap struct; finishing that
  * releases the buffer, therefore the caller needn't do it explicitely.
  */
-Buffer
-brinLockRevmapPageForUpdate(BrinRevmap *revmap, BlockNumber heapBlk)
-{
-	Buffer		rmBuf;
+Buffer brinLockRevmapPageForUpdate(BrinRevmap *revmap, BlockNumber heapBlk) {
+  Buffer rmBuf;
 
-	rmBuf = revmap_get_buffer(revmap, heapBlk);
-	LockBuffer(rmBuf, BUFFER_LOCK_EXCLUSIVE);
+  rmBuf = revmap_get_buffer(revmap, heapBlk);
+  LockBuffer(rmBuf, BUFFER_LOCK_EXCLUSIVE);
 
-	return rmBuf;
+  return rmBuf;
 }
 
 /*
@@ -150,23 +135,20 @@ brinLockRevmapPageForUpdate(BrinRevmap *revmap, BlockNumber heapBlk)
  *
  * This is used both in regular operation and during WAL replay.
  */
-void
-brinSetHeapBlockItemptr(Buffer buf, BlockNumber pagesPerRange,
-						BlockNumber heapBlk, ItemPointerData tid)
-{
-	RevmapContents *contents;
-	ItemPointerData *iptr;
-	Page		page;
+void brinSetHeapBlockItemptr(Buffer buf, BlockNumber pagesPerRange,
+                             BlockNumber heapBlk, ItemPointerData tid) {
+  RevmapContents *contents;
+  ItemPointerData *iptr;
+  Page page;
 
-	/* The correct page should already be pinned and locked */
-	page = BufferGetPage(buf);
-	contents = (RevmapContents *) PageGetContents(page);
-	iptr = (ItemPointerData *) contents->rm_tids;
-	iptr += HEAPBLK_TO_REVMAP_INDEX(pagesPerRange, heapBlk);
+  /* The correct page should already be pinned and locked */
+  page = BufferGetPage(buf);
+  contents = (RevmapContents *)PageGetContents(page);
+  iptr = (ItemPointerData *)contents->rm_tids;
+  iptr += HEAPBLK_TO_REVMAP_INDEX(pagesPerRange, heapBlk);
 
-	ItemPointerSet(iptr,
-				   ItemPointerGetBlockNumber(&tid),
-				   ItemPointerGetOffsetNumber(&tid));
+  ItemPointerSet(iptr, ItemPointerGetBlockNumber(&tid),
+                 ItemPointerGetOffsetNumber(&tid));
 }
 
 /*
@@ -183,111 +165,101 @@ brinSetHeapBlockItemptr(Buffer buf, BlockNumber pagesPerRange,
  * The output tuple offset within the buffer is returned in *off, and its size
  * is returned in *size.
  */
-BrinTuple *
-brinGetTupleForHeapBlock(BrinRevmap *revmap, BlockNumber heapBlk,
-						 Buffer *buf, OffsetNumber *off, Size *size, int mode)
-{
-	Relation	idxRel = revmap->rm_irel;
-	BlockNumber mapBlk;
-	RevmapContents *contents;
-	ItemPointerData *iptr;
-	BlockNumber blk;
-	Page		page;
-	ItemId		lp;
-	BrinTuple  *tup;
-	ItemPointerData previptr;
+BrinTuple *brinGetTupleForHeapBlock(BrinRevmap *revmap, BlockNumber heapBlk,
+                                    Buffer *buf, OffsetNumber *off, Size *size,
+                                    int mode) {
+  Relation idxRel = revmap->rm_irel;
+  BlockNumber mapBlk;
+  RevmapContents *contents;
+  ItemPointerData *iptr;
+  BlockNumber blk;
+  Page page;
+  ItemId lp;
+  BrinTuple *tup;
+  ItemPointerData previptr;
 
-	/* normalize the heap block number to be the first page in the range */
-	heapBlk = (heapBlk / revmap->rm_pagesPerRange) * revmap->rm_pagesPerRange;
+  /* normalize the heap block number to be the first page in the range */
+  heapBlk = (heapBlk / revmap->rm_pagesPerRange) * revmap->rm_pagesPerRange;
 
-	/* Compute the revmap page number we need */
-	mapBlk = revmap_get_blkno(revmap, heapBlk);
-	if (mapBlk == InvalidBlockNumber)
-	{
-		*off = InvalidOffsetNumber;
-		return NULL;
-	}
+  /* Compute the revmap page number we need */
+  mapBlk = revmap_get_blkno(revmap, heapBlk);
+  if (mapBlk == InvalidBlockNumber) {
+    *off = InvalidOffsetNumber;
+    return NULL;
+  }
 
-	ItemPointerSetInvalid(&previptr);
-	for (;;)
-	{
-		CHECK_FOR_INTERRUPTS();
+  ItemPointerSetInvalid(&previptr);
+  for (;;) {
+    CHECK_FOR_INTERRUPTS();
 
-		if (revmap->rm_currBuf == InvalidBuffer ||
-			BufferGetBlockNumber(revmap->rm_currBuf) != mapBlk)
-		{
-			if (revmap->rm_currBuf != InvalidBuffer)
-				ReleaseBuffer(revmap->rm_currBuf);
+    if (revmap->rm_currBuf == InvalidBuffer ||
+        BufferGetBlockNumber(revmap->rm_currBuf) != mapBlk) {
+      if (revmap->rm_currBuf != InvalidBuffer)
+        ReleaseBuffer(revmap->rm_currBuf);
 
-			Assert(mapBlk != InvalidBlockNumber);
-			revmap->rm_currBuf = ReadBuffer(revmap->rm_irel, mapBlk);
-		}
+      Assert(mapBlk != InvalidBlockNumber);
+      revmap->rm_currBuf = ReadBuffer(revmap->rm_irel, mapBlk);
+    }
 
-		LockBuffer(revmap->rm_currBuf, BUFFER_LOCK_SHARE);
+    LockBuffer(revmap->rm_currBuf, BUFFER_LOCK_SHARE);
 
-		contents = (RevmapContents *)
-			PageGetContents(BufferGetPage(revmap->rm_currBuf));
-		iptr = contents->rm_tids;
-		iptr += HEAPBLK_TO_REVMAP_INDEX(revmap->rm_pagesPerRange, heapBlk);
+    contents =
+        (RevmapContents *)PageGetContents(BufferGetPage(revmap->rm_currBuf));
+    iptr = contents->rm_tids;
+    iptr += HEAPBLK_TO_REVMAP_INDEX(revmap->rm_pagesPerRange, heapBlk);
 
-		if (!ItemPointerIsValid(iptr))
-		{
-			LockBuffer(revmap->rm_currBuf, BUFFER_LOCK_UNLOCK);
-			return NULL;
-		}
+    if (!ItemPointerIsValid(iptr)) {
+      LockBuffer(revmap->rm_currBuf, BUFFER_LOCK_UNLOCK);
+      return NULL;
+    }
 
-		/*
-		 * Check the TID we got in a previous iteration, if any, and save the
-		 * current TID we got from the revmap; if we loop, we can sanity-check
-		 * that the next one we get is different.  Otherwise we might be stuck
-		 * looping forever if the revmap is somehow badly broken.
-		 */
-		if (ItemPointerIsValid(&previptr) && ItemPointerEquals(&previptr, iptr))
-			ereport(ERROR,
-					(errcode(ERRCODE_INDEX_CORRUPTED),
-					 errmsg_internal("corrupted BRIN index: inconsistent range map")));
-		previptr = *iptr;
+    /*
+     * Check the TID we got in a previous iteration, if any, and save the
+     * current TID we got from the revmap; if we loop, we can sanity-check
+     * that the next one we get is different.  Otherwise we might be stuck
+     * looping forever if the revmap is somehow badly broken.
+     */
+    if (ItemPointerIsValid(&previptr) && ItemPointerEquals(&previptr, iptr))
+      ereport(
+          ERROR,
+          (errcode(ERRCODE_INDEX_CORRUPTED),
+           errmsg_internal("corrupted BRIN index: inconsistent range map")));
+    previptr = *iptr;
 
-		blk = ItemPointerGetBlockNumber(iptr);
-		*off = ItemPointerGetOffsetNumber(iptr);
+    blk = ItemPointerGetBlockNumber(iptr);
+    *off = ItemPointerGetOffsetNumber(iptr);
 
-		LockBuffer(revmap->rm_currBuf, BUFFER_LOCK_UNLOCK);
+    LockBuffer(revmap->rm_currBuf, BUFFER_LOCK_UNLOCK);
 
-		/* Ok, got a pointer to where the BrinTuple should be. Fetch it. */
-		if (!BufferIsValid(*buf) || BufferGetBlockNumber(*buf) != blk)
-		{
-			if (BufferIsValid(*buf))
-				ReleaseBuffer(*buf);
-			*buf = ReadBuffer(idxRel, blk);
-		}
-		LockBuffer(*buf, mode);
-		page = BufferGetPage(*buf);
+    /* Ok, got a pointer to where the BrinTuple should be. Fetch it. */
+    if (!BufferIsValid(*buf) || BufferGetBlockNumber(*buf) != blk) {
+      if (BufferIsValid(*buf)) ReleaseBuffer(*buf);
+      *buf = ReadBuffer(idxRel, blk);
+    }
+    LockBuffer(*buf, mode);
+    page = BufferGetPage(*buf);
 
-		/* If we land on a revmap page, start over */
-		if (BRIN_IS_REGULAR_PAGE(page))
-		{
-			lp = PageGetItemId(page, *off);
-			if (ItemIdIsUsed(lp))
-			{
-				tup = (BrinTuple *) PageGetItem(page, lp);
+    /* If we land on a revmap page, start over */
+    if (BRIN_IS_REGULAR_PAGE(page)) {
+      lp = PageGetItemId(page, *off);
+      if (ItemIdIsUsed(lp)) {
+        tup = (BrinTuple *)PageGetItem(page, lp);
 
-				if (tup->bt_blkno == heapBlk)
-				{
-					if (size)
-						*size = ItemIdGetLength(lp);
-					/* found it! */
-					return tup;
-				}
-			}
-		}
+        if (tup->bt_blkno == heapBlk) {
+          if (size) *size = ItemIdGetLength(lp);
+          /* found it! */
+          return tup;
+        }
+      }
+    }
 
-		/*
-		 * No luck. Assume that the revmap was updated concurrently.
-		 */
-		LockBuffer(*buf, BUFFER_LOCK_UNLOCK);
-	}
-	/* not reached, but keep compiler quiet */
-	return NULL;
+    /*
+     * No luck. Assume that the revmap was updated concurrently.
+     */
+    LockBuffer(*buf, BUFFER_LOCK_UNLOCK);
+  }
+  /* not reached, but keep compiler quiet */
+  return NULL;
 }
 
 /*
@@ -295,19 +267,16 @@ brinGetTupleForHeapBlock(BrinRevmap *revmap, BlockNumber heapBlk,
  * number and return it.  If the revmap page hasn't been allocated yet, return
  * InvalidBlockNumber.
  */
-static BlockNumber
-revmap_get_blkno(BrinRevmap *revmap, BlockNumber heapBlk)
-{
-	BlockNumber targetblk;
+static BlockNumber revmap_get_blkno(BrinRevmap *revmap, BlockNumber heapBlk) {
+  BlockNumber targetblk;
 
-	/* obtain revmap block number, skip 1 for metapage block */
-	targetblk = HEAPBLK_TO_REVMAP_BLK(revmap->rm_pagesPerRange, heapBlk) + 1;
+  /* obtain revmap block number, skip 1 for metapage block */
+  targetblk = HEAPBLK_TO_REVMAP_BLK(revmap->rm_pagesPerRange, heapBlk) + 1;
 
-	/* Normal case: the revmap page is already allocated */
-	if (targetblk <= revmap->rm_lastRevmapPage)
-		return targetblk;
+  /* Normal case: the revmap page is already allocated */
+  if (targetblk <= revmap->rm_lastRevmapPage) return targetblk;
 
-	return InvalidBlockNumber;
+  return InvalidBlockNumber;
 }
 
 /*
@@ -316,36 +285,31 @@ revmap_get_blkno(BrinRevmap *revmap, BlockNumber heapBlk)
  * The returned buffer is also recorded in the revmap struct; finishing that
  * releases the buffer, therefore the caller needn't do it explicitely.
  */
-static Buffer
-revmap_get_buffer(BrinRevmap *revmap, BlockNumber heapBlk)
-{
-	BlockNumber mapBlk;
+static Buffer revmap_get_buffer(BrinRevmap *revmap, BlockNumber heapBlk) {
+  BlockNumber mapBlk;
 
-	/* Translate the heap block number to physical index location. */
-	mapBlk = revmap_get_blkno(revmap, heapBlk);
+  /* Translate the heap block number to physical index location. */
+  mapBlk = revmap_get_blkno(revmap, heapBlk);
 
-	if (mapBlk == InvalidBlockNumber)
-		elog(ERROR, "revmap does not cover heap block %u", heapBlk);
+  if (mapBlk == InvalidBlockNumber)
+    elog(ERROR, "revmap does not cover heap block %u", heapBlk);
 
-	/* Ensure the buffer we got is in the expected range */
-	Assert(mapBlk != BRIN_METAPAGE_BLKNO &&
-		   mapBlk <= revmap->rm_lastRevmapPage);
+  /* Ensure the buffer we got is in the expected range */
+  Assert(mapBlk != BRIN_METAPAGE_BLKNO && mapBlk <= revmap->rm_lastRevmapPage);
 
-	/*
-	 * Obtain the buffer from which we need to read.  If we already have the
-	 * correct buffer in our access struct, use that; otherwise, release that,
-	 * (if valid) and read the one we need.
-	 */
-	if (revmap->rm_currBuf == InvalidBuffer ||
-		mapBlk != BufferGetBlockNumber(revmap->rm_currBuf))
-	{
-		if (revmap->rm_currBuf != InvalidBuffer)
-			ReleaseBuffer(revmap->rm_currBuf);
+  /*
+   * Obtain the buffer from which we need to read.  If we already have the
+   * correct buffer in our access struct, use that; otherwise, release that,
+   * (if valid) and read the one we need.
+   */
+  if (revmap->rm_currBuf == InvalidBuffer ||
+      mapBlk != BufferGetBlockNumber(revmap->rm_currBuf)) {
+    if (revmap->rm_currBuf != InvalidBuffer) ReleaseBuffer(revmap->rm_currBuf);
 
-		revmap->rm_currBuf = ReadBuffer(revmap->rm_irel, mapBlk);
-	}
+    revmap->rm_currBuf = ReadBuffer(revmap->rm_irel, mapBlk);
+  }
 
-	return revmap->rm_currBuf;
+  return revmap->rm_currBuf;
 }
 
 /*
@@ -353,147 +317,132 @@ revmap_get_buffer(BrinRevmap *revmap, BlockNumber heapBlk)
  * number and return it. If the revmap page hasn't been allocated yet, extend
  * the revmap until it is.
  */
-static BlockNumber
-revmap_extend_and_get_blkno(BrinRevmap *revmap, BlockNumber heapBlk)
-{
-	BlockNumber	targetblk;
+static BlockNumber revmap_extend_and_get_blkno(BrinRevmap *revmap,
+                                               BlockNumber heapBlk) {
+  BlockNumber targetblk;
 
-	/* obtain revmap block number, skip 1 for metapage block */
-	targetblk = HEAPBLK_TO_REVMAP_BLK(revmap->rm_pagesPerRange, heapBlk) + 1;
+  /* obtain revmap block number, skip 1 for metapage block */
+  targetblk = HEAPBLK_TO_REVMAP_BLK(revmap->rm_pagesPerRange, heapBlk) + 1;
 
-	/* Extend the revmap, if necessary */
-	while (targetblk > revmap->rm_lastRevmapPage)
-	{
-		CHECK_FOR_INTERRUPTS();
-		revmap_physical_extend(revmap);
-	}
+  /* Extend the revmap, if necessary */
+  while (targetblk > revmap->rm_lastRevmapPage) {
+    CHECK_FOR_INTERRUPTS();
+    revmap_physical_extend(revmap);
+  }
 
-	return targetblk;
+  return targetblk;
 }
 
 /*
  * Try to extend the revmap by one page.  This might not happen for a number of
  * reasons; caller is expected to retry until the expected outcome is obtained.
  */
-static void
-revmap_physical_extend(BrinRevmap *revmap)
-{
-	Buffer		buf;
-	Page		page;
-	Page		metapage;
-	BrinMetaPageData *metadata;
-	BlockNumber mapBlk;
-	BlockNumber nblocks;
-	Relation	irel = revmap->rm_irel;
-	bool		needLock = !RELATION_IS_LOCAL(irel);
+static void revmap_physical_extend(BrinRevmap *revmap) {
+  Buffer buf;
+  Page page;
+  Page metapage;
+  BrinMetaPageData *metadata;
+  BlockNumber mapBlk;
+  BlockNumber nblocks;
+  Relation irel = revmap->rm_irel;
+  bool needLock = !RELATION_IS_LOCAL(irel);
 
-	/*
-	 * Lock the metapage. This locks out concurrent extensions of the revmap,
-	 * but note that we still need to grab the relation extension lock because
-	 * another backend can extend the index with regular BRIN pages.
-	 */
-	LockBuffer(revmap->rm_metaBuf, BUFFER_LOCK_EXCLUSIVE);
-	metapage = BufferGetPage(revmap->rm_metaBuf);
-	metadata = (BrinMetaPageData *) PageGetContents(metapage);
+  /*
+   * Lock the metapage. This locks out concurrent extensions of the revmap,
+   * but note that we still need to grab the relation extension lock because
+   * another backend can extend the index with regular BRIN pages.
+   */
+  LockBuffer(revmap->rm_metaBuf, BUFFER_LOCK_EXCLUSIVE);
+  metapage = BufferGetPage(revmap->rm_metaBuf);
+  metadata = (BrinMetaPageData *)PageGetContents(metapage);
 
-	/*
-	 * Check that our cached lastRevmapPage value was up-to-date; if it
-	 * wasn't, update the cached copy and have caller start over.
-	 */
-	if (metadata->lastRevmapPage != revmap->rm_lastRevmapPage)
-	{
-		revmap->rm_lastRevmapPage = metadata->lastRevmapPage;
-		LockBuffer(revmap->rm_metaBuf, BUFFER_LOCK_UNLOCK);
-		return;
-	}
-	mapBlk = metadata->lastRevmapPage + 1;
+  /*
+   * Check that our cached lastRevmapPage value was up-to-date; if it
+   * wasn't, update the cached copy and have caller start over.
+   */
+  if (metadata->lastRevmapPage != revmap->rm_lastRevmapPage) {
+    revmap->rm_lastRevmapPage = metadata->lastRevmapPage;
+    LockBuffer(revmap->rm_metaBuf, BUFFER_LOCK_UNLOCK);
+    return;
+  }
+  mapBlk = metadata->lastRevmapPage + 1;
 
-	nblocks = RelationGetNumberOfBlocks(irel);
-	if (mapBlk < nblocks)
-	{
-		buf = ReadBuffer(irel, mapBlk);
-		LockBuffer(buf, BUFFER_LOCK_EXCLUSIVE);
-		page = BufferGetPage(buf);
-	}
-	else
-	{
-		if (needLock)
-			LockRelationForExtension(irel, ExclusiveLock);
+  nblocks = RelationGetNumberOfBlocks(irel);
+  if (mapBlk < nblocks) {
+    buf = ReadBuffer(irel, mapBlk);
+    LockBuffer(buf, BUFFER_LOCK_EXCLUSIVE);
+    page = BufferGetPage(buf);
+  } else {
+    if (needLock) LockRelationForExtension(irel, ExclusiveLock);
 
-		buf = ReadBuffer(irel, P_NEW);
-		if (BufferGetBlockNumber(buf) != mapBlk)
-		{
-			/*
-			 * Very rare corner case: somebody extended the relation
-			 * concurrently after we read its length.  If this happens, give
-			 * up and have caller start over.  We will have to evacuate that
-			 * page from under whoever is using it.
-			 */
-			if (needLock)
-				UnlockRelationForExtension(irel, ExclusiveLock);
-			LockBuffer(revmap->rm_metaBuf, BUFFER_LOCK_UNLOCK);
-			return;
-		}
-		LockBuffer(buf, BUFFER_LOCK_EXCLUSIVE);
-		page = BufferGetPage(buf);
+    buf = ReadBuffer(irel, P_NEW);
+    if (BufferGetBlockNumber(buf) != mapBlk) {
+      /*
+       * Very rare corner case: somebody extended the relation
+       * concurrently after we read its length.  If this happens, give
+       * up and have caller start over.  We will have to evacuate that
+       * page from under whoever is using it.
+       */
+      if (needLock) UnlockRelationForExtension(irel, ExclusiveLock);
+      LockBuffer(revmap->rm_metaBuf, BUFFER_LOCK_UNLOCK);
+      return;
+    }
+    LockBuffer(buf, BUFFER_LOCK_EXCLUSIVE);
+    page = BufferGetPage(buf);
 
-		if (needLock)
-			UnlockRelationForExtension(irel, ExclusiveLock);
-	}
+    if (needLock) UnlockRelationForExtension(irel, ExclusiveLock);
+  }
 
-	/* Check that it's a regular block (or an empty page) */
-	if (!PageIsNew(page) && !BRIN_IS_REGULAR_PAGE(page))
-		ereport(ERROR,
-				(errcode(ERRCODE_INDEX_CORRUPTED),
-				 errmsg("unexpected page type 0x%04X in BRIN index \"%s\" block %u",
-						BrinPageType(page),
-						RelationGetRelationName(irel),
-						BufferGetBlockNumber(buf))));
+  /* Check that it's a regular block (or an empty page) */
+  if (!PageIsNew(page) && !BRIN_IS_REGULAR_PAGE(page))
+    ereport(ERROR,
+            (errcode(ERRCODE_INDEX_CORRUPTED),
+             errmsg("unexpected page type 0x%04X in BRIN index \"%s\" block %u",
+                    BrinPageType(page), RelationGetRelationName(irel),
+                    BufferGetBlockNumber(buf))));
 
-	/* If the page is in use, evacuate it and restart */
-	if (brin_start_evacuating_page(irel, buf))
-	{
-		LockBuffer(revmap->rm_metaBuf, BUFFER_LOCK_UNLOCK);
-		brin_evacuate_page(irel, revmap->rm_pagesPerRange, revmap, buf);
+  /* If the page is in use, evacuate it and restart */
+  if (brin_start_evacuating_page(irel, buf)) {
+    LockBuffer(revmap->rm_metaBuf, BUFFER_LOCK_UNLOCK);
+    brin_evacuate_page(irel, revmap->rm_pagesPerRange, revmap, buf);
 
-		/* have caller start over */
-		return;
-	}
+    /* have caller start over */
+    return;
+  }
 
-	/*
-	 * Ok, we have now locked the metapage and the target block. Re-initialize
-	 * it as a revmap page.
-	 */
-	START_CRIT_SECTION();
+  /*
+   * Ok, we have now locked the metapage and the target block. Re-initialize
+   * it as a revmap page.
+   */
+  START_CRIT_SECTION();
 
-	/* the rm_tids array is initialized to all invalid by PageInit */
-	brin_page_init(page, BRIN_PAGETYPE_REVMAP);
-	MarkBufferDirty(buf);
+  /* the rm_tids array is initialized to all invalid by PageInit */
+  brin_page_init(page, BRIN_PAGETYPE_REVMAP);
+  MarkBufferDirty(buf);
 
-	metadata->lastRevmapPage = mapBlk;
-	MarkBufferDirty(revmap->rm_metaBuf);
+  metadata->lastRevmapPage = mapBlk;
+  MarkBufferDirty(revmap->rm_metaBuf);
 
-	if (RelationNeedsWAL(revmap->rm_irel))
-	{
-		xl_brin_revmap_extend xlrec;
-		XLogRecPtr	recptr;
+  if (RelationNeedsWAL(revmap->rm_irel)) {
+    xl_brin_revmap_extend xlrec;
+    XLogRecPtr recptr;
 
-		xlrec.targetBlk = mapBlk;
+    xlrec.targetBlk = mapBlk;
 
-		XLogBeginInsert();
-		XLogRegisterData((char *) &xlrec, SizeOfBrinRevmapExtend);
-		XLogRegisterBuffer(0, revmap->rm_metaBuf, 0);
+    XLogBeginInsert();
+    XLogRegisterData((char *)&xlrec, SizeOfBrinRevmapExtend);
+    XLogRegisterBuffer(0, revmap->rm_metaBuf, 0);
 
-		XLogRegisterBuffer(1, buf, REGBUF_WILL_INIT);
+    XLogRegisterBuffer(1, buf, REGBUF_WILL_INIT);
 
-		recptr = XLogInsert(RM_BRIN_ID, XLOG_BRIN_REVMAP_EXTEND);
-		PageSetLSN(metapage, recptr);
-		PageSetLSN(page, recptr);
-	}
+    recptr = XLogInsert(RM_BRIN_ID, XLOG_BRIN_REVMAP_EXTEND);
+    PageSetLSN(metapage, recptr);
+    PageSetLSN(page, recptr);
+  }
 
-	END_CRIT_SECTION();
+  END_CRIT_SECTION();
 
-	LockBuffer(revmap->rm_metaBuf, BUFFER_LOCK_UNLOCK);
+  LockBuffer(revmap->rm_metaBuf, BUFFER_LOCK_UNLOCK);
 
-	UnlockReleaseBuffer(buf);
+  UnlockReleaseBuffer(buf);
 }

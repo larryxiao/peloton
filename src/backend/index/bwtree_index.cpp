@@ -55,7 +55,6 @@ bool BWTreeIndex<KeyType, ValueType, KeyComparator,
   return false;
 }
 
-
 template <typename KeyType, typename ValueType, class KeyComparator,
           class KeyEqualityChecker>
 std::vector<ItemPointer>

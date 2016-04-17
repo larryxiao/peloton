@@ -23,18 +23,19 @@ namespace benchmark {
 namespace hyadapt {
 
 void Usage() {
-  LOG_INFO("Command line options : hyadapt <options>"
-          "   -h --help              :  Print help message"
-          "   -o --operator-type     :  Operator type"
-          "   -k --scale-factor      :  # of tuples"
-          "   -s --selectivity       :  Selectivity"
-          "   -p --projectivity      :  Projectivity"
-          "   -l --layout            :  Layout"
-          "   -t --transactions      :  # of transactions"
-          "   -e --experiment_type   :  Experiment Type"
-          "   -c --column_count      :  # of columns"
-          "   -w --write_ratio       :  Fraction of writes"
-          "   -g --tuples_per_tg     :  # of tuples per tilegroup");
+  LOG_INFO(
+      "Command line options : hyadapt <options>"
+      "   -h --help              :  Print help message"
+      "   -o --operator-type     :  Operator type"
+      "   -k --scale-factor      :  # of tuples"
+      "   -s --selectivity       :  Selectivity"
+      "   -p --projectivity      :  Projectivity"
+      "   -l --layout            :  Layout"
+      "   -t --transactions      :  # of transactions"
+      "   -e --experiment_type   :  Experiment Type"
+      "   -c --column_count      :  # of columns"
+      "   -w --write_ratio       :  Fraction of writes"
+      "   -g --tuples_per_tg     :  # of tuples per tilegroup");
   exit(EXIT_FAILURE);
 }
 

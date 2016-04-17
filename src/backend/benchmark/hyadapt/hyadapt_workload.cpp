@@ -38,7 +38,6 @@
 #include "backend/concurrency/transaction.h"
 #include "backend/concurrency/transaction_manager_factory.h"
 
-
 #include "backend/executor/executor_context.h"
 #include "backend/executor/abstract_executor.h"
 #include "backend/executor/aggregate_executor.h"
@@ -117,13 +116,11 @@ static void WriteOutput(double duration) {
 
   LOG_INFO("----------------------------------------------------------");
   LOG_INFO("%d %d %lf %lf %lf %d %d %d %d %lf %lf %d %lf %d :: %lf ms",
-           state.layout_mode, state.operator_type,
-           state.projectivity, state.selectivity,
-           state.write_ratio, state.scale_factor,
+           state.layout_mode, state.operator_type, state.projectivity,
+           state.selectivity, state.write_ratio, state.scale_factor,
            state.column_count, state.subset_experiment_type,
-           state.access_num_groups, state.subset_ratio,
-           state.theta, state.split_point,
-           state.sample_weight, state.tuples_per_tilegroup,
+           state.access_num_groups, state.subset_ratio, state.theta,
+           state.split_point, state.sample_weight, state.tuples_per_tilegroup,
            duration);
 
   out << state.layout_mode << " ";
@@ -261,7 +258,8 @@ void RunDirectTest() {
 
   // Create and set up seq scan executor
   auto predicate = CreatePredicate(lower_bound);
-  planner::SeqScanPlan seq_scan_node(hyadapt_table.get(), predicate, column_ids);
+  planner::SeqScanPlan seq_scan_node(hyadapt_table.get(), predicate,
+                                     column_ids);
 
   executor::SeqScanExecutor seq_scan_executor(&seq_scan_node, context.get());
 
@@ -286,8 +284,8 @@ void RunDirectTest() {
   std::shared_ptr<const catalog::Schema> output_schema(
       new catalog::Schema(output_columns));
   bool physify_flag = true;  // is going to create a physical tile
-  planner::MaterializationPlan mat_node(old_to_new_cols,
-                                        output_schema, physify_flag);
+  planner::MaterializationPlan mat_node(old_to_new_cols, output_schema,
+                                        physify_flag);
 
   executor::MaterializationExecutor mat_executor(&mat_node, nullptr);
   mat_executor.AddChild(&seq_scan_executor);
@@ -308,9 +306,8 @@ void RunDirectTest() {
     target_list.emplace_back(col_id, expression);
   }
 
-  std::unique_ptr<planner::ProjectInfo> project_info(
-      new planner::ProjectInfo(std::move(target_list),
-                               std::move(direct_map_list)));
+  std::unique_ptr<planner::ProjectInfo> project_info(new planner::ProjectInfo(
+      std::move(target_list), std::move(direct_map_list)));
 
   auto orig_tuple_count = state.scale_factor * state.tuples_per_tilegroup;
   auto bulk_insert_count = state.write_ratio * orig_tuple_count;
@@ -364,7 +361,8 @@ void RunAggregateTest() {
 
   // Create and set up seq scan executor
   auto predicate = CreatePredicate(lower_bound);
-  planner::SeqScanPlan seq_scan_node(hyadapt_table.get(), predicate, column_ids);
+  planner::SeqScanPlan seq_scan_node(hyadapt_table.get(), predicate,
+                                     column_ids);
 
   executor::SeqScanExecutor seq_scan_executor(&seq_scan_node, context.get());
 
@@ -404,7 +402,8 @@ void RunAggregateTest() {
   }
 
   // 4) Set up predicate (empty)
-  std::unique_ptr<const expression::AbstractExpression> aggregate_predicate(nullptr);
+  std::unique_ptr<const expression::AbstractExpression> aggregate_predicate(
+      nullptr);
 
   // 5) Create output table schema
   auto data_table_schema = hyadapt_table->GetSchema();
@@ -412,12 +411,14 @@ void RunAggregateTest() {
   for (auto column_id : column_ids) {
     columns.push_back(data_table_schema->GetColumn(column_id));
   }
-  std::shared_ptr<const catalog::Schema> output_table_schema(new catalog::Schema(columns));
+  std::shared_ptr<const catalog::Schema> output_table_schema(
+      new catalog::Schema(columns));
 
   // OK) Create the plan node
   planner::AggregatePlan aggregation_node(
-      std::move(proj_info), std::move(aggregate_predicate), std::move(agg_terms),
-      std::move(group_by_columns), output_table_schema, AGGREGATE_TYPE_PLAIN);
+      std::move(proj_info), std::move(aggregate_predicate),
+      std::move(agg_terms), std::move(group_by_columns), output_table_schema,
+      AGGREGATE_TYPE_PLAIN);
 
   executor::AggregateExecutor aggregation_executor(&aggregation_node,
                                                    context.get());
@@ -444,8 +445,8 @@ void RunAggregateTest() {
   std::shared_ptr<const catalog::Schema> output_schema(
       new catalog::Schema(output_columns));
   bool physify_flag = true;  // is going to create a physical tile
-  planner::MaterializationPlan mat_node(old_to_new_cols,
-                                        output_schema, physify_flag);
+  planner::MaterializationPlan mat_node(old_to_new_cols, output_schema,
+                                        physify_flag);
 
   executor::MaterializationExecutor mat_executor(&mat_node, nullptr);
   mat_executor.AddChild(&aggregation_executor);
@@ -466,9 +467,8 @@ void RunAggregateTest() {
     target_list.emplace_back(col_id, expression);
   }
 
-  std::unique_ptr<planner::ProjectInfo> project_info(
-      new planner::ProjectInfo(std::move(target_list),
-                               std::move(direct_map_list)));
+  std::unique_ptr<planner::ProjectInfo> project_info(new planner::ProjectInfo(
+      std::move(target_list), std::move(direct_map_list)));
 
   auto orig_tuple_count = state.scale_factor * state.tuples_per_tilegroup;
   auto bulk_insert_count = state.write_ratio * orig_tuple_count;
@@ -522,7 +522,8 @@ void RunArithmeticTest() {
 
   // Create and set up seq scan executor
   auto predicate = CreatePredicate(lower_bound);
-  planner::SeqScanPlan seq_scan_node(hyadapt_table.get(), predicate, column_ids);
+  planner::SeqScanPlan seq_scan_node(hyadapt_table.get(), predicate,
+                                     column_ids);
 
   executor::SeqScanExecutor seq_scan_executor(&seq_scan_node, context.get());
 
@@ -563,9 +564,8 @@ void RunArithmeticTest() {
   planner::ProjectInfo::Target target = std::make_pair(0, sum_expr);
   target_list.push_back(target);
 
-  std::unique_ptr<planner::ProjectInfo> project_info(
-      new planner::ProjectInfo(std::move(target_list),
-                               std::move(direct_map_list)));
+  std::unique_ptr<planner::ProjectInfo> project_info(new planner::ProjectInfo(
+      std::move(target_list), std::move(direct_map_list)));
 
   planner::ProjectionPlan node(std::move(project_info), projection_schema);
 
@@ -590,8 +590,8 @@ void RunArithmeticTest() {
   std::shared_ptr<const catalog::Schema> output_schema(
       new catalog::Schema(output_columns));
   bool physify_flag = true;  // is going to create a physical tile
-  planner::MaterializationPlan mat_node(old_to_new_cols,
-                                        output_schema, physify_flag);
+  planner::MaterializationPlan mat_node(old_to_new_cols, output_schema,
+                                        physify_flag);
 
   executor::MaterializationExecutor mat_executor(&mat_node, nullptr);
   mat_executor.AddChild(&projection_executor);
@@ -718,8 +718,8 @@ void RunJoinTest() {
   std::shared_ptr<const catalog::Schema> output_schema(
       new catalog::Schema(output_columns));
   bool physify_flag = true;  // is going to create a physical tile
-  planner::MaterializationPlan mat_node(old_to_new_cols,
-                                        output_schema, physify_flag);
+  planner::MaterializationPlan mat_node(old_to_new_cols, output_schema,
+                                        physify_flag);
 
   executor::MaterializationExecutor mat_executor(&mat_node, nullptr);
   mat_executor.AddChild(&nested_loop_join_executor);
@@ -795,7 +795,8 @@ void RunSubsetTest(SubsetType subset_test_type, double fraction,
 
   // Create and set up seq scan executor
   auto predicate = CreatePredicate(lower_bound);
-  planner::SeqScanPlan seq_scan_node(hyadapt_table.get(), predicate, column_ids);
+  planner::SeqScanPlan seq_scan_node(hyadapt_table.get(), predicate,
+                                     column_ids);
 
   executor::SeqScanExecutor seq_scan_executor(&seq_scan_node, context.get());
 
@@ -820,8 +821,8 @@ void RunSubsetTest(SubsetType subset_test_type, double fraction,
   std::shared_ptr<const catalog::Schema> output_schema(
       new catalog::Schema(output_columns));
   bool physify_flag = true;  // is going to create a physical tile
-  planner::MaterializationPlan mat_node(old_to_new_cols,
-                                        output_schema, physify_flag);
+  planner::MaterializationPlan mat_node(old_to_new_cols, output_schema,
+                                        physify_flag);
 
   executor::MaterializationExecutor mat_executor(&mat_node, nullptr);
   mat_executor.AddChild(&seq_scan_executor);
@@ -926,7 +927,8 @@ void RunUpdateTest() {
 
   // Create and set up seq scan executor
   auto predicate = CreatePredicate(lower_bound);
-  planner::SeqScanPlan seq_scan_node(hyadapt_table.get(), predicate, column_ids);
+  planner::SeqScanPlan seq_scan_node(hyadapt_table.get(), predicate,
+                                     column_ids);
 
   executor::SeqScanExecutor seq_scan_executor(&seq_scan_node, context.get());
 
@@ -1937,9 +1939,9 @@ void RunHyriseExperiment() {
 oid_t scan_ctr = 0;
 oid_t insert_ctr = 0;
 
-static void ExecuteConcurrentTest(std::vector<executor::AbstractExecutor *> &executors,
-                                  oid_t thread_id, oid_t num_threads,
-                                  double scan_ratio) {
+static void ExecuteConcurrentTest(
+    std::vector<executor::AbstractExecutor *> &executors, oid_t thread_id,
+    oid_t num_threads, double scan_ratio) {
   std::random_device rd;
   std::mt19937 gen(rd());
   std::uniform_real_distribution<> dis(0, 1);
@@ -2017,7 +2019,8 @@ void RunConcurrentTest(oid_t thread_id, oid_t num_threads, double scan_ratio) {
 
   // Create and set up seq scan executor
   auto predicate = CreatePredicate(lower_bound);
-  planner::SeqScanPlan seq_scan_node(hyadapt_table.get(), predicate, column_ids);
+  planner::SeqScanPlan seq_scan_node(hyadapt_table.get(), predicate,
+                                     column_ids);
 
   executor::SeqScanExecutor seq_scan_executor(&seq_scan_node, context.get());
 
@@ -2042,8 +2045,8 @@ void RunConcurrentTest(oid_t thread_id, oid_t num_threads, double scan_ratio) {
   std::shared_ptr<const catalog::Schema> output_schema(
       new catalog::Schema(output_columns));
   bool physify_flag = true;  // is going to create a physical tile
-  planner::MaterializationPlan mat_node(old_to_new_cols,
-                                        output_schema, physify_flag);
+  planner::MaterializationPlan mat_node(old_to_new_cols, output_schema,
+                                        physify_flag);
 
   executor::MaterializationExecutor mat_executor(&mat_node, nullptr);
   mat_executor.AddChild(&seq_scan_executor);

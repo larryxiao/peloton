@@ -11,4 +11,3 @@
  */
 
 #include "postgres.h"
-

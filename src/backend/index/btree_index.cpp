@@ -94,12 +94,12 @@ bool BTreeIndex<KeyType, ValueType, KeyComparator,
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator,
-    class KeyEqualityChecker>
-bool BTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>
-::ConditionalInsertEntry(const storage::Tuple *key,
-    const ItemPointer &location,
-    std::function<bool(const storage::Tuple *, const ItemPointer &)> predicate) {
-
+          class KeyEqualityChecker>
+bool BTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::
+    ConditionalInsertEntry(const storage::Tuple *key,
+                           const ItemPointer &location,
+                           std::function<bool(const storage::Tuple *,
+                                              const ItemPointer &)> predicate) {
   std::vector<ItemPointer> result;
   KeyType index_key;
   index_key.SetFromKey(key);
@@ -138,8 +138,8 @@ BTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Scan(
   // Check if we have leading (leftmost) column equality
   // refer : http://www.postgresql.org/docs/8.2/static/indexes-multicolumn.html
   oid_t leading_column_id = 0;
-  auto key_column_ids_itr = std::find(
-      key_column_ids.begin(), key_column_ids.end(), leading_column_id);
+  auto key_column_ids_itr = std::find(key_column_ids.begin(),
+                                      key_column_ids.end(), leading_column_id);
 
   // SPECIAL CASE : leading column id is one of the key column ids
   // and is involved in a equality constraint

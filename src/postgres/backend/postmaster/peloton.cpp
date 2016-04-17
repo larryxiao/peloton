@@ -73,10 +73,10 @@ bool logging_module_check = false;
 
 bool syncronization_commit = false;
 
-static void peloton_process_status(const peloton_status& status, PlanState *planstate);
+static void peloton_process_status(const peloton_status &status,
+                                   PlanState *planstate);
 
-static void peloton_send_output(const peloton_status&  status,
-                                bool sendTuples,
+static void peloton_send_output(const peloton_status &status, bool sendTuples,
                                 DestReceiver *dest,
                                 MemcachedState *mc_state = nullptr);
 
@@ -88,27 +88,25 @@ static void __attribute__((unused)) peloton_test_config();
  *  Handle bootstrap requests in Peloton.
  * ----------
  */
-void
-peloton_bootstrap() {
-
+void peloton_bootstrap() {
   try {
     // Process the utility statement
     peloton::bridge::Bootstrap::BootstrapPeloton();
 
     // Sart logging
-    if(logging_module_check == false){
-      elog(DEBUG2, "....................................................................................................");
+    if (logging_module_check == false) {
+      elog(DEBUG2,
+           "..................................................................."
+           ".................................");
       elog(DEBUG2, "Logging Mode : %d", peloton_logging_mode);
 
       // Finished checking logging module
       logging_module_check = true;
 
-      if(peloton_logging_mode != LOGGING_TYPE_INVALID) {
-
+      if (peloton_logging_mode != LOGGING_TYPE_INVALID) {
         // Launching a thread for logging
-        auto& log_manager = peloton::logging::LogManager::GetInstance();
+        auto &log_manager = peloton::logging::LogManager::GetInstance();
         if (!log_manager.IsInLoggingMode()) {
-
           // Set default logging mode
           log_manager.SetSyncCommit(true);
           elog(DEBUG2, "Wait for standby mode");
@@ -116,7 +114,8 @@ peloton_bootstrap() {
           // Wait for standby mode
           std::thread(&peloton::logging::LogManager::StartStandbyMode,
                       &log_manager).detach();
-          log_manager.WaitForModeTransition(peloton::LOGGING_STATUS_TYPE_STANDBY, true);
+          log_manager.WaitForModeTransition(
+              peloton::LOGGING_STATUS_TYPE_STANDBY, true);
           elog(DEBUG2, "Standby mode");
 
           // Do any recovery
@@ -124,19 +123,16 @@ peloton_bootstrap() {
           elog(DEBUG2, "Wait for logging mode");
 
           // Wait for logging mode
-          log_manager.WaitForModeTransition(peloton::LOGGING_STATUS_TYPE_LOGGING, true);
+          log_manager.WaitForModeTransition(
+              peloton::LOGGING_STATUS_TYPE_LOGGING, true);
           elog(DEBUG2, "Logging mode");
         }
-
       }
-
     }
 
-  }
-  catch(const std::exception &exception) {
+  } catch (const std::exception &exception) {
     elog(ERROR, "Peloton exception :: %s", exception.what());
   }
-
 }
 
 /* ----------
@@ -145,22 +141,18 @@ peloton_bootstrap() {
  *  Handle DDL requests in Peloton.
  * ----------
  */
-void
-peloton_ddl(Node *parsetree) {
-
+void peloton_ddl(Node *parsetree) {
   /* Ignore invalid parsetrees */
-  if(parsetree == NULL || nodeTag(parsetree) == T_Invalid) {
+  if (parsetree == NULL || nodeTag(parsetree) == T_Invalid) {
     return;
   }
 
   try {
     /* Process the utility statement */
     peloton::bridge::DDL::ProcessUtility(parsetree);
-  }
-  catch(const std::exception &exception) {
+  } catch (const std::exception &exception) {
     elog(ERROR, "Peloton exception :: %s", exception.what());
   }
-
 }
 
 /* ----------
@@ -169,13 +161,9 @@ peloton_ddl(Node *parsetree) {
  *  Handle DML requests in Peloton.
  * ----------
  */
-void
-peloton_dml(PlanState *planstate,
-            bool sendTuples,
-            DestReceiver *dest,
-            TupleDesc tuple_desc,
-            const char *prepStmtName,
-            MemcachedState *mc_state) {
+void peloton_dml(PlanState *planstate, bool sendTuples, DestReceiver *dest,
+                 TupleDesc tuple_desc, const char *prepStmtName,
+                 MemcachedState *mc_state) {
   peloton_status status;
 
   // Get the parameter list
@@ -188,17 +176,22 @@ peloton_dml(PlanState *planstate,
 
   // Get our plan
   if (prepStmtName) {
-    mapped_plan_ptr = peloton::bridge::PlanTransformer::GetInstance().GetCachedPlan(prepStmtName);
+    mapped_plan_ptr =
+        peloton::bridge::PlanTransformer::GetInstance().GetCachedPlan(
+            prepStmtName);
   }
 
   /* A cache miss or an unnamed plan */
   if (mapped_plan_ptr.get() == nullptr) {
-    auto plan_state = peloton::bridge::DMLUtils::peloton_prepare_data(planstate);
-    mapped_plan_ptr = peloton::bridge::PlanTransformer::GetInstance().TransformPlan(plan_state, prepStmtName);
+    auto plan_state =
+        peloton::bridge::DMLUtils::peloton_prepare_data(planstate);
+    mapped_plan_ptr =
+        peloton::bridge::PlanTransformer::GetInstance().TransformPlan(
+            plan_state, prepStmtName);
   }
 
   // Ignore empty plans
-  if(mapped_plan_ptr.get() == nullptr) {
+  if (mapped_plan_ptr.get() == nullptr) {
     elog(WARNING, "Empty or unrecognized plan sent to Peloton");
     return;
   }
@@ -207,20 +200,18 @@ peloton_dml(PlanState *planstate,
   std::vector<peloton::oid_t> qual;
 
   // Analyze the plan
-  //if(rand() % 100 < 5)
+  // if(rand() % 100 < 5)
   //  peloton::bridge::PlanTransformer::AnalyzePlan(plan, planstate);
 
   // Execute the plantree
   try {
     status = peloton::bridge::PlanExecutor::ExecutePlan(mapped_plan_ptr.get(),
-                                                        param_list,
-                                                        tuple_desc);
+                                                        param_list, tuple_desc);
 
     // Clean up the plantree
     // Not clean up now ! This is cached !
-    //peloton::bridge::PlanTransformer::CleanPlan(mapped_plan);
-  }
-  catch(const std::exception &exception) {
+    // peloton::bridge::PlanTransformer::CleanPlan(mapped_plan);
+  } catch (const std::exception &exception) {
     elog(ERROR, "Peloton exception :: %s", exception.what());
   }
 
@@ -229,7 +220,6 @@ peloton_dml(PlanState *planstate,
 
   // Send output to dest
   peloton_send_output(status, sendTuples, dest, mc_state);
-
 }
 
 /* ----------
@@ -238,28 +228,24 @@ peloton_dml(PlanState *planstate,
  *  Process status.
  * ----------
  */
-static void
-peloton_process_status(const peloton_status& status, PlanState *planstate) {
+static void peloton_process_status(const peloton_status &status,
+                                   PlanState *planstate) {
   int code;
 
   // Process the status code
   code = status.m_result;
-  switch(code) {
+  switch (code) {
     case peloton::RESULT_SUCCESS: {
       // TODO: Update stats ?
       planstate->state->es_processed = status.m_processed;
-    }
-    break;
+    } break;
 
     case peloton::RESULT_INVALID:
     case peloton::RESULT_FAILURE:
     default: {
-      ereport(ERROR, (errcode(status.m_result),
-          errmsg("transaction failed")));
-    }
-    break;
+      ereport(ERROR, (errcode(status.m_result), errmsg("transaction failed")));
+    } break;
   }
-
 }
 
 /* ----------
@@ -268,27 +254,22 @@ peloton_process_status(const peloton_status& status, PlanState *planstate) {
  *  Send the output to the receiver.
  * ----------
  */
-void
-peloton_send_output(const peloton_status& status,
-                    bool sendTuples,
-                    DestReceiver *dest,
-                    MemcachedState *mc_state) {
+void peloton_send_output(const peloton_status &status, bool sendTuples,
+                         DestReceiver *dest, MemcachedState *mc_state) {
   TupleTableSlot *slot;
 
   // Go over any result slots
-  if(status.m_result_slots != NULL)  {
-    ListCell   *lc;
+  if (status.m_result_slots != NULL) {
+    ListCell *lc;
 
-    foreach(lc, status.m_result_slots)
-    {
-      slot = (TupleTableSlot *) lfirst(lc);
+    foreach (lc, status.m_result_slots) {
+      slot = (TupleTableSlot *)lfirst(lc);
 
       /*
        * if the tuple is null, then we assume there is nothing more to
        * process so we just end the loop...
        */
-      if (TupIsNull(slot))
-        break;
+      if (TupIsNull(slot)) break;
 
       /*
        * If we are supposed to send the tuple somewhere, do so. (In
@@ -298,10 +279,9 @@ peloton_send_output(const peloton_status& status,
       // for memcached, directly call printtup
       if (sendTuples && mc_state) {
         printtup(slot, dest, mc_state);
-      }
-      else if (sendTuples)
+      } else if (sendTuples)
         // otherwise use dest fp
-        (*dest->receiveSlot) (slot, dest, mc_state);
+        (*dest->receiveSlot)(slot, dest, mc_state);
 
       /*
        * Free the underlying heap_tuple
@@ -315,9 +295,7 @@ peloton_send_output(const peloton_status& status,
   }
 }
 
-static void
-peloton_test_config() {
-
+static void peloton_test_config() {
   auto val = GetConfigOption("peloton_mode", false, false);
   elog(LOG, "Before SetConfigOption : %s", val);
 
@@ -340,32 +318,30 @@ bool IsPelotonQuery(List *relationOids) {
   bool peloton_query = false;
 
   // Check if we are in Postmaster environment */
-  if(IsPostmasterEnvironment == false && IsBackend == false) {
+  if (IsPostmasterEnvironment == false && IsBackend == false) {
     return false;
   }
 
-  if(relationOids != NULL) {
-    ListCell   *lc;
+  if (relationOids != NULL) {
+    ListCell *lc;
 
     // Go over each relation on which the plan depends
-    foreach(lc, relationOids) {
+    foreach (lc, relationOids) {
       Oid relation_id = lfirst_oid(lc);
 
       // Check if relation in public namespace
       Relation target_table = relation_open(relation_id, AccessShareLock);
       Oid target_table_namespace = target_table->rd_rel->relnamespace;
 
-      if(target_table_namespace == PG_PUBLIC_NAMESPACE) {
+      if (target_table_namespace == PG_PUBLIC_NAMESPACE) {
         peloton_query = true;
       }
 
       relation_close(target_table, AccessShareLock);
 
-      if(peloton_query == true)
-        break;
+      if (peloton_query == true) break;
     }
   }
 
   return peloton_query;
 }
-

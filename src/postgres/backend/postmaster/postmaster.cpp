@@ -267,8 +267,8 @@ static int Shutdown = NoShutdown;
 static bool FatalError = false;    /* T if recovering from backend crash */
 static bool RecoveryError = false; /* T if WAL recovery failed */
 
-char *memcached_dbname = strdup("postgres");
-char *memcached_username = strdup("siddharth");
+std::string memcached_dbname = "postgres";
+std::string memcached_username = "postgres";
 /*
  * We use a simple state machine to control startup, shutdown, and
  * crash recovery (which is rather like shutdown followed by startup).
@@ -550,30 +550,29 @@ thread_local int postmaster_alive_fds[2] = {-1, -1};
 HANDLE PostmasterHandle;
 #endif
 
-//TODO: Peloton adds for rpc test
-//extern uint64_t server_request_recv_number;
-//extern uint64_t server_request_recv_bytes;
-//extern uint64_t server_response_send_number;
-//extern uint64_t server_response_send_bytes;
+// TODO: Peloton adds for rpc test
+// extern uint64_t server_request_recv_number;
+// extern uint64_t server_request_recv_bytes;
+// extern uint64_t server_response_send_number;
+// extern uint64_t server_response_send_bytes;
 
-void* Coordinator(__attribute__((unused)) void* arg) {
+void *Coordinator(__attribute__((unused)) void *arg) {
+  google::protobuf::Service *service = NULL;
 
-    google::protobuf::Service* service = NULL;
+  try {
+    peloton::networking::RpcServer rpc_server(PELOTON_SERVER_PORT);
+    service = new peloton::networking::PelotonService();
+    rpc_server.RegisterService(service);
+    rpc_server.Start();
+  } catch (std::exception &e) {
+    std::cerr << "STD EXCEPTION : " << e.what() << std::endl;
+    delete service;
+  } catch (...) {
+    std::cerr << "UNTRAPPED EXCEPTION " << std::endl;
+    delete service;
+  }
 
-    try {
-        peloton::networking::RpcServer rpc_server(PELOTON_SERVER_PORT);
-        service = new peloton::networking::PelotonService();
-        rpc_server.RegisterService(service);
-        rpc_server.Start();
-    } catch (std::exception& e) {
-        std::cerr << "STD EXCEPTION : " << e.what() << std::endl;
-        delete service;
-    } catch (...) {
-        std::cerr << "UNTRAPPED EXCEPTION " << std::endl;
-        delete service;
-    }
-
-    return NULL;
+  return NULL;
 }
 
 /*
@@ -583,27 +582,29 @@ void* Coordinator(__attribute__((unused)) void* arg) {
 void TestSend() {
   sleep(2);
   try {
+    // it is not necessary to use smart point here
+    auto pclient =
+        std::make_shared<peloton::networking::RpcClient>(PELOTON_ENDPOINT_ADDR);
+
+    for (int i = 1; i < 10001; i++) {
+      peloton::networking::HeartbeatRequest request;
+      request.set_sender_site(i);
+      request.set_last_transaction_id(i * 10);
+
       // it is not necessary to use smart point here
-      auto pclient = std::make_shared<peloton::networking::RpcClient>(PELOTON_ENDPOINT_ADDR);
+      // auto pclient =
+      // std::make_shared<peloton::networking::RpcClient>(PELOTON_ENDPOINT_INTER);
 
-      for (int i = 1; i < 10001; i++) {
-          peloton::networking::HeartbeatRequest request;
-          request.set_sender_site(i);
-          request.set_last_transaction_id(i*10);
+      // peloton::message::RpcClient client(PELOTON_ENDPOINT_ADDR);
+      // client.Heartbeat(&request, &response);
 
-          // it is not necessary to use smart point here
-          //auto pclient = std::make_shared<peloton::networking::RpcClient>(PELOTON_ENDPOINT_INTER);
+      pclient->Heartbeat(&request, NULL);
+    }
 
-          //peloton::message::RpcClient client(PELOTON_ENDPOINT_ADDR);
-          //client.Heartbeat(&request, &response);
-
-          pclient->Heartbeat(&request, NULL);
-      }
-
-  } catch (std::exception& e) {
-      std::cerr << "STD EXCEPTION : " << e.what() << std::endl;
+  } catch (std::exception &e) {
+    std::cerr << "STD EXCEPTION : " << e.what() << std::endl;
   } catch (...) {
-      std::cerr << " UNTRAPPED EXCEPTION " << std::endl;
+    std::cerr << " UNTRAPPED EXCEPTION " << std::endl;
   }
 }
 
@@ -1307,12 +1308,14 @@ void PostmasterMain(int argc, char *argv[]) {
   maybe_start_bgworker();
 
   // Lanch coordinator to recv msg
-//  std::thread coordinator(Coordinator);
-//  coordinator.detach();
+  //  std::thread coordinator(Coordinator);
+  //  coordinator.detach();
 
   pthread_t testThread;
   int ret = pthread_create(&testThread, NULL, Coordinator, NULL);
-      if( -1 == ret ) { printf( "create thread error\n" ); }
+  if (-1 == ret) {
+    printf("create thread error\n");
+  }
   pthread_detach(testThread);
 
   // Lanch test_send to put msg in send_queue.
@@ -3882,8 +3885,8 @@ static void BackendInitialize(Port *port, bool is_memcached) {
     if (status != STATUS_OK) proc_exit(0);
   } else {
     // memcached credentials
-    port->database_name = memcached_dbname;
-    port->user_name = memcached_username;
+    strcpy(port->database_name, memcached_dbname.c_str());
+    strcpy(port->user_name, memcached_username.c_str());
   }
 
   /*
@@ -4552,11 +4555,6 @@ static void ExitPostmaster(int status) {
    *
    * MUST		-- vadim 05-10-1999
    */
-
-  // free memcached db data
-  free(memcached_dbname);
-  free(memcached_username);
-
   proc_exit(status);
 }
 

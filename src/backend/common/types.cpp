@@ -276,7 +276,7 @@ int32_t HexCharToInt(char c) {
   return retval;
 }
 
-bool HexDecodeToBinary(unsigned char *bufferdst, const char *hexString) {
+bool HexDecodeToBinary(unsigned char* bufferdst, const char* hexString) {
   assert(hexString);
   size_t len = strlen(hexString);
   if ((len % 2) != 0) return false;

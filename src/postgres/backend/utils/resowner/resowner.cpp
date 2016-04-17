@@ -49,62 +49,60 @@
 /*
  * ResourceOwner objects look like this
  */
-typedef struct ResourceOwnerData
-{
-	ResourceOwner parent;		/* NULL if no parent (toplevel owner) */
-	ResourceOwner firstchild;	/* head of linked list of children */
-	ResourceOwner nextchild;	/* next child of same parent */
-	const char *name;			/* name (just for debugging) */
+typedef struct ResourceOwnerData {
+  ResourceOwner parent;     /* NULL if no parent (toplevel owner) */
+  ResourceOwner firstchild; /* head of linked list of children */
+  ResourceOwner nextchild;  /* next child of same parent */
+  const char *name;         /* name (just for debugging) */
 
-	/* We have built-in support for remembering owned buffers */
-	int			nbuffers;		/* number of owned buffer pins */
-	Buffer	   *buffers;		/* dynamically allocated array */
-	int			maxbuffers;		/* currently allocated array size */
+  /* We have built-in support for remembering owned buffers */
+  int nbuffers;    /* number of owned buffer pins */
+  Buffer *buffers; /* dynamically allocated array */
+  int maxbuffers;  /* currently allocated array size */
 
-	/* We can remember up to MAX_RESOWNER_LOCKS references to local locks. */
-	int			nlocks;			/* number of owned locks */
-	LOCALLOCK  *locks[MAX_RESOWNER_LOCKS];		/* list of owned locks */
+  /* We can remember up to MAX_RESOWNER_LOCKS references to local locks. */
+  int nlocks;                           /* number of owned locks */
+  LOCALLOCK *locks[MAX_RESOWNER_LOCKS]; /* list of owned locks */
 
-	/* We have built-in support for remembering catcache references */
-	int			ncatrefs;		/* number of owned catcache pins */
-	HeapTuple  *catrefs;		/* dynamically allocated array */
-	int			maxcatrefs;		/* currently allocated array size */
+  /* We have built-in support for remembering catcache references */
+  int ncatrefs;       /* number of owned catcache pins */
+  HeapTuple *catrefs; /* dynamically allocated array */
+  int maxcatrefs;     /* currently allocated array size */
 
-	int			ncatlistrefs;	/* number of owned catcache-list pins */
-	CatCList  **catlistrefs;	/* dynamically allocated array */
-	int			maxcatlistrefs; /* currently allocated array size */
+  int ncatlistrefs;       /* number of owned catcache-list pins */
+  CatCList **catlistrefs; /* dynamically allocated array */
+  int maxcatlistrefs;     /* currently allocated array size */
 
-	/* We have built-in support for remembering relcache references */
-	int			nrelrefs;		/* number of owned relcache pins */
-	Relation   *relrefs;		/* dynamically allocated array */
-	int			maxrelrefs;		/* currently allocated array size */
+  /* We have built-in support for remembering relcache references */
+  int nrelrefs;      /* number of owned relcache pins */
+  Relation *relrefs; /* dynamically allocated array */
+  int maxrelrefs;    /* currently allocated array size */
 
-	/* We have built-in support for remembering plancache references */
-	int			nplanrefs;		/* number of owned plancache pins */
-	CachedPlan **planrefs;		/* dynamically allocated array */
-	int			maxplanrefs;	/* currently allocated array size */
+  /* We have built-in support for remembering plancache references */
+  int nplanrefs;         /* number of owned plancache pins */
+  CachedPlan **planrefs; /* dynamically allocated array */
+  int maxplanrefs;       /* currently allocated array size */
 
-	/* We have built-in support for remembering tupdesc references */
-	int			ntupdescs;		/* number of owned tupdesc references */
-	TupleDesc  *tupdescs;		/* dynamically allocated array */
-	int			maxtupdescs;	/* currently allocated array size */
+  /* We have built-in support for remembering tupdesc references */
+  int ntupdescs;       /* number of owned tupdesc references */
+  TupleDesc *tupdescs; /* dynamically allocated array */
+  int maxtupdescs;     /* currently allocated array size */
 
-	/* We have built-in support for remembering snapshot references */
-	int			nsnapshots;		/* number of owned snapshot references */
-	Snapshot   *snapshots;		/* dynamically allocated array */
-	int			maxsnapshots;	/* currently allocated array size */
+  /* We have built-in support for remembering snapshot references */
+  int nsnapshots;      /* number of owned snapshot references */
+  Snapshot *snapshots; /* dynamically allocated array */
+  int maxsnapshots;    /* currently allocated array size */
 
-	/* We have built-in support for remembering open temporary files */
-	int			nfiles;			/* number of owned temporary files */
-	File	   *files;			/* dynamically allocated array */
-	int			maxfiles;		/* currently allocated array size */
+  /* We have built-in support for remembering open temporary files */
+  int nfiles;   /* number of owned temporary files */
+  File *files;  /* dynamically allocated array */
+  int maxfiles; /* currently allocated array size */
 
-	/* We have built-in support for remembering dynamic shmem segments */
-	int			ndsms;			/* number of owned shmem segments */
-	dsm_segment **dsms;			/* dynamically allocated array */
-	int			maxdsms;		/* currently allocated array size */
-}	ResourceOwnerData;
-
+  /* We have built-in support for remembering dynamic shmem segments */
+  int ndsms;          /* number of owned shmem segments */
+  dsm_segment **dsms; /* dynamically allocated array */
+  int maxdsms;        /* currently allocated array size */
+} ResourceOwnerData;
 
 /*****************************************************************************
  *	  GLOBAL MEMORY															 *
@@ -117,19 +115,18 @@ thread_local ResourceOwner TopTransactionResourceOwner = NULL;
 /*
  * List of add-on callbacks for resource releasing
  */
-typedef struct ResourceReleaseCallbackItem
-{
-	struct ResourceReleaseCallbackItem *next;
-	ResourceReleaseCallback callback;
-	void	   *arg;
+typedef struct ResourceReleaseCallbackItem {
+  struct ResourceReleaseCallbackItem *next;
+  ResourceReleaseCallback callback;
+  void *arg;
 } ResourceReleaseCallbackItem;
 
-thread_local static ResourceReleaseCallbackItem *ResourceRelease_callbacks = NULL;
+thread_local static ResourceReleaseCallbackItem *ResourceRelease_callbacks =
+    NULL;
 
 /*****************************************************************************
  *	  EXPORTED ROUTINES														 *
  *****************************************************************************/
-
 
 /*
  * ResourceOwnerCreate
@@ -138,10 +135,8 @@ thread_local static ResourceReleaseCallbackItem *ResourceRelease_callbacks = NUL
  * All ResourceOwner objects are kept in TopMemoryContext, since they should
  * only be freed explicitly.
  */
-ResourceOwner
-ResourceOwnerCreate(ResourceOwner parent, const char *name)
-{
-	return nullptr;
+ResourceOwner ResourceOwnerCreate(ResourceOwner parent, const char *name) {
+  return nullptr;
 }
 
 /*
@@ -170,14 +165,8 @@ ResourceOwnerCreate(ResourceOwner parent, const char *name)
  * at completion of a main transaction.  This generally means that *all*
  * resources will be released, and so we can optimize things a bit.
  */
-void
-ResourceOwnerRelease(ResourceOwner owner,
-					 ResourceReleasePhase phase,
-					 bool isCommit,
-					 bool isTopLevel)
-{
-}
-
+void ResourceOwnerRelease(ResourceOwner owner, ResourceReleasePhase phase,
+                          bool isCommit, bool isTopLevel) {}
 
 /*
  * ResourceOwnerDelete
@@ -185,28 +174,17 @@ ResourceOwnerRelease(ResourceOwner owner,
  *
  * The caller must have already released all resources in the object tree.
  */
-void
-ResourceOwnerDelete(ResourceOwner owner)
-{
-}
+void ResourceOwnerDelete(ResourceOwner owner) {}
 
 /*
  * Fetch parent of a ResourceOwner (returns NULL if top-level owner)
  */
-ResourceOwner
-ResourceOwnerGetParent(ResourceOwner owner)
-{
-	return nullptr;
-}
+ResourceOwner ResourceOwnerGetParent(ResourceOwner owner) { return nullptr; }
 
 /*
  * Reassign a ResourceOwner to have a new___ parent
  */
-void
-ResourceOwnerNewParent(ResourceOwner owner,
-					   ResourceOwner newparent)
-{
-}
+void ResourceOwnerNewParent(ResourceOwner owner, ResourceOwner newparent) {}
 
 /*
  * Register or deregister callback functions for resource cleanup
@@ -217,16 +195,11 @@ ResourceOwnerNewParent(ResourceOwner owner,
  * Note that the callback occurs post-commit or post-abort, so the callback
  * functions can only do noncritical cleanup.
  */
-void
-RegisterResourceReleaseCallback(ResourceReleaseCallback callback, void *arg)
-{
-}
+void RegisterResourceReleaseCallback(ResourceReleaseCallback callback,
+                                     void *arg) {}
 
-void
-UnregisterResourceReleaseCallback(ResourceReleaseCallback callback, void *arg)
-{
-}
-
+void UnregisterResourceReleaseCallback(ResourceReleaseCallback callback,
+                                       void *arg) {}
 
 /*
  * Make sure there is room for at least one more entry in a ResourceOwner's
@@ -238,10 +211,7 @@ UnregisterResourceReleaseCallback(ResourceReleaseCallback callback, void *arg)
  * We allow the case owner == NULL because the bufmgr is sometimes invoked
  * outside any transaction (for example, during WAL recovery).
  */
-void
-ResourceOwnerEnlargeBuffers(ResourceOwner owner)
-{
-}
+void ResourceOwnerEnlargeBuffers(ResourceOwner owner) {}
 
 /*
  * Remember that a buffer pin is owned by a ResourceOwner
@@ -251,10 +221,7 @@ ResourceOwnerEnlargeBuffers(ResourceOwner owner)
  * We allow the case owner == NULL because the bufmgr is sometimes invoked
  * outside any transaction (for example, during WAL recovery).
  */
-void
-ResourceOwnerRememberBuffer(ResourceOwner owner, Buffer buffer)
-{
-}
+void ResourceOwnerRememberBuffer(ResourceOwner owner, Buffer buffer) {}
 
 /*
  * Forget that a buffer pin is owned by a ResourceOwner
@@ -262,10 +229,7 @@ ResourceOwnerRememberBuffer(ResourceOwner owner, Buffer buffer)
  * We allow the case owner == NULL because the bufmgr is sometimes invoked
  * outside any transaction (for example, during WAL recovery).
  */
-void
-ResourceOwnerForgetBuffer(ResourceOwner owner, Buffer buffer)
-{
-}
+void ResourceOwnerForgetBuffer(ResourceOwner owner, Buffer buffer) {}
 
 /*
  * Remember that a Local Lock is owned by a ResourceOwner
@@ -277,18 +241,12 @@ ResourceOwnerForgetBuffer(ResourceOwner owner, Buffer buffer)
  * ResourceOwnerForgetLock doesn't need to scan through a large array to find
  * the entry.
  */
-void
-ResourceOwnerRememberLock(ResourceOwner owner, LOCALLOCK *locallock)
-{
-}
+void ResourceOwnerRememberLock(ResourceOwner owner, LOCALLOCK *locallock) {}
 
 /*
  * Forget that a Local Lock is owned by a ResourceOwner
  */
-void
-ResourceOwnerForgetLock(ResourceOwner owner, LOCALLOCK *locallock)
-{
-}
+void ResourceOwnerForgetLock(ResourceOwner owner, LOCALLOCK *locallock) {}
 
 /*
  * Make sure there is room for at least one more entry in a ResourceOwner's
@@ -297,28 +255,19 @@ ResourceOwnerForgetLock(ResourceOwner owner, LOCALLOCK *locallock)
  * This is separate from actually inserting an entry because if we run out
  * of memory, it's critical to do so *before* acquiring the resource.
  */
-void
-ResourceOwnerEnlargeCatCacheRefs(ResourceOwner owner)
-{
-}
+void ResourceOwnerEnlargeCatCacheRefs(ResourceOwner owner) {}
 
 /*
  * Remember that a catcache reference is owned by a ResourceOwner
  *
  * Caller must have previously done ResourceOwnerEnlargeCatCacheRefs()
  */
-void
-ResourceOwnerRememberCatCacheRef(ResourceOwner owner, HeapTuple tuple)
-{
-}
+void ResourceOwnerRememberCatCacheRef(ResourceOwner owner, HeapTuple tuple) {}
 
 /*
  * Forget that a catcache reference is owned by a ResourceOwner
  */
-void
-ResourceOwnerForgetCatCacheRef(ResourceOwner owner, HeapTuple tuple)
-{
-}
+void ResourceOwnerForgetCatCacheRef(ResourceOwner owner, HeapTuple tuple) {}
 
 /*
  * Make sure there is room for at least one more entry in a ResourceOwner's
@@ -327,28 +276,20 @@ ResourceOwnerForgetCatCacheRef(ResourceOwner owner, HeapTuple tuple)
  * This is separate from actually inserting an entry because if we run out
  * of memory, it's critical to do so *before* acquiring the resource.
  */
-void
-ResourceOwnerEnlargeCatCacheListRefs(ResourceOwner owner)
-{
-}
+void ResourceOwnerEnlargeCatCacheListRefs(ResourceOwner owner) {}
 
 /*
  * Remember that a catcache-list reference is owned by a ResourceOwner
  *
  * Caller must have previously done ResourceOwnerEnlargeCatCacheListRefs()
  */
-void
-ResourceOwnerRememberCatCacheListRef(ResourceOwner owner, CatCList *list)
-{
+void ResourceOwnerRememberCatCacheListRef(ResourceOwner owner, CatCList *list) {
 }
 
 /*
  * Forget that a catcache-list reference is owned by a ResourceOwner
  */
-void
-ResourceOwnerForgetCatCacheListRef(ResourceOwner owner, CatCList *list)
-{
-}
+void ResourceOwnerForgetCatCacheListRef(ResourceOwner owner, CatCList *list) {}
 
 /*
  * Make sure there is room for at least one more entry in a ResourceOwner's
@@ -357,28 +298,19 @@ ResourceOwnerForgetCatCacheListRef(ResourceOwner owner, CatCList *list)
  * This is separate from actually inserting an entry because if we run out
  * of memory, it's critical to do so *before* acquiring the resource.
  */
-void
-ResourceOwnerEnlargeRelationRefs(ResourceOwner owner)
-{
-}
+void ResourceOwnerEnlargeRelationRefs(ResourceOwner owner) {}
 
 /*
  * Remember that a relcache reference is owned by a ResourceOwner
  *
  * Caller must have previously done ResourceOwnerEnlargeRelationRefs()
  */
-void
-ResourceOwnerRememberRelationRef(ResourceOwner owner, Relation rel)
-{
-}
+void ResourceOwnerRememberRelationRef(ResourceOwner owner, Relation rel) {}
 
 /*
  * Forget that a relcache reference is owned by a ResourceOwner
  */
-void
-ResourceOwnerForgetRelationRef(ResourceOwner owner, Relation rel)
-{
-}
+void ResourceOwnerForgetRelationRef(ResourceOwner owner, Relation rel) {}
 
 /*
  * Make sure there is room for at least one more entry in a ResourceOwner's
@@ -387,28 +319,19 @@ ResourceOwnerForgetRelationRef(ResourceOwner owner, Relation rel)
  * This is separate from actually inserting an entry because if we run out
  * of memory, it's critical to do so *before* acquiring the resource.
  */
-void
-ResourceOwnerEnlargePlanCacheRefs(ResourceOwner owner)
-{
-}
+void ResourceOwnerEnlargePlanCacheRefs(ResourceOwner owner) {}
 
 /*
  * Remember that a plancache reference is owned by a ResourceOwner
  *
  * Caller must have previously done ResourceOwnerEnlargePlanCacheRefs()
  */
-void
-ResourceOwnerRememberPlanCacheRef(ResourceOwner owner, CachedPlan *plan)
-{
-}
+void ResourceOwnerRememberPlanCacheRef(ResourceOwner owner, CachedPlan *plan) {}
 
 /*
  * Forget that a plancache reference is owned by a ResourceOwner
  */
-void
-ResourceOwnerForgetPlanCacheRef(ResourceOwner owner, CachedPlan *plan)
-{
-}
+void ResourceOwnerForgetPlanCacheRef(ResourceOwner owner, CachedPlan *plan) {}
 
 /*
  * Make sure there is room for at least one more entry in a ResourceOwner's
@@ -417,28 +340,19 @@ ResourceOwnerForgetPlanCacheRef(ResourceOwner owner, CachedPlan *plan)
  * This is separate from actually inserting an entry because if we run out
  * of memory, it's critical to do so *before* acquiring the resource.
  */
-void
-ResourceOwnerEnlargeTupleDescs(ResourceOwner owner)
-{
-}
+void ResourceOwnerEnlargeTupleDescs(ResourceOwner owner) {}
 
 /*
  * Remember that a tupdesc reference is owned by a ResourceOwner
  *
  * Caller must have previously done ResourceOwnerEnlargeTupleDescs()
  */
-void
-ResourceOwnerRememberTupleDesc(ResourceOwner owner, TupleDesc tupdesc)
-{
-}
+void ResourceOwnerRememberTupleDesc(ResourceOwner owner, TupleDesc tupdesc) {}
 
 /*
  * Forget that a tupdesc reference is owned by a ResourceOwner
  */
-void
-ResourceOwnerForgetTupleDesc(ResourceOwner owner, TupleDesc tupdesc)
-{
-}
+void ResourceOwnerForgetTupleDesc(ResourceOwner owner, TupleDesc tupdesc) {}
 
 /*
  * Make sure there is room for at least one more entry in a ResourceOwner's
@@ -447,29 +361,19 @@ ResourceOwnerForgetTupleDesc(ResourceOwner owner, TupleDesc tupdesc)
  * This is separate from actually inserting an entry because if we run out
  * of memory, it's critical to do so *before* acquiring the resource.
  */
-void
-ResourceOwnerEnlargeSnapshots(ResourceOwner owner)
-{
-}
+void ResourceOwnerEnlargeSnapshots(ResourceOwner owner) {}
 
 /*
  * Remember that a snapshot reference is owned by a ResourceOwner
  *
  * Caller must have previously done ResourceOwnerEnlargeSnapshots()
  */
-void
-ResourceOwnerRememberSnapshot(ResourceOwner owner, Snapshot snapshot)
-{
-}
+void ResourceOwnerRememberSnapshot(ResourceOwner owner, Snapshot snapshot) {}
 
 /*
  * Forget that a snapshot reference is owned by a ResourceOwner
  */
-void
-ResourceOwnerForgetSnapshot(ResourceOwner owner, Snapshot snapshot)
-{
-}
-
+void ResourceOwnerForgetSnapshot(ResourceOwner owner, Snapshot snapshot) {}
 
 /*
  * Make sure there is room for at least one more entry in a ResourceOwner's
@@ -478,29 +382,19 @@ ResourceOwnerForgetSnapshot(ResourceOwner owner, Snapshot snapshot)
  * This is separate from actually inserting an entry because if we run out
  * of memory, it's critical to do so *before* acquiring the resource.
  */
-void
-ResourceOwnerEnlargeFiles(ResourceOwner owner)
-{
-}
+void ResourceOwnerEnlargeFiles(ResourceOwner owner) {}
 
 /*
  * Remember that a temporary file is owned by a ResourceOwner
  *
  * Caller must have previously done ResourceOwnerEnlargeFiles()
  */
-void
-ResourceOwnerRememberFile(ResourceOwner owner, File file)
-{
-}
+void ResourceOwnerRememberFile(ResourceOwner owner, File file) {}
 
 /*
  * Forget that a temporary file is owned by a ResourceOwner
  */
-void
-ResourceOwnerForgetFile(ResourceOwner owner, File file)
-{
-}
-
+void ResourceOwnerForgetFile(ResourceOwner owner, File file) {}
 
 /*
  * Make sure there is room for at least one more entry in a ResourceOwner's
@@ -509,26 +403,16 @@ ResourceOwnerForgetFile(ResourceOwner owner, File file)
  * This is separate from actually inserting an entry because if we run out
  * of memory, it's critical to do so *before* acquiring the resource.
  */
-void
-ResourceOwnerEnlargeDSMs(ResourceOwner owner)
-{
-}
+void ResourceOwnerEnlargeDSMs(ResourceOwner owner) {}
 
 /*
  * Remember that a dynamic shmem segment is owned by a ResourceOwner
  *
  * Caller must have previously done ResourceOwnerEnlargeDSMs()
  */
-void
-ResourceOwnerRememberDSM(ResourceOwner owner, dsm_segment *seg)
-{
-}
+void ResourceOwnerRememberDSM(ResourceOwner owner, dsm_segment *seg) {}
 
 /*
  * Forget that a dynamic shmem segment is owned by a ResourceOwner
  */
-void
-ResourceOwnerForgetDSM(ResourceOwner owner, dsm_segment *seg)
-{
-}
-
+void ResourceOwnerForgetDSM(ResourceOwner owner, dsm_segment *seg) {}

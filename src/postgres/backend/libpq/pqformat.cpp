@@ -38,10 +38,12 @@
  *		pq_sendfloat4	- append a float4 to a StringInfo buffer
  *		pq_sendfloat8	- append a float8 to a StringInfo buffer
  *		pq_sendbytes	- append raw data to a StringInfo buffer
- *		pq_sendcountedtext - append a counted text string (with character set conversion)
+ *		pq_sendcountedtext - append a counted text string (with character set
+ *conversion)
  *		pq_sendtext		- append a text string (with conversion)
  *		pq_sendstring	- append a null-terminated text string (with conversion)
- *		pq_send_ascii_string - append a null-terminated text string (without conversion)
+ *		pq_send_ascii_string - append a null-terminated text string (without
+ *conversion)
  *		pq_endmessage	- send the completed message to the frontend
  * Note: it is also possible to append data to the StringInfo buffer using
  * the regular StringInfo routines, but this is discouraged since required
@@ -52,7 +54,8 @@
  *		pq_endtypsend	- return the completed string as a "bytea*"
  *
  * Special-case message output:
- *		pq_puttextmessage - generate a character set-converted message in one step
+ *		pq_puttextmessage - generate a character set-converted message in one
+ *step
  *		pq_putemptymessage - convenience routine for message with empty body
  *
  * Message parsing after input:
@@ -78,46 +81,40 @@
 #include "libpq/pqformat.h"
 #include "mb/pg_wchar.h"
 
-
 /* --------------------------------
  *		pq_beginmessage		- initialize for sending a message
  * --------------------------------
  */
-void
-pq_beginmessage(StringInfo buf, char msgtype)
-{
-	initStringInfo(buf);
+void pq_beginmessage(StringInfo buf, char msgtype) {
+  initStringInfo(buf);
 
-	/*
-	 * We stash the message type into the buffer's cursor field, expecting
-	 * that the pq_sendXXX routines won't touch it.  We could alternatively
-	 * make it the first byte of the buffer contents, but this seems easier.
-	 */
-	buf->cursor = msgtype;
+  /*
+   * We stash the message type into the buffer's cursor field, expecting
+   * that the pq_sendXXX routines won't touch it.  We could alternatively
+   * make it the first byte of the buffer contents, but this seems easier.
+   */
+  buf->cursor = msgtype;
 }
 
 /* --------------------------------
  *		pq_sendbyte		- append a raw byte to a StringInfo buffer
  * --------------------------------
  */
-void
-pq_sendbyte(StringInfo buf, int byt)
-{
-	appendStringInfoCharMacro(buf, byt);
+void pq_sendbyte(StringInfo buf, int byt) {
+  appendStringInfoCharMacro(buf, byt);
 }
 
 /* --------------------------------
  *		pq_sendbytes	- append raw data to a StringInfo buffer
  * --------------------------------
  */
-void
-pq_sendbytes(StringInfo buf, const char *data, int datalen)
-{
-	appendBinaryStringInfo(buf, data, datalen);
+void pq_sendbytes(StringInfo buf, const char *data, int datalen) {
+  appendBinaryStringInfo(buf, data, datalen);
 }
 
 /* --------------------------------
- *		pq_sendcountedtext - append a counted text string (with character set conversion)
+ *		pq_sendcountedtext - append a counted text string (with character set
+ *conversion)
  *
  * The data sent to the frontend by this routine is a 4-byte count field
  * followed by the string.  The count includes itself or not, as per the
@@ -126,26 +123,22 @@ pq_sendbytes(StringInfo buf, const char *data, int datalen)
  * to the frontend isn't either.
  * --------------------------------
  */
-void
-pq_sendcountedtext(StringInfo buf, const char *str, int slen,
-				   bool countincludesself)
-{
-	int			extra = countincludesself ? 4 : 0;
-	char	   *p;
+void pq_sendcountedtext(StringInfo buf, const char *str, int slen,
+                        bool countincludesself) {
+  int extra = countincludesself ? 4 : 0;
+  char *p;
 
-	p = pg_server_to_client(str, slen);
-	if (p != str)				/* actual conversion has been done? */
-	{
-		slen = strlen(p);
-		pq_sendint(buf, slen + extra, 4);
-		appendBinaryStringInfo(buf, p, slen);
-		pfree(p);
-	}
-	else
-	{
-		pq_sendint(buf, slen + extra, 4);
-		appendBinaryStringInfo(buf, str, slen);
-	}
+  p = pg_server_to_client(str, slen);
+  if (p != str) /* actual conversion has been done? */
+  {
+    slen = strlen(p);
+    pq_sendint(buf, slen + extra, 4);
+    appendBinaryStringInfo(buf, p, slen);
+    pfree(p);
+  } else {
+    pq_sendint(buf, slen + extra, 4);
+    appendBinaryStringInfo(buf, str, slen);
+  }
 }
 
 /* --------------------------------
@@ -158,20 +151,17 @@ pq_sendcountedtext(StringInfo buf, const char *str, int slen,
  * format conversions.
  * --------------------------------
  */
-void
-pq_sendtext(StringInfo buf, const char *str, int slen)
-{
-	char	   *p;
+void pq_sendtext(StringInfo buf, const char *str, int slen) {
+  char *p;
 
-	p = pg_server_to_client(str, slen);
-	if (p != str)				/* actual conversion has been done? */
-	{
-		slen = strlen(p);
-		appendBinaryStringInfo(buf, p, slen);
-		pfree(p);
-	}
-	else
-		appendBinaryStringInfo(buf, str, slen);
+  p = pg_server_to_client(str, slen);
+  if (p != str) /* actual conversion has been done? */
+  {
+    slen = strlen(p);
+    appendBinaryStringInfo(buf, p, slen);
+    pfree(p);
+  } else
+    appendBinaryStringInfo(buf, str, slen);
 }
 
 /* --------------------------------
@@ -181,25 +171,23 @@ pq_sendtext(StringInfo buf, const char *str, int slen)
  * sent to the frontend.
  * --------------------------------
  */
-void
-pq_sendstring(StringInfo buf, const char *str)
-{
-	int			slen = strlen(str);
-	char	   *p;
+void pq_sendstring(StringInfo buf, const char *str) {
+  int slen = strlen(str);
+  char *p;
 
-	p = pg_server_to_client(str, slen);
-	if (p != str)				/* actual conversion has been done? */
-	{
-		slen = strlen(p);
-		appendBinaryStringInfo(buf, p, slen + 1);
-		pfree(p);
-	}
-	else
-		appendBinaryStringInfo(buf, str, slen + 1);
+  p = pg_server_to_client(str, slen);
+  if (p != str) /* actual conversion has been done? */
+  {
+    slen = strlen(p);
+    appendBinaryStringInfo(buf, p, slen + 1);
+    pfree(p);
+  } else
+    appendBinaryStringInfo(buf, str, slen + 1);
 }
 
 /* --------------------------------
- *		pq_send_ascii_string	- append a null-terminated text string (without conversion)
+ *		pq_send_ascii_string	- append a null-terminated text string (without
+ *conversion)
  *
  * This function intentionally bypasses encoding conversion, instead just
  * silently replacing any non-7-bit-ASCII characters with question marks.
@@ -213,49 +201,42 @@ pq_sendstring(StringInfo buf, const char *str)
  * sent to the frontend.
  * --------------------------------
  */
-void
-pq_send_ascii_string(StringInfo buf, const char *str)
-{
-	while (*str)
-	{
-		char		ch = *str++;
+void pq_send_ascii_string(StringInfo buf, const char *str) {
+  while (*str) {
+    char ch = *str++;
 
-		if (IS_HIGHBIT_SET(ch))
-			ch = '?';
-		appendStringInfoCharMacro(buf, ch);
-	}
-	appendStringInfoChar(buf, '\0');
+    if (IS_HIGHBIT_SET(ch)) ch = '?';
+    appendStringInfoCharMacro(buf, ch);
+  }
+  appendStringInfoChar(buf, '\0');
 }
 
 /* --------------------------------
  *		pq_sendint		- append a binary integer to a StringInfo buffer
  * --------------------------------
  */
-void
-pq_sendint(StringInfo buf, int i, int b)
-{
-	unsigned char n8;
-	uint16		n16;
-	uint32		n32;
+void pq_sendint(StringInfo buf, int i, int b) {
+  unsigned char n8;
+  uint16 n16;
+  uint32 n32;
 
-	switch (b)
-	{
-		case 1:
-			n8 = (unsigned char) i;
-			appendBinaryStringInfo(buf, (char *) &n8, 1);
-			break;
-		case 2:
-			n16 = htons((uint16) i);
-			appendBinaryStringInfo(buf, (char *) &n16, 2);
-			break;
-		case 4:
-			n32 = htonl((uint32) i);
-			appendBinaryStringInfo(buf, (char *) &n32, 4);
-			break;
-		default:
-			elog(ERROR, "unsupported integer size %d", b);
-			break;
-	}
+  switch (b) {
+    case 1:
+      n8 = (unsigned char)i;
+      appendBinaryStringInfo(buf, (char *)&n8, 1);
+      break;
+    case 2:
+      n16 = htons((uint16)i);
+      appendBinaryStringInfo(buf, (char *)&n16, 2);
+      break;
+    case 4:
+      n32 = htonl((uint32)i);
+      appendBinaryStringInfo(buf, (char *)&n32, 4);
+      break;
+    default:
+      elog(ERROR, "unsupported integer size %d", b);
+      break;
+  }
 }
 
 /* --------------------------------
@@ -266,20 +247,18 @@ pq_sendint(StringInfo buf, int i, int b)
  * hit on machines where int64 isn't efficient.
  * --------------------------------
  */
-void
-pq_sendint64(StringInfo buf, int64 i)
-{
-	uint32		n32;
+void pq_sendint64(StringInfo buf, int64 i) {
+  uint32 n32;
 
-	/* High order half first, since we're doing MSB-first */
-	n32 = (uint32) (i >> 32);
-	n32 = htonl(n32);
-	appendBinaryStringInfo(buf, (char *) &n32, 4);
+  /* High order half first, since we're doing MSB-first */
+  n32 = (uint32)(i >> 32);
+  n32 = htonl(n32);
+  appendBinaryStringInfo(buf, (char *)&n32, 4);
 
-	/* Now the low order half */
-	n32 = (uint32) i;
-	n32 = htonl(n32);
-	appendBinaryStringInfo(buf, (char *) &n32, 4);
+  /* Now the low order half */
+  n32 = (uint32)i;
+  n32 = htonl(n32);
+  appendBinaryStringInfo(buf, (char *)&n32, 4);
 }
 
 /* --------------------------------
@@ -293,19 +272,16 @@ pq_sendint64(StringInfo buf, int64 i)
  * most IEEE-float-using architectures.
  * --------------------------------
  */
-void
-pq_sendfloat4(StringInfo buf, float4 f)
-{
-	union
-	{
-		float4		f;
-		uint32		i;
-	}			swap;
+void pq_sendfloat4(StringInfo buf, float4 f) {
+  union {
+    float4 f;
+    uint32 i;
+  } swap;
 
-	swap.f = f;
-	swap.i = htonl(swap.i);
+  swap.f = f;
+  swap.i = htonl(swap.i);
 
-	appendBinaryStringInfo(buf, (char *) &swap.i, 4);
+  appendBinaryStringInfo(buf, (char *)&swap.i, 4);
 }
 
 /* --------------------------------
@@ -319,17 +295,14 @@ pq_sendfloat4(StringInfo buf, float4 f)
  * most IEEE-float-using architectures.
  * --------------------------------
  */
-void
-pq_sendfloat8(StringInfo buf, float8 f)
-{
-	union
-	{
-		float8		f;
-		int64		i;
-	}			swap;
+void pq_sendfloat8(StringInfo buf, float8 f) {
+  union {
+    float8 f;
+    int64 i;
+  } swap;
 
-	swap.f = f;
-	pq_sendint64(buf, swap.i);
+  swap.f = f;
+  pq_sendint64(buf, swap.i);
 }
 
 /* --------------------------------
@@ -339,34 +312,29 @@ pq_sendfloat8(StringInfo buf, float8 f)
  * makeStringInfo then the caller must still pfree it.
  * --------------------------------
  */
-void
-pq_endmessage(StringInfo buf)
-{
-	/* msgtype was saved in cursor field */
-	(void) pq_putmessage(buf->cursor, buf->data, buf->len);
+void pq_endmessage(StringInfo buf) {
+  /* msgtype was saved in cursor field */
+  (void)pq_putmessage(buf->cursor, buf->data, buf->len);
 
-	// TODO: Peloton Changes
-	//printf("Message :: len : %d data : -%s- \n", buf->len, buf->data);
+  // TODO: Peloton Changes
+  // printf("Message :: len : %d data : -%s- \n", buf->len, buf->data);
 
-	/* no need to complain about any failure, since pqcomm.c already did */
-	pfree(buf->data);
-	buf->data = NULL;
+  /* no need to complain about any failure, since pqcomm.c already did */
+  pfree(buf->data);
+  buf->data = NULL;
 }
-
 
 /* --------------------------------
  *		pq_begintypsend		- initialize for constructing a bytea result
  * --------------------------------
  */
-void
-pq_begintypsend(StringInfo buf)
-{
-	initStringInfo(buf);
-	/* Reserve four bytes for the bytea length word */
-	appendStringInfoCharMacro(buf, '\0');
-	appendStringInfoCharMacro(buf, '\0');
-	appendStringInfoCharMacro(buf, '\0');
-	appendStringInfoCharMacro(buf, '\0');
+void pq_begintypsend(StringInfo buf) {
+  initStringInfo(buf);
+  /* Reserve four bytes for the bytea length word */
+  appendStringInfoCharMacro(buf, '\0');
+  appendStringInfoCharMacro(buf, '\0');
+  appendStringInfoCharMacro(buf, '\0');
+  appendStringInfoCharMacro(buf, '\0');
 }
 
 /* --------------------------------
@@ -378,67 +346,54 @@ pq_begintypsend(StringInfo buf)
  * need not be pfree'd.
  * --------------------------------
  */
-bytea *
-pq_endtypsend(StringInfo buf)
-{
-	bytea	   *result = (bytea *) buf->data;
+bytea *pq_endtypsend(StringInfo buf) {
+  bytea *result = (bytea *)buf->data;
 
-	/* Insert correct length into bytea length word */
-	Assert(buf->len >= VARHDRSZ);
-	SET_VARSIZE(result, buf->len);
+  /* Insert correct length into bytea length word */
+  Assert(buf->len >= VARHDRSZ);
+  SET_VARSIZE(result, buf->len);
 
-	return result;
+  return result;
 }
 
-
 /* --------------------------------
- *		pq_puttextmessage - generate a character set-converted message in one step
+ *		pq_puttextmessage - generate a character set-converted message in one
+ *step
  *
  *		This is the same as the pqcomm.c routine pq_putmessage, except that
  *		the message body is a null-terminated string to which encoding
  *		conversion applies.
  * --------------------------------
  */
-void
-pq_puttextmessage(char msgtype, const char *str)
-{
-	int			slen = strlen(str);
-	char	   *p;
+void pq_puttextmessage(char msgtype, const char *str) {
+  int slen = strlen(str);
+  char *p;
 
-	p = pg_server_to_client(str, slen);
-	if (p != str)				/* actual conversion has been done? */
-	{
-		(void) pq_putmessage(msgtype, p, strlen(p) + 1);
-		pfree(p);
-		return;
-	}
-	(void) pq_putmessage(msgtype, str, slen + 1);
+  p = pg_server_to_client(str, slen);
+  if (p != str) /* actual conversion has been done? */
+  {
+    (void)pq_putmessage(msgtype, p, strlen(p) + 1);
+    pfree(p);
+    return;
+  }
+  (void)pq_putmessage(msgtype, str, slen + 1);
 }
-
 
 /* --------------------------------
  *		pq_putemptymessage - convenience routine for message with empty body
  * --------------------------------
  */
-void
-pq_putemptymessage(char msgtype)
-{
-	(void) pq_putmessage(msgtype, NULL, 0);
-}
-
+void pq_putemptymessage(char msgtype) { (void)pq_putmessage(msgtype, NULL, 0); }
 
 /* --------------------------------
  *		pq_getmsgbyte	- get a raw byte from a message buffer
  * --------------------------------
  */
-int
-pq_getmsgbyte(StringInfo msg)
-{
-	if (msg->cursor >= msg->len)
-		ereport(ERROR,
-				(errcode(ERRCODE_PROTOCOL_VIOLATION),
-				 errmsg("no data left in message")));
-	return (unsigned char) msg->data[msg->cursor++];
+int pq_getmsgbyte(StringInfo msg) {
+  if (msg->cursor >= msg->len)
+    ereport(ERROR, (errcode(ERRCODE_PROTOCOL_VIOLATION),
+                    errmsg("no data left in message")));
+  return (unsigned char)msg->data[msg->cursor++];
 }
 
 /* --------------------------------
@@ -447,34 +402,31 @@ pq_getmsgbyte(StringInfo msg)
  *		Values are treated as unsigned.
  * --------------------------------
  */
-unsigned int
-pq_getmsgint(StringInfo msg, int b)
-{
-	unsigned int result;
-	unsigned char n8;
-	uint16		n16;
-	uint32		n32;
+unsigned int pq_getmsgint(StringInfo msg, int b) {
+  unsigned int result;
+  unsigned char n8;
+  uint16 n16;
+  uint32 n32;
 
-	switch (b)
-	{
-		case 1:
-			pq_copymsgbytes(msg, (char *) &n8, 1);
-			result = n8;
-			break;
-		case 2:
-			pq_copymsgbytes(msg, (char *) &n16, 2);
-			result = ntohs(n16);
-			break;
-		case 4:
-			pq_copymsgbytes(msg, (char *) &n32, 4);
-			result = ntohl(n32);
-			break;
-		default:
-			elog(ERROR, "unsupported integer size %d", b);
-			result = 0;			/* keep compiler quiet */
-			break;
-	}
-	return result;
+  switch (b) {
+    case 1:
+      pq_copymsgbytes(msg, (char *)&n8, 1);
+      result = n8;
+      break;
+    case 2:
+      pq_copymsgbytes(msg, (char *)&n16, 2);
+      result = ntohs(n16);
+      break;
+    case 4:
+      pq_copymsgbytes(msg, (char *)&n32, 4);
+      result = ntohl(n32);
+      break;
+    default:
+      elog(ERROR, "unsupported integer size %d", b);
+      result = 0; /* keep compiler quiet */
+      break;
+  }
+  return result;
 }
 
 /* --------------------------------
@@ -485,23 +437,21 @@ pq_getmsgint(StringInfo msg, int b)
  * hit on machines where int64 isn't efficient.
  * --------------------------------
  */
-int64
-pq_getmsgint64(StringInfo msg)
-{
-	int64		result;
-	uint32		h32;
-	uint32		l32;
+int64 pq_getmsgint64(StringInfo msg) {
+  int64 result;
+  uint32 h32;
+  uint32 l32;
 
-	pq_copymsgbytes(msg, (char *) &h32, 4);
-	pq_copymsgbytes(msg, (char *) &l32, 4);
-	h32 = ntohl(h32);
-	l32 = ntohl(l32);
+  pq_copymsgbytes(msg, (char *)&h32, 4);
+  pq_copymsgbytes(msg, (char *)&l32, 4);
+  h32 = ntohl(h32);
+  l32 = ntohl(l32);
 
-	result = h32;
-	result <<= 32;
-	result |= l32;
+  result = h32;
+  result <<= 32;
+  result |= l32;
 
-	return result;
+  return result;
 }
 
 /* --------------------------------
@@ -510,17 +460,14 @@ pq_getmsgint64(StringInfo msg)
  * See notes for pq_sendfloat4.
  * --------------------------------
  */
-float4
-pq_getmsgfloat4(StringInfo msg)
-{
-	union
-	{
-		float4		f;
-		uint32		i;
-	}			swap;
+float4 pq_getmsgfloat4(StringInfo msg) {
+  union {
+    float4 f;
+    uint32 i;
+  } swap;
 
-	swap.i = pq_getmsgint(msg, 4);
-	return swap.f;
+  swap.i = pq_getmsgint(msg, 4);
+  return swap.f;
 }
 
 /* --------------------------------
@@ -529,17 +476,14 @@ pq_getmsgfloat4(StringInfo msg)
  * See notes for pq_sendfloat8.
  * --------------------------------
  */
-float8
-pq_getmsgfloat8(StringInfo msg)
-{
-	union
-	{
-		float8		f;
-		int64		i;
-	}			swap;
+float8 pq_getmsgfloat8(StringInfo msg) {
+  union {
+    float8 f;
+    int64 i;
+  } swap;
 
-	swap.i = pq_getmsgint64(msg);
-	return swap.f;
+  swap.i = pq_getmsgint64(msg);
+  return swap.f;
 }
 
 /* --------------------------------
@@ -549,18 +493,15 @@ pq_getmsgfloat8(StringInfo msg)
  *		may not have any particular alignment.
  * --------------------------------
  */
-const char *
-pq_getmsgbytes(StringInfo msg, int datalen)
-{
-	const char *result;
+const char *pq_getmsgbytes(StringInfo msg, int datalen) {
+  const char *result;
 
-	if (datalen < 0 || datalen > (msg->len - msg->cursor))
-		ereport(ERROR,
-				(errcode(ERRCODE_PROTOCOL_VIOLATION),
-				 errmsg("insufficient data left in message")));
-	result = &msg->data[msg->cursor];
-	msg->cursor += datalen;
-	return result;
+  if (datalen < 0 || datalen > (msg->len - msg->cursor))
+    ereport(ERROR, (errcode(ERRCODE_PROTOCOL_VIOLATION),
+                    errmsg("insufficient data left in message")));
+  result = &msg->data[msg->cursor];
+  msg->cursor += datalen;
+  return result;
 }
 
 /* --------------------------------
@@ -569,15 +510,12 @@ pq_getmsgbytes(StringInfo msg, int datalen)
  *		Same as above, except data is copied to caller's buffer.
  * --------------------------------
  */
-void
-pq_copymsgbytes(StringInfo msg, char *buf, int datalen)
-{
-	if (datalen < 0 || datalen > (msg->len - msg->cursor))
-		ereport(ERROR,
-				(errcode(ERRCODE_PROTOCOL_VIOLATION),
-				 errmsg("insufficient data left in message")));
-	memcpy(buf, &msg->data[msg->cursor], datalen);
-	msg->cursor += datalen;
+void pq_copymsgbytes(StringInfo msg, char *buf, int datalen) {
+  if (datalen < 0 || datalen > (msg->len - msg->cursor))
+    ereport(ERROR, (errcode(ERRCODE_PROTOCOL_VIOLATION),
+                    errmsg("insufficient data left in message")));
+  memcpy(buf, &msg->data[msg->cursor], datalen);
+  msg->cursor += datalen;
 }
 
 /* --------------------------------
@@ -587,30 +525,26 @@ pq_copymsgbytes(StringInfo msg, char *buf, int datalen)
  *		The result has a trailing null, *and* we return its strlen in *nbytes.
  * --------------------------------
  */
-char *
-pq_getmsgtext(StringInfo msg, int rawbytes, int *nbytes)
-{
-	char	   *str;
-	char	   *p;
+char *pq_getmsgtext(StringInfo msg, int rawbytes, int *nbytes) {
+  char *str;
+  char *p;
 
-	if (rawbytes < 0 || rawbytes > (msg->len - msg->cursor))
-		ereport(ERROR,
-				(errcode(ERRCODE_PROTOCOL_VIOLATION),
-				 errmsg("insufficient data left in message")));
-	str = &msg->data[msg->cursor];
-	msg->cursor += rawbytes;
+  if (rawbytes < 0 || rawbytes > (msg->len - msg->cursor))
+    ereport(ERROR, (errcode(ERRCODE_PROTOCOL_VIOLATION),
+                    errmsg("insufficient data left in message")));
+  str = &msg->data[msg->cursor];
+  msg->cursor += rawbytes;
 
-	p = pg_client_to_server(str, rawbytes);
-	if (p != str)				/* actual conversion has been done? */
-		*nbytes = strlen(p);
-	else
-	{
-		p = (char *) palloc(rawbytes + 1);
-		memcpy(p, str, rawbytes);
-		p[rawbytes] = '\0';
-		*nbytes = rawbytes;
-	}
-	return p;
+  p = pg_client_to_server(str, rawbytes);
+  if (p != str) /* actual conversion has been done? */
+    *nbytes = strlen(p);
+  else {
+    p = (char *)palloc(rawbytes + 1);
+    memcpy(p, str, rawbytes);
+    p[rawbytes] = '\0';
+    *nbytes = rawbytes;
+  }
+  return p;
 }
 
 /* --------------------------------
@@ -620,38 +554,32 @@ pq_getmsgtext(StringInfo msg, int rawbytes, int *nbytes)
  *		to a palloc'd conversion result.
  * --------------------------------
  */
-const char *
-pq_getmsgstring(StringInfo msg)
-{
-	char	   *str;
-	int			slen;
+const char *pq_getmsgstring(StringInfo msg) {
+  char *str;
+  int slen;
 
-	str = &msg->data[msg->cursor];
+  str = &msg->data[msg->cursor];
 
-	/*
-	 * It's safe to use strlen() here because a StringInfo is guaranteed to
-	 * have a trailing null byte.  But check we found a null inside the
-	 * message.
-	 */
-	slen = strlen(str);
-	if (msg->cursor + slen >= msg->len)
-		ereport(ERROR,
-				(errcode(ERRCODE_PROTOCOL_VIOLATION),
-				 errmsg("invalid string in message")));
-	msg->cursor += slen + 1;
+  /*
+   * It's safe to use strlen() here because a StringInfo is guaranteed to
+   * have a trailing null byte.  But check we found a null inside the
+   * message.
+   */
+  slen = strlen(str);
+  if (msg->cursor + slen >= msg->len)
+    ereport(ERROR, (errcode(ERRCODE_PROTOCOL_VIOLATION),
+                    errmsg("invalid string in message")));
+  msg->cursor += slen + 1;
 
-	return pg_client_to_server(str, slen);
+  return pg_client_to_server(str, slen);
 }
 
 /* --------------------------------
  *		pq_getmsgend	- verify message fully consumed
  * --------------------------------
  */
-void
-pq_getmsgend(StringInfo msg)
-{
-	if (msg->cursor != msg->len)
-		ereport(ERROR,
-				(errcode(ERRCODE_PROTOCOL_VIOLATION),
-				 errmsg("invalid message format")));
+void pq_getmsgend(StringInfo msg) {
+  if (msg->cursor != msg->len)
+    ereport(ERROR, (errcode(ERRCODE_PROTOCOL_VIOLATION),
+                    errmsg("invalid message format")));
 }

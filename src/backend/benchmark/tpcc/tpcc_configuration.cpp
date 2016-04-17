@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 #include <iomanip>
 #include <algorithm>
 
@@ -28,8 +27,7 @@ void Usage(FILE *out) {
           "   -k --scale_factor      :  scale factor \n"
           "   -w --warehouse_count   :  # of warehouses \n"
           "   -b --backend_count     :  # of backends \n"
-          "   -t --transaction_count :  # of transactions \n"
-          );
+          "   -t --transaction_count :  # of transactions \n");
   exit(EXIT_FAILURE);
 }
 
@@ -77,7 +75,6 @@ void ValidateWarehouseCount(const configuration &state) {
 }
 
 void ParseArguments(int argc, char *argv[], configuration &state) {
-
   // Default Values
   state.backend_count = 1;
   state.warehouse_count = 1;
@@ -131,7 +128,6 @@ void ParseArguments(int argc, char *argv[], configuration &state) {
   ValidateWarehouseCount(state);
   ValidateScaleFactor(state);
   ValidateTransactionCount(state);
-
 }
 
 }  // namespace tpcc

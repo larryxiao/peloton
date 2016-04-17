@@ -50,8 +50,8 @@
 
 #include "lib/hyperloglog.h"
 
-#define POW_2_32			(4294967296.0)
-#define NEG_POW_2_32		(-4294967296.0)
+#define POW_2_32 (4294967296.0)
+#define NEG_POW_2_32 (-4294967296.0)
 
 static inline uint8 rho(uint32 x, uint8 b);
 
@@ -61,50 +61,47 @@ static inline uint8 rho(uint32 x, uint8 b);
  * bwidth is bit width (so register size will be 2 to the power of bwidth).
  * Must be between 4 and 16 inclusive.
  */
-void
-initHyperLogLog(hyperLogLogState *cState, uint8 bwidth)
-{
-	double		alpha;
+void initHyperLogLog(hyperLogLogState *cState, uint8 bwidth) {
+  double alpha;
 
-	if (bwidth < 4 || bwidth > 16)
-		elog(ERROR, "bit width must be between 4 and 16 inclusive");
+  if (bwidth < 4 || bwidth > 16)
+    elog(ERROR, "bit width must be between 4 and 16 inclusive");
 
-	cState->registerWidth = bwidth;
-	cState->nRegisters = (Size) 1 << bwidth;
-	cState->arrSize = sizeof(uint8) * cState->nRegisters + 1;
+  cState->registerWidth = bwidth;
+  cState->nRegisters = (Size)1 << bwidth;
+  cState->arrSize = sizeof(uint8) * cState->nRegisters + 1;
 
-	/*
-	 * Initialize hashes array to zero, not negative infinity, per discussion
-	 * of the coupon collector problem in the HyperLogLog paper
-	 */
-	cState->hashesArr = static_cast<uint8 *>(palloc0(cState->arrSize));
+  /*
+   * Initialize hashes array to zero, not negative infinity, per discussion
+   * of the coupon collector problem in the HyperLogLog paper
+   */
+  cState->hashesArr = static_cast<uint8 *>(palloc0(cState->arrSize));
 
-	/*
-	 * "alpha" is a value that for each possible number of registers (m) is
-	 * used to correct a systematic multiplicative bias present in m ^ 2 Z (Z
-	 * is "the indicator function" through which we finally compute E,
-	 * estimated cardinality).
-	 */
-	switch (cState->nRegisters)
-	{
-		case 16:
-			alpha = 0.673;
-			break;
-		case 32:
-			alpha = 0.697;
-			break;
-		case 64:
-			alpha = 0.709;
-			break;
-		default:
-			alpha = 0.7213 / (1.0 + 1.079 / cState->nRegisters);
-	}
+  /*
+   * "alpha" is a value that for each possible number of registers (m) is
+   * used to correct a systematic multiplicative bias present in m ^ 2 Z (Z
+   * is "the indicator function" through which we finally compute E,
+   * estimated cardinality).
+   */
+  switch (cState->nRegisters) {
+    case 16:
+      alpha = 0.673;
+      break;
+    case 32:
+      alpha = 0.697;
+      break;
+    case 64:
+      alpha = 0.709;
+      break;
+    default:
+      alpha = 0.7213 / (1.0 + 1.079 / cState->nRegisters);
+  }
 
-	/*
-	 * Precalculate alpha m ^ 2, later used to generate "raw" HyperLogLog
-	 * estimate E
-	 */
-	cState->alphaMM = alpha * cState->nRegisters * cState->nRegisters;
+  /*
+   * Precalculate alpha m ^ 2, later used to generate "raw" HyperLogLog
+   * estimate E
+   */
+  cState->alphaMM = alpha * cState->nRegisters * cState->nRegisters;
 }
 
 /*
@@ -116,62 +113,52 @@ initHyperLogLog(hyperLogLogState *cState, uint8 bwidth)
  * uniform distribution of bits in hash values for each distinct original value
  * observed.
  */
-void
-addHyperLogLog(hyperLogLogState *cState, uint32 hash)
-{
-	uint8		count;
-	uint32		index;
+void addHyperLogLog(hyperLogLogState *cState, uint32 hash) {
+  uint8 count;
+  uint32 index;
 
-	/* Use the first "k" (registerWidth) bits as a zero based index */
-	index = hash >> (BITS_PER_BYTE * sizeof(uint32) - cState->registerWidth);
+  /* Use the first "k" (registerWidth) bits as a zero based index */
+  index = hash >> (BITS_PER_BYTE * sizeof(uint32) - cState->registerWidth);
 
-	/* Compute the rank of the remaining 32 - "k" (registerWidth) bits */
-	count = rho(hash << cState->registerWidth,
-				BITS_PER_BYTE * sizeof(uint32) - cState->registerWidth);
+  /* Compute the rank of the remaining 32 - "k" (registerWidth) bits */
+  count = rho(hash << cState->registerWidth,
+              BITS_PER_BYTE * sizeof(uint32) - cState->registerWidth);
 
-	cState->hashesArr[index] = Max(count, cState->hashesArr[index]);
+  cState->hashesArr[index] = Max(count, cState->hashesArr[index]);
 }
 
 /*
  * Estimates cardinality, based on elements added so far
  */
-double
-estimateHyperLogLog(hyperLogLogState *cState)
-{
-	double		result;
-	double		sum = 0.0;
-	int			i;
+double estimateHyperLogLog(hyperLogLogState *cState) {
+  double result;
+  double sum = 0.0;
+  int i;
 
-	for (i = 0; i < cState->nRegisters; i++)
-	{
-		sum += 1.0 / pow(2.0, cState->hashesArr[i]);
-	}
+  for (i = 0; i < cState->nRegisters; i++) {
+    sum += 1.0 / pow(2.0, cState->hashesArr[i]);
+  }
 
-	/* result set to "raw" HyperLogLog estimate (E in the HyperLogLog paper) */
-	result = cState->alphaMM / sum;
+  /* result set to "raw" HyperLogLog estimate (E in the HyperLogLog paper) */
+  result = cState->alphaMM / sum;
 
-	if (result <= (5.0 / 2.0) * cState->nRegisters)
-	{
-		/* Small range correction */
-		int 	zero_count = 0;
+  if (result <= (5.0 / 2.0) * cState->nRegisters) {
+    /* Small range correction */
+    int zero_count = 0;
 
-		for (i = 0; i < cState->nRegisters; i++)
-		{
-			if (cState->hashesArr[i] == 0)
-				zero_count++;
-		}
+    for (i = 0; i < cState->nRegisters; i++) {
+      if (cState->hashesArr[i] == 0) zero_count++;
+    }
 
-		if (zero_count != 0)
-			result = cState->nRegisters * log((double) cState->nRegisters /
-											  zero_count);
-	}
-	else if (result > (1.0 / 30.0) * POW_2_32)
-	{
-		/* Large range correction */
-		result = NEG_POW_2_32 * log(1.0 - (result / POW_2_32));
-	}
+    if (zero_count != 0)
+      result =
+          cState->nRegisters * log((double)cState->nRegisters / zero_count);
+  } else if (result > (1.0 / 30.0) * POW_2_32) {
+    /* Large range correction */
+    result = NEG_POW_2_32 * log(1.0 - (result / POW_2_32));
+  }
 
-	return result;
+  return result;
 }
 
 /*
@@ -180,21 +167,18 @@ estimateHyperLogLog(hyperLogLogState *cState)
  *
  * The number of registers in each must match.
  */
-void
-mergeHyperLogLog(hyperLogLogState *cState, const hyperLogLogState *oState)
-{
-	int		r;
+void mergeHyperLogLog(hyperLogLogState *cState,
+                      const hyperLogLogState *oState) {
+  int r;
 
-	if (cState->nRegisters != oState->nRegisters)
-		elog(ERROR, "number of registers mismatch: %zu != %zu",
-			 cState->nRegisters, oState->nRegisters);
+  if (cState->nRegisters != oState->nRegisters)
+    elog(ERROR, "number of registers mismatch: %zu != %zu", cState->nRegisters,
+         oState->nRegisters);
 
-	for (r = 0; r < cState->nRegisters; ++r)
-	{
-		cState->hashesArr[r] = Max(cState->hashesArr[r], oState->hashesArr[r]);
-	}
+  for (r = 0; r < cState->nRegisters; ++r) {
+    cState->hashesArr[r] = Max(cState->hashesArr[r], oState->hashesArr[r]);
+  }
 }
-
 
 /*
  * Worker for addHyperLogLog().
@@ -213,16 +197,13 @@ mergeHyperLogLog(hyperLogLogState *cState, const hyperLogLogState *oState)
  *
  * Return value "j" used to index bit pattern to watch.
  */
-static inline uint8
-rho(uint32 x, uint8 b)
-{
-	uint8	j = 1;
+static inline uint8 rho(uint32 x, uint8 b) {
+  uint8 j = 1;
 
-	while (j <= b && !(x & 0x80000000))
-	{
-		j++;
-		x <<= 1;
-	}
+  while (j <= b && !(x & 0x80000000)) {
+    j++;
+    x <<= 1;
+  }
 
-	return j;
+  return j;
 }

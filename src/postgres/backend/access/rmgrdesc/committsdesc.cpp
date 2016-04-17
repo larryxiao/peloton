@@ -17,66 +17,52 @@
 #include "access/commit_ts.h"
 #include "utils/timestamp.h"
 
+void commit_ts_desc(StringInfo buf, XLogReaderState *record) {
+  char *rec = XLogRecGetData(record);
+  uint8 info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
 
-void
-commit_ts_desc(StringInfo buf, XLogReaderState *record)
-{
-	char	   *rec = XLogRecGetData(record);
-	uint8		info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
+  if (info == COMMIT_TS_ZEROPAGE) {
+    int pageno;
 
-	if (info == COMMIT_TS_ZEROPAGE)
-	{
-		int			pageno;
+    memcpy(&pageno, rec, sizeof(int));
+    appendStringInfo(buf, "%d", pageno);
+  } else if (info == COMMIT_TS_TRUNCATE) {
+    int pageno;
 
-		memcpy(&pageno, rec, sizeof(int));
-		appendStringInfo(buf, "%d", pageno);
-	}
-	else if (info == COMMIT_TS_TRUNCATE)
-	{
-		int			pageno;
+    memcpy(&pageno, rec, sizeof(int));
+    appendStringInfo(buf, "%d", pageno);
+  } else if (info == COMMIT_TS_SETTS) {
+    xl_commit_ts_set *xlrec = (xl_commit_ts_set *)rec;
+    int nsubxids;
 
-		memcpy(&pageno, rec, sizeof(int));
-		appendStringInfo(buf, "%d", pageno);
-	}
-	else if (info == COMMIT_TS_SETTS)
-	{
-		xl_commit_ts_set *xlrec = (xl_commit_ts_set *) rec;
-		int		nsubxids;
+    appendStringInfo(buf, "set %s/%d for: %u",
+                     timestamptz_to_str(xlrec->timestamp), xlrec->nodeid,
+                     xlrec->mainxid);
+    nsubxids = ((XLogRecGetDataLen(record) - SizeOfCommitTsSet) /
+                sizeof(TransactionId));
+    if (nsubxids > 0) {
+      int i;
+      TransactionId *subxids;
 
-		appendStringInfo(buf, "set %s/%d for: %u",
-						 timestamptz_to_str(xlrec->timestamp),
-						 xlrec->nodeid,
-						 xlrec->mainxid);
-		nsubxids = ((XLogRecGetDataLen(record) - SizeOfCommitTsSet) /
-					sizeof(TransactionId));
-		if (nsubxids > 0)
-		{
-			int		i;
-			TransactionId *subxids;
-
-			subxids = static_cast<TransactionId *>(palloc(sizeof(TransactionId) * nsubxids));
-			memcpy(subxids,
-				   XLogRecGetData(record) + SizeOfCommitTsSet,
-				   sizeof(TransactionId) * nsubxids);
-			for (i = 0; i < nsubxids; i++)
-				appendStringInfo(buf, ", %u", subxids[i]);
-			pfree(subxids);
-		}
-	}
+      subxids = static_cast<TransactionId *>(
+          palloc(sizeof(TransactionId) * nsubxids));
+      memcpy(subxids, XLogRecGetData(record) + SizeOfCommitTsSet,
+             sizeof(TransactionId) * nsubxids);
+      for (i = 0; i < nsubxids; i++) appendStringInfo(buf, ", %u", subxids[i]);
+      pfree(subxids);
+    }
+  }
 }
 
-const char *
-commit_ts_identify(uint8 info)
-{
-	switch (info)
-	{
-		case COMMIT_TS_ZEROPAGE:
-			return "ZEROPAGE";
-		case COMMIT_TS_TRUNCATE:
-			return "TRUNCATE";
-		case COMMIT_TS_SETTS:
-			return "SETTS";
-		default:
-			return NULL;
-	}
+const char *commit_ts_identify(uint8 info) {
+  switch (info) {
+    case COMMIT_TS_ZEROPAGE:
+      return "ZEROPAGE";
+    case COMMIT_TS_TRUNCATE:
+      return "TRUNCATE";
+    case COMMIT_TS_SETTS:
+      return "SETTS";
+    default:
+      return NULL;
+  }
 }

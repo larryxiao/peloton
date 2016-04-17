@@ -29,90 +29,74 @@
 #include "miscadmin.h"
 #include "utils/tuplesort.h"
 
-
 /*
  * Status record for spooling/sorting phase.
  */
-struct HSpool
-{
-	Tuplesortstate *sortstate;	/* state data for tuplesort.c */
-	Relation	index;
+struct HSpool {
+  Tuplesortstate *sortstate; /* state data for tuplesort.c */
+  Relation index;
 };
-
 
 /*
  * create and initialize a spool structure
  */
-HSpool *
-_h_spoolinit(Relation heap, Relation index, uint32 num_buckets)
-{
-	HSpool	   *hspool = (HSpool *) palloc0(sizeof(HSpool));
-	uint32		hash_mask;
+HSpool *_h_spoolinit(Relation heap, Relation index, uint32 num_buckets) {
+  HSpool *hspool = (HSpool *)palloc0(sizeof(HSpool));
+  uint32 hash_mask;
 
-	hspool->index = index;
+  hspool->index = index;
 
-	/*
-	 * Determine the bitmask for hash code values.  Since there are currently
-	 * num_buckets buckets in the index, the appropriate mask can be computed
-	 * as follows.
-	 *
-	 * Note: at present, the passed-in num_buckets is always a power of 2, so
-	 * we could just compute num_buckets - 1.  We prefer not to assume that
-	 * here, though.
-	 */
-	hash_mask = (((uint32) 1) << _hash_log2(num_buckets)) - 1;
+  /*
+   * Determine the bitmask for hash code values.  Since there are currently
+   * num_buckets buckets in the index, the appropriate mask can be computed
+   * as follows.
+   *
+   * Note: at present, the passed-in num_buckets is always a power of 2, so
+   * we could just compute num_buckets - 1.  We prefer not to assume that
+   * here, though.
+   */
+  hash_mask = (((uint32)1) << _hash_log2(num_buckets)) - 1;
 
-	/*
-	 * We size the sort area as maintenance_work_mem rather than work_mem to
-	 * speed index creation.  This should be OK since a single backend can't
-	 * run multiple index creations in parallel.
-	 */
-	hspool->sortstate = tuplesort_begin_index_hash(heap,
-												   index,
-												   hash_mask,
-												   maintenance_work_mem,
-												   false);
+  /*
+   * We size the sort area as maintenance_work_mem rather than work_mem to
+   * speed index creation.  This should be OK since a single backend can't
+   * run multiple index creations in parallel.
+   */
+  hspool->sortstate = tuplesort_begin_index_hash(heap, index, hash_mask,
+                                                 maintenance_work_mem, false);
 
-	return hspool;
+  return hspool;
 }
 
 /*
  * clean up a spool structure and its substructures.
  */
-void
-_h_spooldestroy(HSpool *hspool)
-{
-	tuplesort_end(hspool->sortstate);
-	pfree(hspool);
+void _h_spooldestroy(HSpool *hspool) {
+  tuplesort_end(hspool->sortstate);
+  pfree(hspool);
 }
 
 /*
  * spool an index entry into the sort file.
  */
-void
-_h_spool(HSpool *hspool, ItemPointer self, Datum *values, bool *isnull)
-{
-	tuplesort_putindextuplevalues(hspool->sortstate, hspool->index,
-								  self, values, isnull);
+void _h_spool(HSpool *hspool, ItemPointer self, Datum *values, bool *isnull) {
+  tuplesort_putindextuplevalues(hspool->sortstate, hspool->index, self, values,
+                                isnull);
 }
 
 /*
  * given a spool loaded by successive calls to _h_spool,
  * create an entire index.
  */
-void
-_h_indexbuild(HSpool *hspool)
-{
-	IndexTuple	itup;
-	bool		should_free;
+void _h_indexbuild(HSpool *hspool) {
+  IndexTuple itup;
+  bool should_free;
 
-	tuplesort_performsort(hspool->sortstate);
+  tuplesort_performsort(hspool->sortstate);
 
-	while ((itup = tuplesort_getindextuple(hspool->sortstate,
-										   true, &should_free)) != NULL)
-	{
-		_hash_doinsert(hspool->index, itup);
-		if (should_free)
-			pfree(itup);
-	}
+  while ((itup = tuplesort_getindextuple(hspool->sortstate, true,
+                                         &should_free)) != NULL) {
+    _hash_doinsert(hspool->index, itup);
+    if (should_free) pfree(itup);
+  }
 }

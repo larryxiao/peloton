@@ -28,164 +28,131 @@
 
 #include "access/hash.h"
 
-
 /* Note: this is used for both "char" and boolean datatypes */
-Datum
-hashchar(PG_FUNCTION_ARGS)
-{
-	return hash_uint32((int32) PG_GETARG_CHAR(0));
+Datum hashchar(PG_FUNCTION_ARGS) {
+  return hash_uint32((int32)PG_GETARG_CHAR(0));
 }
 
-Datum
-hashint2(PG_FUNCTION_ARGS)
-{
-	return hash_uint32((int32) PG_GETARG_INT16(0));
+Datum hashint2(PG_FUNCTION_ARGS) {
+  return hash_uint32((int32)PG_GETARG_INT16(0));
 }
 
-Datum
-hashint4(PG_FUNCTION_ARGS)
-{
-	return hash_uint32(PG_GETARG_INT32(0));
+Datum hashint4(PG_FUNCTION_ARGS) { return hash_uint32(PG_GETARG_INT32(0)); }
+
+Datum hashint8(PG_FUNCTION_ARGS) {
+  /*
+   * The idea here is to produce a hash value compatible with the values
+   * produced by hashint4 and hashint2 for logically equal inputs; this is
+   * necessary to support cross-type hash joins across these input types.
+   * Since all three types are signed, we can xor the high half of the int8
+   * value if the sign is positive, or the complement of the high half when
+   * the sign is negative.
+   */
+  int64 val = PG_GETARG_INT64(0);
+  uint32 lohalf = (uint32)val;
+  uint32 hihalf = (uint32)(val >> 32);
+
+  lohalf ^= (val >= 0) ? hihalf : ~hihalf;
+
+  return hash_uint32(lohalf);
 }
 
-Datum
-hashint8(PG_FUNCTION_ARGS)
-{
-	/*
-	 * The idea here is to produce a hash value compatible with the values
-	 * produced by hashint4 and hashint2 for logically equal inputs; this is
-	 * necessary to support cross-type hash joins across these input types.
-	 * Since all three types are signed, we can xor the high half of the int8
-	 * value if the sign is positive, or the complement of the high half when
-	 * the sign is negative.
-	 */
-	int64		val = PG_GETARG_INT64(0);
-	uint32		lohalf = (uint32) val;
-	uint32		hihalf = (uint32) (val >> 32);
-
-	lohalf ^= (val >= 0) ? hihalf : ~hihalf;
-
-	return hash_uint32(lohalf);
+Datum hashoid(PG_FUNCTION_ARGS) {
+  return hash_uint32((uint32)PG_GETARG_OID(0));
 }
 
-Datum
-hashoid(PG_FUNCTION_ARGS)
-{
-	return hash_uint32((uint32) PG_GETARG_OID(0));
+Datum hashenum(PG_FUNCTION_ARGS) {
+  return hash_uint32((uint32)PG_GETARG_OID(0));
 }
 
-Datum
-hashenum(PG_FUNCTION_ARGS)
-{
-	return hash_uint32((uint32) PG_GETARG_OID(0));
+Datum hashfloat4(PG_FUNCTION_ARGS) {
+  float4 key = PG_GETARG_FLOAT4(0);
+  float8 key8;
+
+  /*
+   * On IEEE-float machines, minus zero and zero have different bit patterns
+   * but should compare as equal.  We must ensure that they have the same
+   * hash value, which is most reliably done this way:
+   */
+  if (key == (float4)0) PG_RETURN_UINT32(0);
+
+  /*
+   * To support cross-type hashing of float8 and float4, we want to return
+   * the same hash value hashfloat8 would produce for an equal float8 value.
+   * So, widen the value to float8 and hash that.  (We must do this rather
+   * than have hashfloat8 try to narrow its value to float4; that could fail
+   * on overflow.)
+   */
+  key8 = key;
+
+  return hash_any((unsigned char *)&key8, sizeof(key8));
 }
 
-Datum
-hashfloat4(PG_FUNCTION_ARGS)
-{
-	float4		key = PG_GETARG_FLOAT4(0);
-	float8		key8;
+Datum hashfloat8(PG_FUNCTION_ARGS) {
+  float8 key = PG_GETARG_FLOAT8(0);
 
-	/*
-	 * On IEEE-float machines, minus zero and zero have different bit patterns
-	 * but should compare as equal.  We must ensure that they have the same
-	 * hash value, which is most reliably done this way:
-	 */
-	if (key == (float4) 0)
-		PG_RETURN_UINT32(0);
+  /*
+   * On IEEE-float machines, minus zero and zero have different bit patterns
+   * but should compare as equal.  We must ensure that they have the same
+   * hash value, which is most reliably done this way:
+   */
+  if (key == (float8)0) PG_RETURN_UINT32(0);
 
-	/*
-	 * To support cross-type hashing of float8 and float4, we want to return
-	 * the same hash value hashfloat8 would produce for an equal float8 value.
-	 * So, widen the value to float8 and hash that.  (We must do this rather
-	 * than have hashfloat8 try to narrow its value to float4; that could fail
-	 * on overflow.)
-	 */
-	key8 = key;
-
-	return hash_any((unsigned char *) &key8, sizeof(key8));
+  return hash_any((unsigned char *)&key, sizeof(key));
 }
 
-Datum
-hashfloat8(PG_FUNCTION_ARGS)
-{
-	float8		key = PG_GETARG_FLOAT8(0);
+Datum hashoidvector(PG_FUNCTION_ARGS) {
+  oidvector *key = (oidvector *)PG_GETARG_POINTER(0);
 
-	/*
-	 * On IEEE-float machines, minus zero and zero have different bit patterns
-	 * but should compare as equal.  We must ensure that they have the same
-	 * hash value, which is most reliably done this way:
-	 */
-	if (key == (float8) 0)
-		PG_RETURN_UINT32(0);
-
-	return hash_any((unsigned char *) &key, sizeof(key));
+  return hash_any((unsigned char *)key->values, key->dim1 * sizeof(Oid));
 }
 
-Datum
-hashoidvector(PG_FUNCTION_ARGS)
-{
-	oidvector  *key = (oidvector *) PG_GETARG_POINTER(0);
+Datum hashint2vector(PG_FUNCTION_ARGS) {
+  int2vector *key = (int2vector *)PG_GETARG_POINTER(0);
 
-	return hash_any((unsigned char *) key->values, key->dim1 * sizeof(Oid));
+  return hash_any((unsigned char *)key->values, key->dim1 * sizeof(int16));
 }
 
-Datum
-hashint2vector(PG_FUNCTION_ARGS)
-{
-	int2vector *key = (int2vector *) PG_GETARG_POINTER(0);
+Datum hashname(PG_FUNCTION_ARGS) {
+  char *key = NameStr(*PG_GETARG_NAME(0));
+  int keylen = strlen(key);
 
-	return hash_any((unsigned char *) key->values, key->dim1 * sizeof(int16));
+  Assert(keylen < NAMEDATALEN); /* else it's not truncated correctly */
+
+  return hash_any((unsigned char *)key, keylen);
 }
 
-Datum
-hashname(PG_FUNCTION_ARGS)
-{
-	char	   *key = NameStr(*PG_GETARG_NAME(0));
-	int			keylen = strlen(key);
+Datum hashtext(PG_FUNCTION_ARGS) {
+  text *key = PG_GETARG_TEXT_PP(0);
+  Datum result;
 
-	Assert(keylen < NAMEDATALEN);		/* else it's not truncated correctly */
+  /*
+   * Note: this is currently identical in behavior to hashvarlena, but keep
+   * it as a separate function in case we someday want to do something
+   * different in non-C locales.  (See also hashbpchar, if so.)
+   */
+  result = hash_any((unsigned char *)VARDATA_ANY(key), VARSIZE_ANY_EXHDR(key));
 
-	return hash_any((unsigned char *) key, keylen);
-}
+  /* Avoid leaking memory for toasted inputs */
+  PG_FREE_IF_COPY(key, 0);
 
-Datum
-hashtext(PG_FUNCTION_ARGS)
-{
-	text	   *key = PG_GETARG_TEXT_PP(0);
-	Datum		result;
-
-	/*
-	 * Note: this is currently identical in behavior to hashvarlena, but keep
-	 * it as a separate function in case we someday want to do something
-	 * different in non-C locales.  (See also hashbpchar, if so.)
-	 */
-	result = hash_any((unsigned char *) VARDATA_ANY(key),
-					  VARSIZE_ANY_EXHDR(key));
-
-	/* Avoid leaking memory for toasted inputs */
-	PG_FREE_IF_COPY(key, 0);
-
-	return result;
+  return result;
 }
 
 /*
  * hashvarlena() can be used for any varlena datatype in which there are
  * no non-significant bits, ie, distinct bitpatterns never compare as equal.
  */
-Datum
-hashvarlena(PG_FUNCTION_ARGS)
-{
-	struct varlena *key = PG_GETARG_VARLENA_PP(0);
-	Datum		result;
+Datum hashvarlena(PG_FUNCTION_ARGS) {
+  struct varlena *key = PG_GETARG_VARLENA_PP(0);
+  Datum result;
 
-	result = hash_any((unsigned char *) VARDATA_ANY(key),
-					  VARSIZE_ANY_EXHDR(key));
+  result = hash_any((unsigned char *)VARDATA_ANY(key), VARSIZE_ANY_EXHDR(key));
 
-	/* Avoid leaking memory for toasted inputs */
-	PG_FREE_IF_COPY(key, 0);
+  /* Avoid leaking memory for toasted inputs */
+  PG_FREE_IF_COPY(key, 0);
 
-	return result;
+  return result;
 }
 
 /*
@@ -207,7 +174,7 @@ hashvarlena(PG_FUNCTION_ARGS)
 #define UINT32_ALIGN_MASK (sizeof(uint32) - 1)
 
 /* Rotate a uint32 value left by k bits - note multiple evaluation! */
-#define rot(x,k) (((x)<<(k)) | ((x)>>(32-(k))))
+#define rot(x, k) (((x) << (k)) | ((x) >> (32 - (k))))
 
 /*----------
  * mix -- mix 3 32-bit values reversibly.
@@ -241,15 +208,27 @@ hashvarlena(PG_FUNCTION_ARGS)
  * and rotates are much kinder to the top and bottom bits, so I used rotates.
  *----------
  */
-#define mix(a,b,c) \
-{ \
-  a -= c;  a ^= rot(c, 4);	c += b; \
-  b -= a;  b ^= rot(a, 6);	a += c; \
-  c -= b;  c ^= rot(b, 8);	b += a; \
-  a -= c;  a ^= rot(c,16);	c += b; \
-  b -= a;  b ^= rot(a,19);	a += c; \
-  c -= b;  c ^= rot(b, 4);	b += a; \
-}
+#define mix(a, b, c) \
+  {                  \
+    a -= c;          \
+    a ^= rot(c, 4);  \
+    c += b;          \
+    b -= a;          \
+    b ^= rot(a, 6);  \
+    a += c;          \
+    c -= b;          \
+    c ^= rot(b, 8);  \
+    b += a;          \
+    a -= c;          \
+    a ^= rot(c, 16); \
+    c += b;          \
+    b -= a;          \
+    b ^= rot(a, 19); \
+    a += c;          \
+    c -= b;          \
+    c ^= rot(b, 4);  \
+    b += a;          \
+  }
 
 /*----------
  * final -- final mixing of 3 32-bit values (a,b,c) into c
@@ -275,16 +254,23 @@ hashvarlena(PG_FUNCTION_ARGS)
  * and was slower as a result.
  *----------
  */
-#define final(a,b,c) \
-{ \
-  c ^= b; c -= rot(b,14); \
-  a ^= c; a -= rot(c,11); \
-  b ^= a; b -= rot(a,25); \
-  c ^= b; c -= rot(b,16); \
-  a ^= c; a -= rot(c, 4); \
-  b ^= a; b -= rot(a,14); \
-  c ^= b; c -= rot(b,24); \
-}
+#define final(a, b, c) \
+  {                    \
+    c ^= b;            \
+    c -= rot(b, 14);   \
+    a ^= c;            \
+    a -= rot(c, 11);   \
+    b ^= a;            \
+    b -= rot(a, 25);   \
+    c ^= b;            \
+    c -= rot(b, 16);   \
+    a ^= c;            \
+    a -= rot(c, 4);    \
+    b ^= a;            \
+    b -= rot(a, 14);   \
+    c ^= b;            \
+    c -= rot(b, 24);   \
+  }
 
 /*
  * hash_any() -- hash a variable-length key into a 32-bit value
@@ -301,202 +287,196 @@ hashvarlena(PG_FUNCTION_ARGS)
  * by using the final values of both b and c.  b is perhaps a little less
  * well mixed than c, however.
  */
-Datum
-hash_any(register const unsigned char *k, register int keylen)
-{
-	register uint32 a,
-				b,
-				c,
-				len;
+Datum hash_any(register const unsigned char *k, register int keylen) {
+  register uint32 a, b, c, len;
 
-	/* Set up the internal state */
-	len = keylen;
-	a = b = c = 0x9e3779b9 + len + 3923095;
+  /* Set up the internal state */
+  len = keylen;
+  a = b = c = 0x9e3779b9 + len + 3923095;
 
-	/* If the source pointer is word-aligned, we use word-wide fetches */
-	if (((uintptr_t) k & UINT32_ALIGN_MASK) == 0)
-	{
-		/* Code path for aligned source data */
-		register const uint32 *ka = (const uint32 *) k;
+  /* If the source pointer is word-aligned, we use word-wide fetches */
+  if (((uintptr_t)k & UINT32_ALIGN_MASK) == 0) {
+    /* Code path for aligned source data */
+    register const uint32 *ka = (const uint32 *)k;
 
-		/* handle most of the key */
-		while (len >= 12)
-		{
-			a += ka[0];
-			b += ka[1];
-			c += ka[2];
-			mix(a, b, c);
-			ka += 3;
-			len -= 12;
-		}
+    /* handle most of the key */
+    while (len >= 12) {
+      a += ka[0];
+      b += ka[1];
+      c += ka[2];
+      mix(a, b, c);
+      ka += 3;
+      len -= 12;
+    }
 
-		/* handle the last 11 bytes */
-		k = (const unsigned char *) ka;
+    /* handle the last 11 bytes */
+    k = (const unsigned char *)ka;
 #ifdef WORDS_BIGENDIAN
-		switch (len)
-		{
-			case 11:
-				c += ((uint32) k[10] << 8);
-				/* fall through */
-			case 10:
-				c += ((uint32) k[9] << 16);
-				/* fall through */
-			case 9:
-				c += ((uint32) k[8] << 24);
-				/* the lowest byte of c is reserved for the length */
-				/* fall through */
-			case 8:
-				b += ka[1];
-				a += ka[0];
-				break;
-			case 7:
-				b += ((uint32) k[6] << 8);
-				/* fall through */
-			case 6:
-				b += ((uint32) k[5] << 16);
-				/* fall through */
-			case 5:
-				b += ((uint32) k[4] << 24);
-				/* fall through */
-			case 4:
-				a += ka[0];
-				break;
-			case 3:
-				a += ((uint32) k[2] << 8);
-				/* fall through */
-			case 2:
-				a += ((uint32) k[1] << 16);
-				/* fall through */
-			case 1:
-				a += ((uint32) k[0] << 24);
-				/* case 0: nothing left to add */
-		}
-#else							/* !WORDS_BIGENDIAN */
-		switch (len)
-		{
-			case 11:
-				c += ((uint32) k[10] << 24);
-				/* fall through */
-			case 10:
-				c += ((uint32) k[9] << 16);
-				/* fall through */
-			case 9:
-				c += ((uint32) k[8] << 8);
-				/* the lowest byte of c is reserved for the length */
-				/* fall through */
-			case 8:
-				b += ka[1];
-				a += ka[0];
-				break;
-			case 7:
-				b += ((uint32) k[6] << 16);
-				/* fall through */
-			case 6:
-				b += ((uint32) k[5] << 8);
-				/* fall through */
-			case 5:
-				b += k[4];
-				/* fall through */
-			case 4:
-				a += ka[0];
-				break;
-			case 3:
-				a += ((uint32) k[2] << 16);
-				/* fall through */
-			case 2:
-				a += ((uint32) k[1] << 8);
-				/* fall through */
-			case 1:
-				a += k[0];
-				/* case 0: nothing left to add */
-		}
-#endif   /* WORDS_BIGENDIAN */
-	}
-	else
-	{
-		/* Code path for non-aligned source data */
+    switch (len) {
+      case 11:
+        c += ((uint32)k[10] << 8);
+      /* fall through */
+      case 10:
+        c += ((uint32)k[9] << 16);
+      /* fall through */
+      case 9:
+        c += ((uint32)k[8] << 24);
+      /* the lowest byte of c is reserved for the length */
+      /* fall through */
+      case 8:
+        b += ka[1];
+        a += ka[0];
+        break;
+      case 7:
+        b += ((uint32)k[6] << 8);
+      /* fall through */
+      case 6:
+        b += ((uint32)k[5] << 16);
+      /* fall through */
+      case 5:
+        b += ((uint32)k[4] << 24);
+      /* fall through */
+      case 4:
+        a += ka[0];
+        break;
+      case 3:
+        a += ((uint32)k[2] << 8);
+      /* fall through */
+      case 2:
+        a += ((uint32)k[1] << 16);
+      /* fall through */
+      case 1:
+        a += ((uint32)k[0] << 24);
+        /* case 0: nothing left to add */
+    }
+#else  /* !WORDS_BIGENDIAN */
+    switch (len) {
+      case 11:
+        c += ((uint32)k[10] << 24);
+      /* fall through */
+      case 10:
+        c += ((uint32)k[9] << 16);
+      /* fall through */
+      case 9:
+        c += ((uint32)k[8] << 8);
+      /* the lowest byte of c is reserved for the length */
+      /* fall through */
+      case 8:
+        b += ka[1];
+        a += ka[0];
+        break;
+      case 7:
+        b += ((uint32)k[6] << 16);
+      /* fall through */
+      case 6:
+        b += ((uint32)k[5] << 8);
+      /* fall through */
+      case 5:
+        b += k[4];
+      /* fall through */
+      case 4:
+        a += ka[0];
+        break;
+      case 3:
+        a += ((uint32)k[2] << 16);
+      /* fall through */
+      case 2:
+        a += ((uint32)k[1] << 8);
+      /* fall through */
+      case 1:
+        a += k[0];
+        /* case 0: nothing left to add */
+    }
+#endif /* WORDS_BIGENDIAN */
+  } else {
+    /* Code path for non-aligned source data */
 
-		/* handle most of the key */
-		while (len >= 12)
-		{
+    /* handle most of the key */
+    while (len >= 12) {
 #ifdef WORDS_BIGENDIAN
-			a += (k[3] + ((uint32) k[2] << 8) + ((uint32) k[1] << 16) + ((uint32) k[0] << 24));
-			b += (k[7] + ((uint32) k[6] << 8) + ((uint32) k[5] << 16) + ((uint32) k[4] << 24));
-			c += (k[11] + ((uint32) k[10] << 8) + ((uint32) k[9] << 16) + ((uint32) k[8] << 24));
-#else							/* !WORDS_BIGENDIAN */
-			a += (k[0] + ((uint32) k[1] << 8) + ((uint32) k[2] << 16) + ((uint32) k[3] << 24));
-			b += (k[4] + ((uint32) k[5] << 8) + ((uint32) k[6] << 16) + ((uint32) k[7] << 24));
-			c += (k[8] + ((uint32) k[9] << 8) + ((uint32) k[10] << 16) + ((uint32) k[11] << 24));
-#endif   /* WORDS_BIGENDIAN */
-			mix(a, b, c);
-			k += 12;
-			len -= 12;
-		}
+      a += (k[3] + ((uint32)k[2] << 8) + ((uint32)k[1] << 16) +
+            ((uint32)k[0] << 24));
+      b += (k[7] + ((uint32)k[6] << 8) + ((uint32)k[5] << 16) +
+            ((uint32)k[4] << 24));
+      c += (k[11] + ((uint32)k[10] << 8) + ((uint32)k[9] << 16) +
+            ((uint32)k[8] << 24));
+#else  /* !WORDS_BIGENDIAN */
+      a += (k[0] + ((uint32)k[1] << 8) + ((uint32)k[2] << 16) +
+            ((uint32)k[3] << 24));
+      b += (k[4] + ((uint32)k[5] << 8) + ((uint32)k[6] << 16) +
+            ((uint32)k[7] << 24));
+      c += (k[8] + ((uint32)k[9] << 8) + ((uint32)k[10] << 16) +
+            ((uint32)k[11] << 24));
+#endif /* WORDS_BIGENDIAN */
+      mix(a, b, c);
+      k += 12;
+      len -= 12;
+    }
 
-		/* handle the last 11 bytes */
+/* handle the last 11 bytes */
 #ifdef WORDS_BIGENDIAN
-		switch (len)			/* all the case statements fall through */
-		{
-			case 11:
-				c += ((uint32) k[10] << 8);
-			case 10:
-				c += ((uint32) k[9] << 16);
-			case 9:
-				c += ((uint32) k[8] << 24);
-				/* the lowest byte of c is reserved for the length */
-			case 8:
-				b += k[7];
-			case 7:
-				b += ((uint32) k[6] << 8);
-			case 6:
-				b += ((uint32) k[5] << 16);
-			case 5:
-				b += ((uint32) k[4] << 24);
-			case 4:
-				a += k[3];
-			case 3:
-				a += ((uint32) k[2] << 8);
-			case 2:
-				a += ((uint32) k[1] << 16);
-			case 1:
-				a += ((uint32) k[0] << 24);
-				/* case 0: nothing left to add */
-		}
-#else							/* !WORDS_BIGENDIAN */
-		switch (len)			/* all the case statements fall through */
-		{
-			case 11:
-				c += ((uint32) k[10] << 24);
-			case 10:
-				c += ((uint32) k[9] << 16);
-			case 9:
-				c += ((uint32) k[8] << 8);
-				/* the lowest byte of c is reserved for the length */
-			case 8:
-				b += ((uint32) k[7] << 24);
-			case 7:
-				b += ((uint32) k[6] << 16);
-			case 6:
-				b += ((uint32) k[5] << 8);
-			case 5:
-				b += k[4];
-			case 4:
-				a += ((uint32) k[3] << 24);
-			case 3:
-				a += ((uint32) k[2] << 16);
-			case 2:
-				a += ((uint32) k[1] << 8);
-			case 1:
-				a += k[0];
-				/* case 0: nothing left to add */
-		}
-#endif   /* WORDS_BIGENDIAN */
-	}
+    switch (len) /* all the case statements fall through */
+    {
+      case 11:
+        c += ((uint32)k[10] << 8);
+      case 10:
+        c += ((uint32)k[9] << 16);
+      case 9:
+        c += ((uint32)k[8] << 24);
+      /* the lowest byte of c is reserved for the length */
+      case 8:
+        b += k[7];
+      case 7:
+        b += ((uint32)k[6] << 8);
+      case 6:
+        b += ((uint32)k[5] << 16);
+      case 5:
+        b += ((uint32)k[4] << 24);
+      case 4:
+        a += k[3];
+      case 3:
+        a += ((uint32)k[2] << 8);
+      case 2:
+        a += ((uint32)k[1] << 16);
+      case 1:
+        a += ((uint32)k[0] << 24);
+        /* case 0: nothing left to add */
+    }
+#else  /* !WORDS_BIGENDIAN */
+    switch (len) /* all the case statements fall through */
+    {
+      case 11:
+        c += ((uint32)k[10] << 24);
+      case 10:
+        c += ((uint32)k[9] << 16);
+      case 9:
+        c += ((uint32)k[8] << 8);
+      /* the lowest byte of c is reserved for the length */
+      case 8:
+        b += ((uint32)k[7] << 24);
+      case 7:
+        b += ((uint32)k[6] << 16);
+      case 6:
+        b += ((uint32)k[5] << 8);
+      case 5:
+        b += k[4];
+      case 4:
+        a += ((uint32)k[3] << 24);
+      case 3:
+        a += ((uint32)k[2] << 16);
+      case 2:
+        a += ((uint32)k[1] << 8);
+      case 1:
+        a += k[0];
+        /* case 0: nothing left to add */
+    }
+#endif /* WORDS_BIGENDIAN */
+  }
 
-	final(a, b, c);
+  final(a, b, c);
 
-	/* report the result */
-	return UInt32GetDatum(c);
+  /* report the result */
+  return UInt32GetDatum(c);
 }
 
 /*
@@ -506,18 +486,14 @@ hash_any(register const unsigned char *k, register int keylen)
  *		hash_any(&k, sizeof(uint32))
  * but is faster and doesn't force the caller to store k into memory.
  */
-Datum
-hash_uint32(uint32 k)
-{
-	register uint32 a,
-				b,
-				c;
+Datum hash_uint32(uint32 k) {
+  register uint32 a, b, c;
 
-	a = b = c = 0x9e3779b9 + (uint32) sizeof(uint32) + 3923095;
-	a += k;
+  a = b = c = 0x9e3779b9 + (uint32)sizeof(uint32) + 3923095;
+  a += k;
 
-	final(a, b, c);
+  final(a, b, c);
 
-	/* report the result */
-	return UInt32GetDatum(c);
+  /* report the result */
+  return UInt32GetDatum(c);
 }

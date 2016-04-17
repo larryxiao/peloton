@@ -17,17 +17,11 @@
 
 #include "libpq/pqsignal.h"
 
-
 #ifdef HAVE_SIGPROCMASK
-sigset_t	UnBlockSig,
-			BlockSig,
-			StartupBlockSig;
+sigset_t UnBlockSig, BlockSig, StartupBlockSig;
 #else
-int			UnBlockSig,
-			BlockSig,
-			StartupBlockSig;
+int UnBlockSig, BlockSig, StartupBlockSig;
 #endif
-
 
 /*
  * Initialize BlockSig, UnBlockSig, and StartupBlockSig.
@@ -42,78 +36,73 @@ int			UnBlockSig,
  * UnBlockSig is the set of signals to block when we don't want to block
  * signals (is this ever nonzero??)
  */
-void
-pqinitmask(void)
-{
+void pqinitmask(void) {
 #ifdef HAVE_SIGPROCMASK
 
-	sigemptyset(&UnBlockSig);
+  sigemptyset(&UnBlockSig);
 
-	/* First set all signals, then clear some. */
-	sigfillset(&BlockSig);
-	sigfillset(&StartupBlockSig);
+  /* First set all signals, then clear some. */
+  sigfillset(&BlockSig);
+  sigfillset(&StartupBlockSig);
 
-	/*
-	 * Unmark those signals that should never be blocked. Some of these signal
-	 * names don't exist on all platforms.  Most do, but might as well ifdef
-	 * them all for consistency...
-	 */
+/*
+ * Unmark those signals that should never be blocked. Some of these signal
+ * names don't exist on all platforms.  Most do, but might as well ifdef
+ * them all for consistency...
+ */
 #ifdef SIGTRAP
-	sigdelset(&BlockSig, SIGTRAP);
-	sigdelset(&StartupBlockSig, SIGTRAP);
+  sigdelset(&BlockSig, SIGTRAP);
+  sigdelset(&StartupBlockSig, SIGTRAP);
 #endif
 #ifdef SIGABRT
-	sigdelset(&BlockSig, SIGABRT);
-	sigdelset(&StartupBlockSig, SIGABRT);
+  sigdelset(&BlockSig, SIGABRT);
+  sigdelset(&StartupBlockSig, SIGABRT);
 #endif
 #ifdef SIGILL
-	sigdelset(&BlockSig, SIGILL);
-	sigdelset(&StartupBlockSig, SIGILL);
+  sigdelset(&BlockSig, SIGILL);
+  sigdelset(&StartupBlockSig, SIGILL);
 #endif
 #ifdef SIGFPE
-	sigdelset(&BlockSig, SIGFPE);
-	sigdelset(&StartupBlockSig, SIGFPE);
+  sigdelset(&BlockSig, SIGFPE);
+  sigdelset(&StartupBlockSig, SIGFPE);
 #endif
 #ifdef SIGSEGV
-	sigdelset(&BlockSig, SIGSEGV);
-	sigdelset(&StartupBlockSig, SIGSEGV);
+  sigdelset(&BlockSig, SIGSEGV);
+  sigdelset(&StartupBlockSig, SIGSEGV);
 #endif
 #ifdef SIGBUS
-	sigdelset(&BlockSig, SIGBUS);
-	sigdelset(&StartupBlockSig, SIGBUS);
+  sigdelset(&BlockSig, SIGBUS);
+  sigdelset(&StartupBlockSig, SIGBUS);
 #endif
 #ifdef SIGSYS
-	sigdelset(&BlockSig, SIGSYS);
-	sigdelset(&StartupBlockSig, SIGSYS);
+  sigdelset(&BlockSig, SIGSYS);
+  sigdelset(&StartupBlockSig, SIGSYS);
 #endif
 #ifdef SIGCONT
-	sigdelset(&BlockSig, SIGCONT);
-	sigdelset(&StartupBlockSig, SIGCONT);
+  sigdelset(&BlockSig, SIGCONT);
+  sigdelset(&StartupBlockSig, SIGCONT);
 #endif
 
 /* Signals unique to startup */
 #ifdef SIGQUIT
-	sigdelset(&StartupBlockSig, SIGQUIT);
+  sigdelset(&StartupBlockSig, SIGQUIT);
 #endif
 #ifdef SIGTERM
-	sigdelset(&StartupBlockSig, SIGTERM);
+  sigdelset(&StartupBlockSig, SIGTERM);
 #endif
 #ifdef SIGALRM
-	sigdelset(&StartupBlockSig, SIGALRM);
+  sigdelset(&StartupBlockSig, SIGALRM);
 #endif
 #else
-	/* Set the signals we want. */
-	UnBlockSig = 0;
-	BlockSig = sigmask(SIGQUIT) |
-		sigmask(SIGTERM) | sigmask(SIGALRM) |
-	/* common signals between two */
-		sigmask(SIGHUP) |
-		sigmask(SIGINT) | sigmask(SIGUSR1) |
-		sigmask(SIGUSR2) | sigmask(SIGCHLD) |
-		sigmask(SIGWINCH) | sigmask(SIGFPE);
-	StartupBlockSig = sigmask(SIGHUP) |
-		sigmask(SIGINT) | sigmask(SIGUSR1) |
-		sigmask(SIGUSR2) | sigmask(SIGCHLD) |
-		sigmask(SIGWINCH) | sigmask(SIGFPE);
+  /* Set the signals we want. */
+  UnBlockSig = 0;
+  BlockSig = sigmask(SIGQUIT) | sigmask(SIGTERM) | sigmask(SIGALRM) |
+             /* common signals between two */
+             sigmask(SIGHUP) | sigmask(SIGINT) | sigmask(SIGUSR1) |
+             sigmask(SIGUSR2) | sigmask(SIGCHLD) | sigmask(SIGWINCH) |
+             sigmask(SIGFPE);
+  StartupBlockSig = sigmask(SIGHUP) | sigmask(SIGINT) | sigmask(SIGUSR1) |
+                    sigmask(SIGUSR2) | sigmask(SIGCHLD) | sigmask(SIGWINCH) |
+                    sigmask(SIGFPE);
 #endif
 }

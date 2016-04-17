@@ -91,7 +91,7 @@ void Database::UpdateStats() const {
                                       table->GetNumberOfTuples());
 
     for (oid_t index_offset = 0; index_offset < table->GetIndexCount();
-        index_offset++) {
+         index_offset++) {
       auto index = table->GetIndex(index_offset);
       bridge::Bridge::SetNumberOfTuples(index->GetOid(),
                                         index->GetNumberOfTuples());
@@ -107,7 +107,7 @@ void Database::UpdateStatsWithOid(const oid_t table_oid) const {
   bridge::Bridge::SetNumberOfTuples(table_oid, table->GetNumberOfTuples());
 
   for (oid_t index_offset = 0; index_offset < table->GetIndexCount();
-      index_offset++) {
+       index_offset++) {
     auto index = table->GetIndex(index_offset);
     bridge::Bridge::SetNumberOfTuples(index->GetOid(),
                                       index->GetNumberOfTuples());
@@ -132,9 +132,8 @@ const std::string Database::GetInfo() const {
   for (auto table : tables) {
     if (table != nullptr) {
       os << "(" << ++table_itr << "/" << table_count << ") "
-          << "Table Name(" << table->GetOid()
-          << ") : " << table->GetName() << "\n" << *(table->GetSchema())
-          << std::endl;
+         << "Table Name(" << table->GetOid() << ") : " << table->GetName()
+         << "\n" << *(table->GetSchema()) << std::endl;
 
       oid_t index_count = table->GetIndexCount();
 
@@ -163,7 +162,7 @@ const std::string Database::GetInfo() const {
 
         oid_t foreign_key_count = table->GetForeignKeyCount();
         for (oid_t foreign_key_itr = 0; foreign_key_itr < foreign_key_count;
-            foreign_key_itr++) {
+             foreign_key_itr++) {
           auto foreign_key = table->GetForeignKey(foreign_key_itr);
 
           auto sink_table_oid = foreign_key->GetSinkTableOid();
@@ -171,7 +170,7 @@ const std::string Database::GetInfo() const {
 
           auto sink_table_schema = sink_table->GetSchema();
           os << "table name : " << sink_table->GetName() << " "
-              << *sink_table_schema << std::endl;
+             << *sink_table_schema << std::endl;
         }
       }
     }

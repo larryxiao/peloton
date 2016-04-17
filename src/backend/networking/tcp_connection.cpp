@@ -36,7 +36,7 @@ struct total_processed {
  */
 Connection::Connection(int fd, struct event_base *base, void *arg,
                        NetworkAddress &addr)
-: addr_(addr), close_(false), status_(INIT), base_(base) {
+    : addr_(addr), close_(false), status_(INIT), base_(base) {
   // we must pass rpc_server when new a connection
   assert(arg != NULL);
   rpc_server_ = (RpcServer *)arg;
@@ -239,25 +239,26 @@ void *Connection::ProcessMessage(void *connection) {
       LOG_TRACE("RpcServer with controller failed:%s ", error.c_str());
     }
 
-/*    {
-      std::lock_guard < std::mutex > lock(send_mutex);
-      server_response_send_number++;
-      server_response_send_bytes += (msg_len + HEADERLEN);
+    /*    {
+          std::lock_guard < std::mutex > lock(send_mutex);
+          server_response_send_number++;
+          server_response_send_bytes += (msg_len + HEADERLEN);
 
-      struct timeval end;
-      long useconds;
-      gettimeofday(&end, NULL);
-      useconds = end.tv_usec - ConnectionManager::GetInstance().start_time_;
+          struct timeval end;
+          long useconds;
+          gettimeofday(&end, NULL);
+          useconds = end.tv_usec - ConnectionManager::GetInstance().start_time_;
 
-      LOG_INFO("server_response_send_number: %lu", server_response_send_number);
-      LOG_INFO("speed: %f-------------------------------------------------",
-               (float)(server_response_send_number * 1000000)/useconds);
+          LOG_INFO("server_response_send_number: %lu",
+       server_response_send_number);
+          LOG_INFO("speed: %f-------------------------------------------------",
+                   (float)(server_response_send_number * 1000000)/useconds);
 
-      LOG_INFO("server_response_send_bytes: %lu", server_response_send_bytes);
-      LOG_INFO("speed: %f-------------------------------------------------",
-               (float)(server_response_send_bytes * 1000000)/useconds);
-    }*/
-
+          LOG_INFO("server_response_send_bytes: %lu",
+       server_response_send_bytes);
+          LOG_INFO("speed: %f-------------------------------------------------",
+                   (float)(server_response_send_bytes * 1000000)/useconds);
+        }*/
   }
 
   return NULL;

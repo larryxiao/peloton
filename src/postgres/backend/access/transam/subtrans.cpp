@@ -34,7 +34,6 @@
 #include "pg_trace.h"
 #include "utils/snapmgr.h"
 
-
 /*
  * Defines for SubTrans page sizes.  A page is the same BLCKSZ as is used
  * everywhere else in Postgres.
@@ -50,84 +49,78 @@
 /* We need four bytes per xact */
 #define SUBTRANS_XACTS_PER_PAGE (BLCKSZ / sizeof(TransactionId))
 
-#define TransactionIdToPage(xid) ((xid) / (TransactionId) SUBTRANS_XACTS_PER_PAGE)
-#define TransactionIdToEntry(xid) ((xid) % (TransactionId) SUBTRANS_XACTS_PER_PAGE)
-
+#define TransactionIdToPage(xid) \
+  ((xid) / (TransactionId)SUBTRANS_XACTS_PER_PAGE)
+#define TransactionIdToEntry(xid) \
+  ((xid) % (TransactionId)SUBTRANS_XACTS_PER_PAGE)
 
 /*
  * Link to shared-memory data structures for SUBTRANS control
  */
 thread_local static SlruCtlData SubTransCtlData;
 
-#define SubTransCtl  (&SubTransCtlData)
+#define SubTransCtl (&SubTransCtlData)
 
-
-static int	ZeroSUBTRANSPage(int pageno);
+static int ZeroSUBTRANSPage(int pageno);
 static bool SubTransPagePrecedes(int page1, int page2);
-
 
 /*
  * Record the parent of a subtransaction in the subtrans log.
  *
  * In some cases we may need to overwrite an existing value.
  */
-void
-SubTransSetParent(TransactionId xid, TransactionId parent, bool overwriteOK)
-{
-	int			pageno = TransactionIdToPage(xid);
-	int			entryno = TransactionIdToEntry(xid);
-	int			slotno;
-	TransactionId *ptr;
+void SubTransSetParent(TransactionId xid, TransactionId parent,
+                       bool overwriteOK) {
+  int pageno = TransactionIdToPage(xid);
+  int entryno = TransactionIdToEntry(xid);
+  int slotno;
+  TransactionId *ptr;
 
-	Assert(TransactionIdIsValid(parent));
+  Assert(TransactionIdIsValid(parent));
 
-	LWLockAcquire(SubtransControlLock, LW_EXCLUSIVE);
+  LWLockAcquire(SubtransControlLock, LW_EXCLUSIVE);
 
-	slotno = SimpleLruReadPage(SubTransCtl, pageno, true, xid);
-	ptr = (TransactionId *) SubTransCtl->shared->page_buffer[slotno];
-	ptr += entryno;
+  slotno = SimpleLruReadPage(SubTransCtl, pageno, true, xid);
+  ptr = (TransactionId *)SubTransCtl->shared->page_buffer[slotno];
+  ptr += entryno;
 
-	/* Current state should be 0 */
-	Assert(*ptr == InvalidTransactionId ||
-		   (*ptr == parent && overwriteOK));
+  /* Current state should be 0 */
+  Assert(*ptr == InvalidTransactionId || (*ptr == parent && overwriteOK));
 
-	*ptr = parent;
+  *ptr = parent;
 
-	SubTransCtl->shared->page_dirty[slotno] = true;
+  SubTransCtl->shared->page_dirty[slotno] = true;
 
-	LWLockRelease(SubtransControlLock);
+  LWLockRelease(SubtransControlLock);
 }
 
 /*
  * Interrogate the parent of a transaction in the subtrans log.
  */
-TransactionId
-SubTransGetParent(TransactionId xid)
-{
-	int			pageno = TransactionIdToPage(xid);
-	int			entryno = TransactionIdToEntry(xid);
-	int			slotno;
-	TransactionId *ptr;
-	TransactionId parent;
+TransactionId SubTransGetParent(TransactionId xid) {
+  int pageno = TransactionIdToPage(xid);
+  int entryno = TransactionIdToEntry(xid);
+  int slotno;
+  TransactionId *ptr;
+  TransactionId parent;
 
-	/* Can't ask about stuff that might not be around anymore */
-	Assert(TransactionIdFollowsOrEquals(xid, TransactionXmin));
+  /* Can't ask about stuff that might not be around anymore */
+  Assert(TransactionIdFollowsOrEquals(xid, TransactionXmin));
 
-	/* Bootstrap and frozen XIDs have no parent */
-	if (!TransactionIdIsNormal(xid))
-		return InvalidTransactionId;
+  /* Bootstrap and frozen XIDs have no parent */
+  if (!TransactionIdIsNormal(xid)) return InvalidTransactionId;
 
-	/* lock is acquired by SimpleLruReadPage_ReadOnly */
+  /* lock is acquired by SimpleLruReadPage_ReadOnly */
 
-	slotno = SimpleLruReadPage_ReadOnly(SubTransCtl, pageno, xid);
-	ptr = (TransactionId *) SubTransCtl->shared->page_buffer[slotno];
-	ptr += entryno;
+  slotno = SimpleLruReadPage_ReadOnly(SubTransCtl, pageno, xid);
+  ptr = (TransactionId *)SubTransCtl->shared->page_buffer[slotno];
+  ptr += entryno;
 
-	parent = *ptr;
+  parent = *ptr;
 
-	LWLockRelease(SubtransControlLock);
+  LWLockRelease(SubtransControlLock);
 
-	return parent;
+  return parent;
 }
 
 /*
@@ -142,46 +135,36 @@ SubTransGetParent(TransactionId xid)
  * or is part of a current snapshot's list of still-running transactions.
  * Therefore, any XID before TransactionXmin is as good as any other.
  */
-TransactionId
-SubTransGetTopmostTransaction(TransactionId xid)
-{
-	TransactionId parentXid = xid,
-				previousXid = xid;
+TransactionId SubTransGetTopmostTransaction(TransactionId xid) {
+  TransactionId parentXid = xid, previousXid = xid;
 
-	/* Can't ask about stuff that might not be around anymore */
-	Assert(TransactionIdFollowsOrEquals(xid, TransactionXmin));
+  /* Can't ask about stuff that might not be around anymore */
+  Assert(TransactionIdFollowsOrEquals(xid, TransactionXmin));
 
-	while (TransactionIdIsValid(parentXid))
-	{
-		previousXid = parentXid;
-		if (TransactionIdPrecedes(parentXid, TransactionXmin))
-			break;
-		parentXid = SubTransGetParent(parentXid);
-	}
+  while (TransactionIdIsValid(parentXid)) {
+    previousXid = parentXid;
+    if (TransactionIdPrecedes(parentXid, TransactionXmin)) break;
+    parentXid = SubTransGetParent(parentXid);
+  }
 
-	Assert(TransactionIdIsValid(previousXid));
+  Assert(TransactionIdIsValid(previousXid));
 
-	return previousXid;
+  return previousXid;
 }
-
 
 /*
  * Initialization of shared memory for SUBTRANS
  */
-Size
-SUBTRANSShmemSize(void)
-{
-	return SimpleLruShmemSize(NUM_SUBTRANS_BUFFERS, 0);
+Size SUBTRANSShmemSize(void) {
+  return SimpleLruShmemSize(NUM_SUBTRANS_BUFFERS, 0);
 }
 
-void
-SUBTRANSShmemInit(void)
-{
-	SubTransCtl->PagePrecedes = SubTransPagePrecedes;
-	SimpleLruInit(SubTransCtl, "SUBTRANS Ctl", NUM_SUBTRANS_BUFFERS, 0,
-				  SubtransControlLock, "pg_subtrans");
-	/* Override default assumption that writes should be fsync'd */
-	SubTransCtl->do_fsync = false;
+void SUBTRANSShmemInit(void) {
+  SubTransCtl->PagePrecedes = SubTransPagePrecedes;
+  SimpleLruInit(SubTransCtl, "SUBTRANS Ctl", NUM_SUBTRANS_BUFFERS, 0,
+                SubtransControlLock, "pg_subtrans");
+  /* Override default assumption that writes should be fsync'd */
+  SubTransCtl->do_fsync = false;
 }
 
 /*
@@ -194,21 +177,19 @@ SUBTRANSShmemInit(void)
  * since slru.c would create it on first write anyway.  But we may as well
  * do it to be sure the directory is set up correctly.
  */
-void
-BootStrapSUBTRANS(void)
-{
-	int			slotno;
+void BootStrapSUBTRANS(void) {
+  int slotno;
 
-	LWLockAcquire(SubtransControlLock, LW_EXCLUSIVE);
+  LWLockAcquire(SubtransControlLock, LW_EXCLUSIVE);
 
-	/* Create and zero the first page of the subtrans log */
-	slotno = ZeroSUBTRANSPage(0);
+  /* Create and zero the first page of the subtrans log */
+  slotno = ZeroSUBTRANSPage(0);
 
-	/* Make sure it's written out */
-	SimpleLruWritePage(SubTransCtl, slotno);
-	Assert(!SubTransCtl->shared->page_dirty[slotno]);
+  /* Make sure it's written out */
+  SimpleLruWritePage(SubTransCtl, slotno);
+  Assert(!SubTransCtl->shared->page_dirty[slotno]);
 
-	LWLockRelease(SubtransControlLock);
+  LWLockRelease(SubtransControlLock);
 }
 
 /*
@@ -219,10 +200,8 @@ BootStrapSUBTRANS(void)
  *
  * Control lock must be held at entry, and will be held at exit.
  */
-static int
-ZeroSUBTRANSPage(int pageno)
-{
-	return SimpleLruZeroPage(SubTransCtl, pageno);
+static int ZeroSUBTRANSPage(int pageno) {
+  return SimpleLruZeroPage(SubTransCtl, pageno);
 }
 
 /*
@@ -232,68 +211,60 @@ ZeroSUBTRANSPage(int pageno)
  * oldestActiveXID is the oldest XID of any prepared transaction, or nextXid
  * if there are none.
  */
-void
-StartupSUBTRANS(TransactionId oldestActiveXID)
-{
-	int			startPage;
-	int			endPage;
+void StartupSUBTRANS(TransactionId oldestActiveXID) {
+  int startPage;
+  int endPage;
 
-	/*
-	 * Since we don't expect pg_subtrans to be valid across crashes, we
-	 * initialize the currently-active page(s) to zeroes during startup.
-	 * Whenever we advance into a new___ page, ExtendSUBTRANS will likewise zero
-	 * the new___ page without regard to whatever was previously on disk.
-	 */
-	LWLockAcquire(SubtransControlLock, LW_EXCLUSIVE);
+  /*
+   * Since we don't expect pg_subtrans to be valid across crashes, we
+   * initialize the currently-active page(s) to zeroes during startup.
+   * Whenever we advance into a new___ page, ExtendSUBTRANS will likewise zero
+   * the new___ page without regard to whatever was previously on disk.
+   */
+  LWLockAcquire(SubtransControlLock, LW_EXCLUSIVE);
 
-	startPage = TransactionIdToPage(oldestActiveXID);
-	endPage = TransactionIdToPage(ShmemVariableCache->nextXid);
+  startPage = TransactionIdToPage(oldestActiveXID);
+  endPage = TransactionIdToPage(ShmemVariableCache->nextXid);
 
-	while (startPage != endPage)
-	{
-		(void) ZeroSUBTRANSPage(startPage);
-		startPage++;
-	}
-	(void) ZeroSUBTRANSPage(startPage);
+  while (startPage != endPage) {
+    (void)ZeroSUBTRANSPage(startPage);
+    startPage++;
+  }
+  (void)ZeroSUBTRANSPage(startPage);
 
-	LWLockRelease(SubtransControlLock);
+  LWLockRelease(SubtransControlLock);
 }
 
 /*
  * This must be called ONCE during postmaster or standalone-backend shutdown
  */
-void
-ShutdownSUBTRANS(void)
-{
-	/*
-	 * Flush dirty SUBTRANS pages to disk
-	 *
-	 * This is not actually necessary from a correctness point of view. We do
-	 * it merely as a debugging aid.
-	 */
-	TRACE_POSTGRESQL_SUBTRANS_CHECKPOINT_START(false);
-	SimpleLruFlush(SubTransCtl, false);
-	TRACE_POSTGRESQL_SUBTRANS_CHECKPOINT_DONE(false);
+void ShutdownSUBTRANS(void) {
+  /*
+   * Flush dirty SUBTRANS pages to disk
+   *
+   * This is not actually necessary from a correctness point of view. We do
+   * it merely as a debugging aid.
+   */
+  TRACE_POSTGRESQL_SUBTRANS_CHECKPOINT_START(false);
+  SimpleLruFlush(SubTransCtl, false);
+  TRACE_POSTGRESQL_SUBTRANS_CHECKPOINT_DONE(false);
 }
 
 /*
  * Perform a checkpoint --- either during shutdown, or on-the-fly
  */
-void
-CheckPointSUBTRANS(void)
-{
-	/*
-	 * Flush dirty SUBTRANS pages to disk
-	 *
-	 * This is not actually necessary from a correctness point of view. We do
-	 * it merely to improve the odds that writing of dirty pages is done by
-	 * the checkpoint process and not by backends.
-	 */
-	TRACE_POSTGRESQL_SUBTRANS_CHECKPOINT_START(true);
-	SimpleLruFlush(SubTransCtl, true);
-	TRACE_POSTGRESQL_SUBTRANS_CHECKPOINT_DONE(true);
+void CheckPointSUBTRANS(void) {
+  /*
+   * Flush dirty SUBTRANS pages to disk
+   *
+   * This is not actually necessary from a correctness point of view. We do
+   * it merely to improve the odds that writing of dirty pages is done by
+   * the checkpoint process and not by backends.
+   */
+  TRACE_POSTGRESQL_SUBTRANS_CHECKPOINT_START(true);
+  SimpleLruFlush(SubTransCtl, true);
+  TRACE_POSTGRESQL_SUBTRANS_CHECKPOINT_DONE(true);
 }
-
 
 /*
  * Make sure that SUBTRANS has room for a newly-allocated XID.
@@ -303,29 +274,26 @@ CheckPointSUBTRANS(void)
  * unless we're forced to write out a dirty subtrans page to make room
  * in shared memory.
  */
-void
-ExtendSUBTRANS(TransactionId newestXact)
-{
-	int			pageno;
+void ExtendSUBTRANS(TransactionId newestXact) {
+  int pageno;
 
-	/*
-	 * No work except at first XID of a page.  But beware: just after
-	 * wraparound, the first XID of page zero is FirstNormalTransactionId.
-	 */
-	if (TransactionIdToEntry(newestXact) != 0 &&
-		!TransactionIdEquals(newestXact, FirstNormalTransactionId))
-		return;
+  /*
+   * No work except at first XID of a page.  But beware: just after
+   * wraparound, the first XID of page zero is FirstNormalTransactionId.
+   */
+  if (TransactionIdToEntry(newestXact) != 0 &&
+      !TransactionIdEquals(newestXact, FirstNormalTransactionId))
+    return;
 
-	pageno = TransactionIdToPage(newestXact);
+  pageno = TransactionIdToPage(newestXact);
 
-	LWLockAcquire(SubtransControlLock, LW_EXCLUSIVE);
+  LWLockAcquire(SubtransControlLock, LW_EXCLUSIVE);
 
-	/* Zero the page */
-	ZeroSUBTRANSPage(pageno);
+  /* Zero the page */
+  ZeroSUBTRANSPage(pageno);
 
-	LWLockRelease(SubtransControlLock);
+  LWLockRelease(SubtransControlLock);
 }
-
 
 /*
  * Remove all SUBTRANS segments before the one holding the passed transaction ID
@@ -333,20 +301,17 @@ ExtendSUBTRANS(TransactionId newestXact)
  * This is normally called during checkpoint, with oldestXact being the
  * oldest TransactionXmin of any running transaction.
  */
-void
-TruncateSUBTRANS(TransactionId oldestXact)
-{
-	int			cutoffPage;
+void TruncateSUBTRANS(TransactionId oldestXact) {
+  int cutoffPage;
 
-	/*
-	 * The cutoff point is the start of the segment containing oldestXact. We
-	 * pass the *page* containing oldestXact to SimpleLruTruncate.
-	 */
-	cutoffPage = TransactionIdToPage(oldestXact);
+  /*
+   * The cutoff point is the start of the segment containing oldestXact. We
+   * pass the *page* containing oldestXact to SimpleLruTruncate.
+   */
+  cutoffPage = TransactionIdToPage(oldestXact);
 
-	SimpleLruTruncate(SubTransCtl, cutoffPage);
+  SimpleLruTruncate(SubTransCtl, cutoffPage);
 }
-
 
 /*
  * Decide which of two SUBTRANS page numbers is "older" for truncation purposes.
@@ -357,16 +322,14 @@ TruncateSUBTRANS(TransactionId oldestXact)
  * TransactionIdPrecedes: it'll get weird about permanent xact IDs.  So,
  * offset both xids by FirstNormalTransactionId to avoid that.
  */
-static bool
-SubTransPagePrecedes(int page1, int page2)
-{
-	TransactionId xid1;
-	TransactionId xid2;
+static bool SubTransPagePrecedes(int page1, int page2) {
+  TransactionId xid1;
+  TransactionId xid2;
 
-	xid1 = ((TransactionId) page1) * SUBTRANS_XACTS_PER_PAGE;
-	xid1 += FirstNormalTransactionId;
-	xid2 = ((TransactionId) page2) * SUBTRANS_XACTS_PER_PAGE;
-	xid2 += FirstNormalTransactionId;
+  xid1 = ((TransactionId)page1) * SUBTRANS_XACTS_PER_PAGE;
+  xid1 += FirstNormalTransactionId;
+  xid2 = ((TransactionId)page2) * SUBTRANS_XACTS_PER_PAGE;
+  xid2 += FirstNormalTransactionId;
 
-	return TransactionIdPrecedes(xid1, xid2);
+  return TransactionIdPrecedes(xid1, xid2);
 }

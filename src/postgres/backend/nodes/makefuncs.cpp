@@ -21,77 +21,66 @@
 #include "nodes/nodeFuncs.h"
 #include "utils/lsyscache.h"
 
-
 /*
  * makeA_Expr -
  *		makes an A_Expr node
  */
-A_Expr *
-makeA_Expr(A_Expr_Kind kind, List *name,
-		   Node *lexpr, Node *rexpr, int location)
-{
-	A_Expr	   *a = makeNode(A_Expr);
+A_Expr *makeA_Expr(A_Expr_Kind kind, List *name, Node *lexpr, Node *rexpr,
+                   int location) {
+  A_Expr *a = makeNode(A_Expr);
 
-	a->kind = kind;
-	a->name = name;
-	a->lexpr = lexpr;
-	a->rexpr = rexpr;
-	a->location = location;
-	return a;
+  a->kind = kind;
+  a->name = name;
+  a->lexpr = lexpr;
+  a->rexpr = rexpr;
+  a->location = location;
+  return a;
 }
 
 /*
  * makeSimpleA_Expr -
  *		As above, given a simple (unqualified) operator___ name
  */
-A_Expr *
-makeSimpleA_Expr(A_Expr_Kind kind, char *name,
-				 Node *lexpr, Node *rexpr, int location)
-{
-	A_Expr	   *a = makeNode(A_Expr);
+A_Expr *makeSimpleA_Expr(A_Expr_Kind kind, char *name, Node *lexpr, Node *rexpr,
+                         int location) {
+  A_Expr *a = makeNode(A_Expr);
 
-	a->kind = kind;
-	a->name = list_make1(makeString((char *) name));
-	a->lexpr = lexpr;
-	a->rexpr = rexpr;
-	a->location = location;
-	return a;
+  a->kind = kind;
+  a->name = list_make1(makeString((char *)name));
+  a->lexpr = lexpr;
+  a->rexpr = rexpr;
+  a->location = location;
+  return a;
 }
 
 /*
  * makeVar -
  *	  creates a Var node
  */
-Var *
-makeVar(Index varno,
-		AttrNumber varattno,
-		Oid vartype,
-		int32 vartypmod,
-		Oid varcollid,
-		Index varlevelsup)
-{
-	Var		   *var = makeNode(Var);
+Var *makeVar(Index varno, AttrNumber varattno, Oid vartype, int32 vartypmod,
+             Oid varcollid, Index varlevelsup) {
+  Var *var = makeNode(Var);
 
-	var->varno = varno;
-	var->varattno = varattno;
-	var->vartype = vartype;
-	var->vartypmod = vartypmod;
-	var->varcollid = varcollid;
-	var->varlevelsup = varlevelsup;
+  var->varno = varno;
+  var->varattno = varattno;
+  var->vartype = vartype;
+  var->vartypmod = vartypmod;
+  var->varcollid = varcollid;
+  var->varlevelsup = varlevelsup;
 
-	/*
-	 * Since few if any routines ever create Var nodes with varnoold/varoattno
-	 * different from varno/varattno, we don't provide separate arguments for
-	 * them, but just initialize them to the given varno/varattno. This
-	 * reduces code clutter and chance of error for most callers.
-	 */
-	var->varnoold = varno;
-	var->varoattno = varattno;
+  /*
+   * Since few if any routines ever create Var nodes with varnoold/varoattno
+   * different from varno/varattno, we don't provide separate arguments for
+   * them, but just initialize them to the given varno/varattno. This
+   * reduces code clutter and chance of error for most callers.
+   */
+  var->varnoold = varno;
+  var->varoattno = varattno;
 
-	/* Likewise, we just set location to "unknown" here */
-	var->location = -1;
+  /* Likewise, we just set location to "unknown" here */
+  var->location = -1;
 
-	return var;
+  return var;
 }
 
 /*
@@ -99,16 +88,10 @@ makeVar(Index varno,
  *		convenience function to create a same-level Var node from a
  *		TargetEntry
  */
-Var *
-makeVarFromTargetEntry(Index varno,
-					   TargetEntry *tle)
-{
-	return makeVar(varno,
-				   tle->resno,
-				   exprType((Node *) tle->expr),
-				   exprTypmod((Node *) tle->expr),
-				   exprCollation((Node *) tle->expr),
-				   0);
+Var *makeVarFromTargetEntry(Index varno, TargetEntry *tle) {
+  return makeVar(varno, tle->resno, exprType((Node *)tle->expr),
+                 exprTypmod((Node *)tle->expr),
+                 exprCollation((Node *)tle->expr), 0);
 }
 
 /*
@@ -127,133 +110,92 @@ makeVarFromTargetEntry(Index varno,
  * the function's result directly, instead of the single-column composite
  * value that the whole-row notation might otherwise suggest.
  */
-Var *
-makeWholeRowVar(RangeTblEntry *rte,
-				Index varno,
-				Index varlevelsup,
-				bool allowScalar)
-{
-	Var		   *result;
-	Oid			toid;
-	Node	   *fexpr;
+Var *makeWholeRowVar(RangeTblEntry *rte, Index varno, Index varlevelsup,
+                     bool allowScalar) {
+  Var *result;
+  Oid toid;
+  Node *fexpr;
 
-	switch (rte->rtekind)
-	{
-		case RTE_RELATION:
-			/* relation: the rowtype is a named composite type */
-			toid = get_rel_type_id(rte->relid);
-			if (!OidIsValid(toid))
-				elog(ERROR, "could not find type OID for relation %u",
-					 rte->relid);
-			result = makeVar(varno,
-							 InvalidAttrNumber,
-							 toid,
-							 -1,
-							 InvalidOid,
-							 varlevelsup);
-			break;
+  switch (rte->rtekind) {
+    case RTE_RELATION:
+      /* relation: the rowtype is a named composite type */
+      toid = get_rel_type_id(rte->relid);
+      if (!OidIsValid(toid))
+        elog(ERROR, "could not find type OID for relation %u", rte->relid);
+      result =
+          makeVar(varno, InvalidAttrNumber, toid, -1, InvalidOid, varlevelsup);
+      break;
 
-		case RTE_FUNCTION:
+    case RTE_FUNCTION:
 
-			/*
-			 * If there's more than one function, or ordinality is requested,
-			 * force a RECORD result, since there's certainly more than one
-			 * column involved and it can't be a known named type.
-			 */
-			if (rte->funcordinality || list_length(rte->functions) != 1)
-			{
-				/* always produces an anonymous RECORD result */
-				result = makeVar(varno,
-								 InvalidAttrNumber,
-								 RECORDOID,
-								 -1,
-								 InvalidOid,
-								 varlevelsup);
-				break;
-			}
+      /*
+       * If there's more than one function, or ordinality is requested,
+       * force a RECORD result, since there's certainly more than one
+       * column involved and it can't be a known named type.
+       */
+      if (rte->funcordinality || list_length(rte->functions) != 1) {
+        /* always produces an anonymous RECORD result */
+        result = makeVar(varno, InvalidAttrNumber, RECORDOID, -1, InvalidOid,
+                         varlevelsup);
+        break;
+      }
 
-			fexpr = ((RangeTblFunction *) linitial(rte->functions))->funcexpr;
-			toid = exprType(fexpr);
-			if (type_is_rowtype(toid))
-			{
-				/* func returns composite; same as relation case */
-				result = makeVar(varno,
-								 InvalidAttrNumber,
-								 toid,
-								 -1,
-								 InvalidOid,
-								 varlevelsup);
-			}
-			else if (allowScalar)
-			{
-				/* func returns scalar; just return its output as-is */
-				result = makeVar(varno,
-								 1,
-								 toid,
-								 -1,
-								 exprCollation(fexpr),
-								 varlevelsup);
-			}
-			else
-			{
-				/* func returns scalar, but we want a composite result */
-				result = makeVar(varno,
-								 InvalidAttrNumber,
-								 RECORDOID,
-								 -1,
-								 InvalidOid,
-								 varlevelsup);
-			}
-			break;
+      fexpr = ((RangeTblFunction *)linitial(rte->functions))->funcexpr;
+      toid = exprType(fexpr);
+      if (type_is_rowtype(toid)) {
+        /* func returns composite; same as relation case */
+        result = makeVar(varno, InvalidAttrNumber, toid, -1, InvalidOid,
+                         varlevelsup);
+      } else if (allowScalar) {
+        /* func returns scalar; just return its output as-is */
+        result = makeVar(varno, 1, toid, -1, exprCollation(fexpr), varlevelsup);
+      } else {
+        /* func returns scalar, but we want a composite result */
+        result = makeVar(varno, InvalidAttrNumber, RECORDOID, -1, InvalidOid,
+                         varlevelsup);
+      }
+      break;
 
-		default:
+    default:
 
-			/*
-			 * RTE is a join, subselect, or VALUES.  We represent this as a
-			 * whole-row Var of RECORD type. (Note that in most cases the Var
-			 * will be expanded to a RowExpr during planning, but that is not
-			 * our concern here.)
-			 */
-			result = makeVar(varno,
-							 InvalidAttrNumber,
-							 RECORDOID,
-							 -1,
-							 InvalidOid,
-							 varlevelsup);
-			break;
-	}
+      /*
+       * RTE is a join, subselect, or VALUES.  We represent this as a
+       * whole-row Var of RECORD type. (Note that in most cases the Var
+       * will be expanded to a RowExpr during planning, but that is not
+       * our concern here.)
+       */
+      result = makeVar(varno, InvalidAttrNumber, RECORDOID, -1, InvalidOid,
+                       varlevelsup);
+      break;
+  }
 
-	return result;
+  return result;
 }
 
 /*
  * makeTargetEntry -
  *	  creates a TargetEntry node
  */
-TargetEntry *
-makeTargetEntry(Expr *expr,
-				AttrNumber resno,
-				char *resname,
-				bool resjunk)
-{
-	TargetEntry *tle = makeNode(TargetEntry);
+TargetEntry *makeTargetEntry(Expr *expr, AttrNumber resno, char *resname,
+                             bool resjunk) {
+  TargetEntry *tle = makeNode(TargetEntry);
 
-	tle->expr = expr;
-	tle->resno = resno;
-	tle->resname = resname;
+  tle->expr = expr;
+  tle->resno = resno;
+  tle->resname = resname;
 
-	/*
-	 * We always set these fields to 0. If the caller wants to change them he
-	 * must do so explicitly.  Few callers do that, so omitting these
-	 * arguments reduces the chance of error.
-	 */
-	tle->ressortgroupref = 0;
-	tle->resorigtbl = InvalidOid;
-	tle->resorigcol = 0;
+  /*
+   * We always set these fields to 0. If the caller wants to change them he
+   * must do so explicitly.  Few callers do that, so omitting these
+   * arguments reduces the chance of error.
+   */
+  tle->ressortgroupref = 0;
+  tle->resorigtbl = InvalidOid;
+  tle->resorigcol = 0;
 
-	tle->resjunk = resjunk;
+  tle->resjunk = resjunk;
 
-	return tle;
+  return tle;
 }
 
 /*
@@ -263,55 +205,45 @@ makeTargetEntry(Expr *expr,
  * This is commonly used when we just want to modify the resno or substitute
  * a new___ expression.
  */
-TargetEntry *
-flatCopyTargetEntry(TargetEntry *src_tle)
-{
-	TargetEntry *tle = makeNode(TargetEntry);
+TargetEntry *flatCopyTargetEntry(TargetEntry *src_tle) {
+  TargetEntry *tle = makeNode(TargetEntry);
 
-	Assert(IsA(src_tle, TargetEntry));
-	memcpy(tle, src_tle, sizeof(TargetEntry));
-	return tle;
+  Assert(IsA(src_tle, TargetEntry));
+  memcpy(tle, src_tle, sizeof(TargetEntry));
+  return tle;
 }
 
 /*
  * makeFromExpr -
  *	  creates a FromExpr node
  */
-FromExpr *
-makeFromExpr(List *fromlist, Node *quals)
-{
-	FromExpr   *f = makeNode(FromExpr);
+FromExpr *makeFromExpr(List *fromlist, Node *quals) {
+  FromExpr *f = makeNode(FromExpr);
 
-	f->fromlist = fromlist;
-	f->quals = quals;
-	return f;
+  f->fromlist = fromlist;
+  f->quals = quals;
+  return f;
 }
 
 /*
  * makeConst -
  *	  creates a Const node
  */
-Const *
-makeConst(Oid consttype,
-		  int32 consttypmod,
-		  Oid constcollid,
-		  int constlen,
-		  Datum constvalue,
-		  bool constisnull,
-		  bool constbyval)
-{
-	Const	   *cnst = makeNode(Const);
+Const *makeConst(Oid consttype, int32 consttypmod, Oid constcollid,
+                 int constlen, Datum constvalue, bool constisnull,
+                 bool constbyval) {
+  Const *cnst = makeNode(Const);
 
-	cnst->consttype = consttype;
-	cnst->consttypmod = consttypmod;
-	cnst->constcollid = constcollid;
-	cnst->constlen = constlen;
-	cnst->constvalue = constvalue;
-	cnst->constisnull = constisnull;
-	cnst->constbyval = constbyval;
-	cnst->location = -1;		/* "unknown" */
+  cnst->consttype = consttype;
+  cnst->consttypmod = consttypmod;
+  cnst->constcollid = constcollid;
+  cnst->constlen = constlen;
+  cnst->constvalue = constvalue;
+  cnst->constisnull = constisnull;
+  cnst->constbyval = constbyval;
+  cnst->location = -1; /* "unknown" */
 
-	return cnst;
+  return cnst;
 }
 
 /*
@@ -321,48 +253,37 @@ makeConst(Oid consttype,
  * This is a convenience routine that just saves a lookup of the type's
  * storage properties.
  */
-Const *
-makeNullConst(Oid consttype, int32 consttypmod, Oid constcollid)
-{
-	int16		typLen;
-	bool		typByVal;
+Const *makeNullConst(Oid consttype, int32 consttypmod, Oid constcollid) {
+  int16 typLen;
+  bool typByVal;
 
-	get_typlenbyval(consttype, &typLen, &typByVal);
-	return makeConst(consttype,
-					 consttypmod,
-					 constcollid,
-					 (int) typLen,
-					 (Datum) 0,
-					 true,
-					 typByVal);
+  get_typlenbyval(consttype, &typLen, &typByVal);
+  return makeConst(consttype, consttypmod, constcollid, (int)typLen, (Datum)0,
+                   true, typByVal);
 }
 
 /*
  * makeBoolConst -
  *	  creates a Const node representing a boolean value (can be NULL too)
  */
-Node *
-makeBoolConst(bool value, bool isnull)
-{
-	/* note that pg_type.h hardwires size of bool as 1 ... duplicate it */
-	return (Node *) makeConst(BOOLOID, -1, InvalidOid, 1,
-							  BoolGetDatum(value), isnull, true);
+Node *makeBoolConst(bool value, bool isnull) {
+  /* note that pg_type.h hardwires size of bool as 1 ... duplicate it */
+  return (Node *)makeConst(BOOLOID, -1, InvalidOid, 1, BoolGetDatum(value),
+                           isnull, true);
 }
 
 /*
  * makeBoolExpr -
  *	  creates a BoolExpr node
  */
-Expr *
-makeBoolExpr(BoolExprType boolop, List *args, int location)
-{
-	BoolExpr   *b = makeNode(BoolExpr);
+Expr *makeBoolExpr(BoolExprType boolop, List *args, int location) {
+  BoolExpr *b = makeNode(BoolExpr);
 
-	b->boolop = boolop;
-	b->args = args;
-	b->location = location;
+  b->boolop = boolop;
+  b->args = args;
+  b->location = location;
 
-	return (Expr *) b;
+  return (Expr *)b;
 }
 
 /*
@@ -371,55 +292,49 @@ makeBoolExpr(BoolExprType boolop, List *args, int location)
  *
  * NOTE: the given name is copied, but the colnames list (if any) isn't.
  */
-Alias *
-makeAlias(const char *aliasname, List *colnames)
-{
-	Alias	   *a = makeNode(Alias);
+Alias *makeAlias(const char *aliasname, List *colnames) {
+  Alias *a = makeNode(Alias);
 
-	a->aliasname = pstrdup(aliasname);
-	a->colnames = colnames;
+  a->aliasname = pstrdup(aliasname);
+  a->colnames = colnames;
 
-	return a;
+  return a;
 }
 
 /*
  * makeRelabelType -
  *	  creates a RelabelType node
  */
-RelabelType *
-makeRelabelType(Expr *arg, Oid rtype, int32 rtypmod, Oid rcollid,
-				CoercionForm rformat)
-{
-	RelabelType *r = makeNode(RelabelType);
+RelabelType *makeRelabelType(Expr *arg, Oid rtype, int32 rtypmod, Oid rcollid,
+                             CoercionForm rformat) {
+  RelabelType *r = makeNode(RelabelType);
 
-	r->arg = arg;
-	r->resulttype = rtype;
-	r->resulttypmod = rtypmod;
-	r->resultcollid = rcollid;
-	r->relabelformat = rformat;
-	r->location = -1;
+  r->arg = arg;
+  r->resulttype = rtype;
+  r->resulttypmod = rtypmod;
+  r->resultcollid = rcollid;
+  r->relabelformat = rformat;
+  r->location = -1;
 
-	return r;
+  return r;
 }
 
 /*
  * makeRangeVar -
  *	  creates a RangeVar node (rather oversimplified case)
  */
-RangeVar *
-makeRangeVar(char *schemaname, char *relname, int location)
-{
-	RangeVar   *r = makeNode(RangeVar);
+RangeVar *makeRangeVar(char *schemaname, char *relname, int location) {
+  RangeVar *r = makeNode(RangeVar);
 
-	r->catalogname = NULL;
-	r->schemaname = schemaname;
-	r->relname = relname;
-	r->inhOpt = INH_DEFAULT;
-	r->relpersistence = RELPERSISTENCE_PERMANENT;
-	r->alias = NULL;
-	r->location = location;
+  r->catalogname = NULL;
+  r->schemaname = schemaname;
+  r->relname = relname;
+  r->inhOpt = INH_DEFAULT;
+  r->relpersistence = RELPERSISTENCE_PERMANENT;
+  r->alias = NULL;
+  r->location = location;
 
-	return r;
+  return r;
 }
 
 /*
@@ -428,10 +343,8 @@ makeRangeVar(char *schemaname, char *relname, int location)
  *
  * typmod is defaulted, but can be changed later by caller.
  */
-TypeName *
-makeTypeName(char *typnam)
-{
-	return makeTypeNameFromNameList(list_make1(makeString(typnam)));
+TypeName *makeTypeName(char *typnam) {
+  return makeTypeNameFromNameList(list_make1(makeString(typnam)));
 }
 
 /*
@@ -440,31 +353,27 @@ makeTypeName(char *typnam)
  *
  * typmod is defaulted, but can be changed later by caller.
  */
-TypeName *
-makeTypeNameFromNameList(List *names)
-{
-	TypeName   *n = makeNode(TypeName);
+TypeName *makeTypeNameFromNameList(List *names) {
+  TypeName *n = makeNode(TypeName);
 
-	n->names = names;
-	n->typmods = NIL;
-	n->typemod = -1;
-	n->location = -1;
-	return n;
+  n->names = names;
+  n->typmods = NIL;
+  n->typemod = -1;
+  n->location = -1;
+  return n;
 }
 
 /*
  * makeTypeNameFromOid -
  *	build a TypeName node to represent a type already known by OID/typmod.
  */
-TypeName *
-makeTypeNameFromOid(Oid typeOid, int32 typmod)
-{
-	TypeName   *n = makeNode(TypeName);
+TypeName *makeTypeNameFromOid(Oid typeOid, int32 typmod) {
+  TypeName *n = makeNode(TypeName);
 
-	n->typeOid = typeOid;
-	n->typemod = typmod;
-	n->location = -1;
-	return n;
+  n->typeOid = typeOid;
+  n->typemod = typmod;
+  n->location = -1;
+  return n;
 }
 
 /*
@@ -473,24 +382,22 @@ makeTypeNameFromOid(Oid typeOid, int32 typmod)
  *
  * The argument expressions must have been transformed already.
  */
-FuncExpr *
-makeFuncExpr(Oid funcid, Oid rettype, List *args,
-			 Oid funccollid, Oid inputcollid, CoercionForm fformat)
-{
-	FuncExpr   *funcexpr;
+FuncExpr *makeFuncExpr(Oid funcid, Oid rettype, List *args, Oid funccollid,
+                       Oid inputcollid, CoercionForm fformat) {
+  FuncExpr *funcexpr;
 
-	funcexpr = makeNode(FuncExpr);
-	funcexpr->funcid = funcid;
-	funcexpr->funcresulttype = rettype;
-	funcexpr->funcretset = false;		/* only allowed case here */
-	funcexpr->funcvariadic = false;		/* only allowed case here */
-	funcexpr->funcformat = fformat;
-	funcexpr->funccollid = funccollid;
-	funcexpr->inputcollid = inputcollid;
-	funcexpr->args = args;
-	funcexpr->location = -1;
+  funcexpr = makeNode(FuncExpr);
+  funcexpr->funcid = funcid;
+  funcexpr->funcresulttype = rettype;
+  funcexpr->funcretset = false;   /* only allowed case here */
+  funcexpr->funcvariadic = false; /* only allowed case here */
+  funcexpr->funcformat = fformat;
+  funcexpr->funccollid = funccollid;
+  funcexpr->inputcollid = inputcollid;
+  funcexpr->args = args;
+  funcexpr->location = -1;
 
-	return funcexpr;
+  return funcexpr;
 }
 
 /*
@@ -500,35 +407,31 @@ makeFuncExpr(Oid funcid, Oid rettype, List *args,
  * This is sufficient for the "typical" case with an unqualified option name
  * and no special action.
  */
-DefElem *
-makeDefElem(char *name, Node *arg)
-{
-	DefElem    *res = makeNode(DefElem);
+DefElem *makeDefElem(char *name, Node *arg) {
+  DefElem *res = makeNode(DefElem);
 
-	res->defnamespace = NULL;
-	res->defname = name;
-	res->arg = arg;
-	res->defaction = DEFELEM_UNSPEC;
+  res->defnamespace = NULL;
+  res->defname = name;
+  res->arg = arg;
+  res->defaction = DEFELEM_UNSPEC;
 
-	return res;
+  return res;
 }
 
 /*
  * makeDefElemExtended -
  *	build a DefElem node with all fields available to be specified
  */
-DefElem *
-makeDefElemExtended(char *nameSpace, char *name, Node *arg,
-					DefElemAction defaction)
-{
-	DefElem    *res = makeNode(DefElem);
+DefElem *makeDefElemExtended(char *nameSpace, char *name, Node *arg,
+                             DefElemAction defaction) {
+  DefElem *res = makeNode(DefElem);
 
-	res->defnamespace = nameSpace;
-	res->defname = name;
-	res->arg = arg;
-	res->defaction = defaction;
+  res->defnamespace = nameSpace;
+  res->defname = name;
+  res->arg = arg;
+  res->defaction = defaction;
 
-	return res;
+  return res;
 }
 
 /*
@@ -537,35 +440,32 @@ makeDefElemExtended(char *nameSpace, char *name, Node *arg,
  * Initialize a FuncCall struct with the information every caller must
  * supply.  Any non-default parameters have to be inserted by the caller.
  */
-FuncCall *
-makeFuncCall(List *name, List *args, int location)
-{
-	FuncCall   *n = makeNode(FuncCall);
+FuncCall *makeFuncCall(List *name, List *args, int location) {
+  FuncCall *n = makeNode(FuncCall);
 
-	n->funcname = name;
-	n->args = args;
-	n->agg_order = NIL;
-	n->agg_filter = NULL;
-	n->agg_within_group = false;
-	n->agg_star = false;
-	n->agg_distinct = false;
-	n->func_variadic = false;
-	n->over = NULL;
-	n->location = location;
-	return n;
+  n->funcname = name;
+  n->args = args;
+  n->agg_order = NIL;
+  n->agg_filter = NULL;
+  n->agg_within_group = false;
+  n->agg_star = false;
+  n->agg_distinct = false;
+  n->func_variadic = false;
+  n->over = NULL;
+  n->location = location;
+  return n;
 }
 
 /*
  * makeGroupingSet
  *
  */
-GroupingSet *
-makeGroupingSet(GroupingSetKind kind, List *content, int location)
-{
-	GroupingSet	   *n = makeNode(GroupingSet);
+GroupingSet *makeGroupingSet(GroupingSetKind kind, List *content,
+                             int location) {
+  GroupingSet *n = makeNode(GroupingSet);
 
-	n->kind = kind;
-	n->content = content;
-	n->location = location;
-	return n;
+  n->kind = kind;
+  n->content = content;
+  n->location = location;
+  return n;
 }

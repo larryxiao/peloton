@@ -110,8 +110,8 @@ void PlanTransformer::GetGenericInfoFromScanState(
     auto column_ids =
         BuildColumnListFromTargetList(project_info->GetTargetList());
 
-    parent = new planner::ProjectionPlan(std::move(project_info),
-                                         project_schema);
+    parent =
+        new planner::ProjectionPlan(std::move(project_info), project_schema);
 
     ((planner::ProjectionPlan *)parent)->SetColumnIds(column_ids);
   }

@@ -295,7 +295,8 @@ bool SsiTxnManager::PerformUpdate(const oid_t &tile_group_id,
   auto tile_group_header =
       catalog::Manager::GetInstance().GetTileGroup(tile_group_id)->GetHeader();
   auto new_tile_group_header = catalog::Manager::GetInstance()
-      .GetTileGroup(new_location.block)->GetHeader();
+                                   .GetTileGroup(new_location.block)
+                                   ->GetHeader();
 
   // if we can perform update, then we must already locked the older version.
   assert(tile_group_header->GetTransactionId(tuple_id) == transaction_id);
@@ -343,7 +344,8 @@ bool SsiTxnManager::PerformDelete(const oid_t &tile_group_id,
   auto transaction_id = current_txn->GetTransactionId();
 
   auto new_tile_group_header = catalog::Manager::GetInstance()
-      .GetTileGroup(new_location.block)->GetHeader();
+                                   .GetTileGroup(new_location.block)
+                                   ->GetHeader();
 
   // Set up double linked list
   tile_group_header->SetNextItemPointer(tuple_id, new_location);
@@ -687,7 +689,6 @@ void SsiTxnManager::CleanUp() {
     delete ctx->transaction_;
     delete ctx;
   }
-
 }
 
 void SsiTxnManager::CleanUpBg() {

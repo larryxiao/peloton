@@ -121,7 +121,7 @@ bool InsertExecutor::DExecute() {
     std::unique_ptr<storage::Tuple> project_tuple;
 
     // Check if this is not a raw tuple
-    if(tuple == nullptr) {
+    if (tuple == nullptr) {
       // Otherwise, there must exist a project info
       assert(project_info);
       // There should be no direct maps
@@ -141,7 +141,6 @@ bool InsertExecutor::DExecute() {
 
     // Bulk Insert Mode
     for (oid_t insert_itr = 0; insert_itr < bulk_insert_count; insert_itr++) {
-
       // Carry out insertion
       ItemPointer location = target_table->InsertTuple(tuple);
       LOG_TRACE("Inserted into location: %lu, %lu", location.block,
@@ -161,7 +160,6 @@ bool InsertExecutor::DExecute() {
       }
 
       executor_context_->num_processed += 1;  // insert one
-
     }
 
     done_ = true;

@@ -31,7 +31,6 @@ namespace benchmark {
 namespace ycsb {
 
 configuration state;
-
 }
 
 namespace logger {

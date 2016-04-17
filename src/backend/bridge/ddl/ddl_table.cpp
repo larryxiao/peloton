@@ -301,7 +301,7 @@ bool DDLTable::AddConstraint(Oid relation_oid, Constraint *constraint) {
           char *attname = strVal(lfirst(column));
           pk_column_names.push_back(attname);
           pk_column_offsets.push_back(offset);
-          offset ++;
+          offset++;
         }
       }
       if (constraint->fk_attrs != NULL && constraint->fk_attrs->length > 0) {
@@ -310,15 +310,14 @@ bool DDLTable::AddConstraint(Oid relation_oid, Constraint *constraint) {
           char *attname = strVal(lfirst(column));
           fk_column_names.push_back(attname);
           fk_column_offsets.push_back(offset);
-          offset ++;
+          offset++;
         }
       }
 
-
       catalog::ForeignKey *foreign_key = new catalog::ForeignKey(
           PrimaryKeyTableId, pk_column_names, pk_column_offsets,
-          fk_column_names, fk_column_offsets,
-          constraint->fk_upd_action, constraint->fk_del_action, conname);
+          fk_column_names, fk_column_offsets, constraint->fk_upd_action,
+          constraint->fk_del_action, conname);
       foreign_keys.push_back(*foreign_key);
 
     } break;

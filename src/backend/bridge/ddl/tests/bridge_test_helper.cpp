@@ -230,9 +230,9 @@ void BridgeTest::CreateSampleForeignKey(oid_t pktable_oid,
   pk_column_names.push_back("name");
   fk_column_names.push_back("salary");
   std::vector<catalog::ForeignKey> foreign_keys;
-  catalog::ForeignKey *foreign_key =
-      new catalog::ForeignKey(pktable_oid, pk_column_names, {1}, fk_column_names, {3},
-                              'r', 'c', "THIS_IS_FOREIGN_CONSTRAINT");
+  catalog::ForeignKey *foreign_key = new catalog::ForeignKey(
+      pktable_oid, pk_column_names, {1}, fk_column_names, {3}, 'r', 'c',
+      "THIS_IS_FOREIGN_CONSTRAINT");
   foreign_keys.push_back(*foreign_key);
 
   // Current table ----> reference table

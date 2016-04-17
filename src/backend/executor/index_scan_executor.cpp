@@ -156,14 +156,13 @@ bool IndexScanExecutor::ExecIndexLookup() {
     auto tuple_id = tuple_location.offset;
 
     while (true) {
-
       // if the tuple is visible.
       if (transaction_manager.IsVisible(tile_group_header, tuple_id)) {
         // perform predicate evaluation.
         if (predicate_ == nullptr) {
           visible_tuples[tile_group_id].push_back(tuple_id);
           auto res = transaction_manager.PerformRead(tile_group_id, tuple_id);
-          if(!res){
+          if (!res) {
             transaction_manager.SetTransactionResult(RESULT_FAILURE);
             return res;
           }
@@ -175,7 +174,7 @@ bool IndexScanExecutor::ExecIndexLookup() {
           if (eval == true) {
             visible_tuples[tile_group_id].push_back(tuple_id);
             auto res = transaction_manager.PerformRead(tile_group_id, tuple_id);
-            if(!res){
+            if (!res) {
               transaction_manager.SetTransactionResult(RESULT_FAILURE);
               return res;
             }

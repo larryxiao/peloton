@@ -45,7 +45,6 @@ std::unique_ptr<planner::AbstractPlan> PlanTransformer::TransformAgg(
     LOG_INFO("empty projection info");
   }
 
-
   /* Get predicate */
   std::unique_ptr<const expression::AbstractExpression> predicate(
       BuildPredicateFromQual(qual));

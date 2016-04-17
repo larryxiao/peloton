@@ -71,8 +71,8 @@ std::unique_ptr<planner::AbstractPlan> PlanTransformer::TransformNestLoop(
       SchemaTransformer::GetSchemaFromTupleDesc(
           nl_plan_state->tts_tupleDescriptor));
 
-  bool non_trivial = (project_info.get() != nullptr &&
-                      project_info.get()->isNonTrivial());
+  bool non_trivial =
+      (project_info.get() != nullptr && project_info.get()->isNonTrivial());
   if (non_trivial) {
     // we have non-trivial projection
     LOG_INFO("We have non-trivial projection");

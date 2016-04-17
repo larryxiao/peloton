@@ -34,13 +34,10 @@ void WriteBehindBackendLogger::Log(LogRecord *record) {
   }
 }
 
-LogRecord *WriteBehindBackendLogger::GetTupleRecord(LogRecordType log_record_type,
-                                                    txn_id_t txn_id,
-                                                    oid_t table_oid,
-                                                    oid_t db_oid,
-                                                    ItemPointer insert_location,
-                                                    ItemPointer delete_location,
-                                                    __attribute__((unused)) const void *data) {
+LogRecord *WriteBehindBackendLogger::GetTupleRecord(
+    LogRecordType log_record_type, txn_id_t txn_id, oid_t table_oid,
+    oid_t db_oid, ItemPointer insert_location, ItemPointer delete_location,
+    __attribute__((unused)) const void *data) {
   // Figure the log record type
   switch (log_record_type) {
     case LOGRECORD_TYPE_TUPLE_INSERT: {

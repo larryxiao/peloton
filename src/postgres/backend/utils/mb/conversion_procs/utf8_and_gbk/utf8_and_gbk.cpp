@@ -35,38 +35,28 @@ extern Datum utf8_to_gbk(PG_FUNCTION_ARGS);
  * ) returns VOID;
  * ----------
  */
-Datum
-gbk_to_utf8(PG_FUNCTION_ARGS)
-{
-	unsigned char *src = (unsigned char *) PG_GETARG_CSTRING(2);
-	unsigned char *dest = (unsigned char *) PG_GETARG_CSTRING(3);
-	int			len = PG_GETARG_INT32(4);
+Datum gbk_to_utf8(PG_FUNCTION_ARGS) {
+  unsigned char *src = (unsigned char *)PG_GETARG_CSTRING(2);
+  unsigned char *dest = (unsigned char *)PG_GETARG_CSTRING(3);
+  int len = PG_GETARG_INT32(4);
 
-	CHECK_ENCODING_CONVERSION_ARGS(PG_GBK, PG_UTF8);
+  CHECK_ENCODING_CONVERSION_ARGS(PG_GBK, PG_UTF8);
 
-	LocalToUtf(src, len, dest,
-			   LUmapGBK, lengthof(LUmapGBK),
-			   NULL, 0,
-			   NULL,
-			   PG_GBK);
+  LocalToUtf(src, len, dest, LUmapGBK, lengthof(LUmapGBK), NULL, 0, NULL,
+             PG_GBK);
 
-	PG_RETURN_VOID();
+  PG_RETURN_VOID();
 }
 
-Datum
-utf8_to_gbk(PG_FUNCTION_ARGS)
-{
-	unsigned char *src = (unsigned char *) PG_GETARG_CSTRING(2);
-	unsigned char *dest = (unsigned char *) PG_GETARG_CSTRING(3);
-	int			len = PG_GETARG_INT32(4);
+Datum utf8_to_gbk(PG_FUNCTION_ARGS) {
+  unsigned char *src = (unsigned char *)PG_GETARG_CSTRING(2);
+  unsigned char *dest = (unsigned char *)PG_GETARG_CSTRING(3);
+  int len = PG_GETARG_INT32(4);
 
-	CHECK_ENCODING_CONVERSION_ARGS(PG_UTF8, PG_GBK);
+  CHECK_ENCODING_CONVERSION_ARGS(PG_UTF8, PG_GBK);
 
-	UtfToLocal(src, len, dest,
-			   ULmapGBK, lengthof(ULmapGBK),
-			   NULL, 0,
-			   NULL,
-			   PG_GBK);
+  UtfToLocal(src, len, dest, ULmapGBK, lengthof(ULmapGBK), NULL, 0, NULL,
+             PG_GBK);
 
-	PG_RETURN_VOID();
+  PG_RETURN_VOID();
 }

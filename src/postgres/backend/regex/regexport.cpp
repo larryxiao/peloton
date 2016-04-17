@@ -28,51 +28,43 @@
 
 #include "regex/regexport.h"
 
-static void scancolormap(struct colormap * cm, int co,
-			 union tree * t, int level, chr partial,
-			 pg_wchar **chars, int *chars_len);
-
+static void scancolormap(struct colormap *cm, int co, union tree *t, int level,
+                         chr partial, pg_wchar **chars, int *chars_len);
 
 /*
  * Get total number of NFA states.
  */
-int
-pg_reg_getnumstates(const regex_t *regex)
-{
-	struct cnfa *cnfa;
+int pg_reg_getnumstates(const regex_t *regex) {
+  struct cnfa *cnfa;
 
-	assert(regex != NULL && regex->re_magic == REMAGIC);
-	cnfa = &((struct guts *) regex->re_guts)->search;
+  assert(regex != NULL && regex->re_magic == REMAGIC);
+  cnfa = &((struct guts *)regex->re_guts)->search;
 
-	return cnfa->nstates;
+  return cnfa->nstates;
 }
 
 /*
  * Get initial state of NFA.
  */
-int
-pg_reg_getinitialstate(const regex_t *regex)
-{
-	struct cnfa *cnfa;
+int pg_reg_getinitialstate(const regex_t *regex) {
+  struct cnfa *cnfa;
 
-	assert(regex != NULL && regex->re_magic == REMAGIC);
-	cnfa = &((struct guts *) regex->re_guts)->search;
+  assert(regex != NULL && regex->re_magic == REMAGIC);
+  cnfa = &((struct guts *)regex->re_guts)->search;
 
-	return cnfa->pre;
+  return cnfa->pre;
 }
 
 /*
  * Get final state of NFA.
  */
-int
-pg_reg_getfinalstate(const regex_t *regex)
-{
-	struct cnfa *cnfa;
+int pg_reg_getfinalstate(const regex_t *regex) {
+  struct cnfa *cnfa;
 
-	assert(regex != NULL && regex->re_magic == REMAGIC);
-	cnfa = &((struct guts *) regex->re_guts)->search;
+  assert(regex != NULL && regex->re_magic == REMAGIC);
+  cnfa = &((struct guts *)regex->re_guts)->search;
 
-	return cnfa->post;
+  return cnfa->post;
 }
 
 /*
@@ -80,25 +72,20 @@ pg_reg_getfinalstate(const regex_t *regex)
  *
  * Note: LACON arcs are ignored, both here and in pg_reg_getoutarcs().
  */
-int
-pg_reg_getnumoutarcs(const regex_t *regex, int st)
-{
-	struct cnfa *cnfa;
-	struct carc *ca;
-	int			count;
+int pg_reg_getnumoutarcs(const regex_t *regex, int st) {
+  struct cnfa *cnfa;
+  struct carc *ca;
+  int count;
 
-	assert(regex != NULL && regex->re_magic == REMAGIC);
-	cnfa = &((struct guts *) regex->re_guts)->search;
+  assert(regex != NULL && regex->re_magic == REMAGIC);
+  cnfa = &((struct guts *)regex->re_guts)->search;
 
-	if (st < 0 || st >= cnfa->nstates)
-		return 0;
-	count = 0;
-	for (ca = cnfa->states[st]; ca->co != COLORLESS; ca++)
-	{
-		if (ca->co < cnfa->ncolors)
-			count++;
-	}
-	return count;
+  if (st < 0 || st >= cnfa->nstates) return 0;
+  count = 0;
+  for (ca = cnfa->states[st]; ca->co != COLORLESS; ca++) {
+    if (ca->co < cnfa->ncolors) count++;
+  }
+  return count;
 }
 
 /*
@@ -106,43 +93,35 @@ pg_reg_getnumoutarcs(const regex_t *regex, int st)
  * whose length arcs_len must be at least as long as indicated by
  * pg_reg_getnumoutarcs(), else not all arcs will be returned.
  */
-void
-pg_reg_getoutarcs(const regex_t *regex, int st,
-				  regex_arc_t *arcs, int arcs_len)
-{
-	struct cnfa *cnfa;
-	struct carc *ca;
+void pg_reg_getoutarcs(const regex_t *regex, int st, regex_arc_t *arcs,
+                       int arcs_len) {
+  struct cnfa *cnfa;
+  struct carc *ca;
 
-	assert(regex != NULL && regex->re_magic == REMAGIC);
-	cnfa = &((struct guts *) regex->re_guts)->search;
+  assert(regex != NULL && regex->re_magic == REMAGIC);
+  cnfa = &((struct guts *)regex->re_guts)->search;
 
-	if (st < 0 || st >= cnfa->nstates || arcs_len <= 0)
-		return;
-	for (ca = cnfa->states[st]; ca->co != COLORLESS; ca++)
-	{
-		if (ca->co < cnfa->ncolors)
-		{
-			arcs->co = ca->co;
-			arcs->to = ca->to;
-			arcs++;
-			if (--arcs_len == 0)
-				break;
-		}
-	}
+  if (st < 0 || st >= cnfa->nstates || arcs_len <= 0) return;
+  for (ca = cnfa->states[st]; ca->co != COLORLESS; ca++) {
+    if (ca->co < cnfa->ncolors) {
+      arcs->co = ca->co;
+      arcs->to = ca->to;
+      arcs++;
+      if (--arcs_len == 0) break;
+    }
+  }
 }
 
 /*
  * Get total number of colors.
  */
-int
-pg_reg_getnumcolors(const regex_t *regex)
-{
-	struct colormap *cm;
+int pg_reg_getnumcolors(const regex_t *regex) {
+  struct colormap *cm;
 
-	assert(regex != NULL && regex->re_magic == REMAGIC);
-	cm = &((struct guts *) regex->re_guts)->cmap;
+  assert(regex != NULL && regex->re_magic == REMAGIC);
+  cm = &((struct guts *)regex->re_guts)->cmap;
 
-	return cm->max + 1;
+  return cm->max + 1;
 }
 
 /*
@@ -151,35 +130,31 @@ pg_reg_getnumcolors(const regex_t *regex)
  * (We might at some point need to offer more refined handling of pseudocolors,
  * but this will do for now.)
  */
-int
-pg_reg_colorisbegin(const regex_t *regex, int co)
-{
-	struct cnfa *cnfa;
+int pg_reg_colorisbegin(const regex_t *regex, int co) {
+  struct cnfa *cnfa;
 
-	assert(regex != NULL && regex->re_magic == REMAGIC);
-	cnfa = &((struct guts *) regex->re_guts)->search;
+  assert(regex != NULL && regex->re_magic == REMAGIC);
+  cnfa = &((struct guts *)regex->re_guts)->search;
 
-	if (co == cnfa->bos[0] || co == cnfa->bos[1])
-		return true;
-	else
-		return false;
+  if (co == cnfa->bos[0] || co == cnfa->bos[1])
+    return true;
+  else
+    return false;
 }
 
 /*
  * Check if color is end of line/string.
  */
-int
-pg_reg_colorisend(const regex_t *regex, int co)
-{
-	struct cnfa *cnfa;
+int pg_reg_colorisend(const regex_t *regex, int co) {
+  struct cnfa *cnfa;
 
-	assert(regex != NULL && regex->re_magic == REMAGIC);
-	cnfa = &((struct guts *) regex->re_guts)->search;
+  assert(regex != NULL && regex->re_magic == REMAGIC);
+  cnfa = &((struct guts *)regex->re_guts)->search;
 
-	if (co == cnfa->eos[0] || co == cnfa->eos[1])
-		return true;
-	else
-		return false;
+  if (co == cnfa->eos[0] || co == cnfa->eos[1])
+    return true;
+  else
+    return false;
 }
 
 /*
@@ -192,20 +167,18 @@ pg_reg_colorisend(const regex_t *regex, int co)
  * in regex/README).  Callers should not try to extract the members if -1 is
  * returned.
  */
-int
-pg_reg_getnumcharacters(const regex_t *regex, int co)
-{
-	struct colormap *cm;
+int pg_reg_getnumcharacters(const regex_t *regex, int co) {
+  struct colormap *cm;
 
-	assert(regex != NULL && regex->re_magic == REMAGIC);
-	cm = &((struct guts *) regex->re_guts)->cmap;
+  assert(regex != NULL && regex->re_magic == REMAGIC);
+  cm = &((struct guts *)regex->re_guts)->cmap;
 
-	if (co <= 0 || co > cm->max)	/* we reject 0 which is WHITE */
-		return -1;
-	if (cm->cd[co].flags & PSEUDO)		/* also pseudocolors (BOS etc) */
-		return -1;
+  if (co <= 0 || co > cm->max) /* we reject 0 which is WHITE */
+    return -1;
+  if (cm->cd[co].flags & PSEUDO) /* also pseudocolors (BOS etc) */
+    return -1;
 
-	return cm->cd[co].nchrs;
+  return cm->cd[co].nchrs;
 }
 
 /*
@@ -217,22 +190,18 @@ pg_reg_getnumcharacters(const regex_t *regex, int co)
  *
  * Caution: this is a relatively expensive operation.
  */
-void
-pg_reg_getcharacters(const regex_t *regex, int co,
-					 pg_wchar *chars, int chars_len)
-{
-	struct colormap *cm;
+void pg_reg_getcharacters(const regex_t *regex, int co, pg_wchar *chars,
+                          int chars_len) {
+  struct colormap *cm;
 
-	assert(regex != NULL && regex->re_magic == REMAGIC);
-	cm = &((struct guts *) regex->re_guts)->cmap;
+  assert(regex != NULL && regex->re_magic == REMAGIC);
+  cm = &((struct guts *)regex->re_guts)->cmap;
 
-	if (co <= 0 || co > cm->max || chars_len <= 0)
-		return;
-	if (cm->cd[co].flags & PSEUDO)
-		return;
+  if (co <= 0 || co > cm->max || chars_len <= 0) return;
+  if (cm->cd[co].flags & PSEUDO) return;
 
-	/* Recursively search the colormap tree */
-	scancolormap(cm, co, cm->tree, 0, 0, &chars, &chars_len);
+  /* Recursively search the colormap tree */
+  scancolormap(cm, co, cm->tree, 0, 0, &chars, &chars_len);
 }
 
 /*
@@ -244,49 +213,36 @@ pg_reg_getcharacters(const regex_t *regex, int co,
  * partial: partial chr code for chrs within t
  * chars, chars_len: output area
  */
-static void
-scancolormap(struct colormap * cm, int co,
-			 union tree * t, int level, chr partial,
-			 pg_wchar **chars, int *chars_len)
-{
-	int			i;
+static void scancolormap(struct colormap *cm, int co, union tree *t, int level,
+                         chr partial, pg_wchar **chars, int *chars_len) {
+  int i;
 
-	if (level < NBYTS - 1)
-	{
-		/* non-leaf node */
-		for (i = 0; i < BYTTAB; i++)
-		{
-			/*
-			 * We do not support search for chrs of color 0 (WHITE), so
-			 * all-white subtrees need not be searched.  These can be
-			 * recognized because they are represented by the fill blocks in
-			 * the colormap struct.  This typically allows us to avoid
-			 * scanning large regions of higher-numbered chrs.
-			 */
-			if (t->tptr[i] == &cm->tree[level + 1])
-				continue;
+  if (level < NBYTS - 1) {
+    /* non-leaf node */
+    for (i = 0; i < BYTTAB; i++) {
+      /*
+       * We do not support search for chrs of color 0 (WHITE), so
+       * all-white subtrees need not be searched.  These can be
+       * recognized because they are represented by the fill blocks in
+       * the colormap struct.  This typically allows us to avoid
+       * scanning large regions of higher-numbered chrs.
+       */
+      if (t->tptr[i] == &cm->tree[level + 1]) continue;
 
-			/* Recursively scan next level down */
-			scancolormap(cm, co,
-						 t->tptr[i], level + 1,
-						 (partial | (chr) i) << BYTBITS,
-						 chars, chars_len);
-		}
-	}
-	else
-	{
-		/* leaf node */
-		for (i = 0; i < BYTTAB; i++)
-		{
-			if (t->tcolor[i] == co)
-			{
-				if (*chars_len > 0)
-				{
-					**chars = partial | (chr) i;
-					(*chars)++;
-					(*chars_len)--;
-				}
-			}
-		}
-	}
+      /* Recursively scan next level down */
+      scancolormap(cm, co, t->tptr[i], level + 1, (partial | (chr)i) << BYTBITS,
+                   chars, chars_len);
+    }
+  } else {
+    /* leaf node */
+    for (i = 0; i < BYTTAB; i++) {
+      if (t->tcolor[i] == co) {
+        if (*chars_len > 0) {
+          **chars = partial | (chr)i;
+          (*chars)++;
+          (*chars_len)--;
+        }
+      }
+    }
+  }
 }

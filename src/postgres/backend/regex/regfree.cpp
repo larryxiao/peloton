@@ -39,16 +39,12 @@
 
 #include "regex/regguts.h"
 
-
 /*
  * pg_regfree - free an RE (generic function, punts to RE-specific function)
  *
  * Ignoring invocation with NULL is a convenience.
  */
-void
-pg_regfree(regex_t *re)
-{
-	if (re == NULL)
-		return;
-	(*((struct fns *) re->re_fns)->free) (re);
+void pg_regfree(regex_t *re) {
+  if (re == NULL) return;
+  (*((struct fns *)re->re_fns)->free)(re);
 }

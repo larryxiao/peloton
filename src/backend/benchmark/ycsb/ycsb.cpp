@@ -29,11 +29,8 @@ std::ofstream out("outputfile.summary");
 
 static void WriteOutput(double stat) {
   LOG_INFO("----------------------------------------------------------");
-  LOG_INFO("%lf %d %d :: %lf tps",
-           state.update_ratio,
-           state.scale_factor,
-           state.column_count,
-           stat);
+  LOG_INFO("%lf %d %d :: %lf tps", state.update_ratio, state.scale_factor,
+           state.column_count, stat);
 
   out << state.update_ratio << " ";
   out << state.scale_factor << " ";
@@ -44,7 +41,6 @@ static void WriteOutput(double stat) {
 
 // Main Entry Point
 void RunBenchmark() {
-
   // Create and load the user table
   CreateYCSBDatabase();
 
@@ -61,8 +57,8 @@ void RunBenchmark() {
 }  // namespace peloton
 
 int main(int argc, char **argv) {
-  peloton::benchmark::ycsb::ParseArguments(
-      argc, argv, peloton::benchmark::ycsb::state);
+  peloton::benchmark::ycsb::ParseArguments(argc, argv,
+                                           peloton::benchmark::ycsb::state);
 
   peloton::benchmark::ycsb::RunBenchmark();
 

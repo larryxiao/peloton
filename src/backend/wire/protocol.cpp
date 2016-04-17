@@ -1,5 +1,5 @@
 //
-// Created by siddharth on 31/3/16.
+// Created by Siddharth Santurkar on 31/3/16.
 //
 
 #include "marshall.h"
@@ -16,16 +16,17 @@ uchar TXN_IDLE = 'I';
 uchar TXN_BLOCK = 'T';
 uchar TXN_FAIL = 'E';
 
-void print_packet(Packet *pkt) {
-  printf("{");
+void print_packet(Packet* pkt) {
   if (pkt->msg_type) {
-    printf("%d,", pkt->msg_type);
+    LOG_INFO("MsgType: %d", pkt->msg_type);
   }
-  std::string size_field = std::to_string(pkt->len + 4);
-  for(size_t i=0; i < size_field.length(); i++ ) {
-    printf("%d,", size_field[i]);
-  }
-  for(auto ele : pkt->buf) {
+
+  LOG_INFO("Len: %zu", pkt->len);
+
+  LOG_INFO("BufLen: %zu", pkt->buf.size());
+
+  printf("{");
+  for (auto ele : pkt->buf) {
     printf("%d,", ele);
   }
   printf("}\n");
@@ -40,9 +41,8 @@ void PacketManager::close_client() { client.sock->close_socket(); }
  * process_startup_packet - Processes the startup packet
  * 	(after the size field of the header).
  */
-bool PacketManager::process_startup_packet(
-      Packet *pkt, ResponseBuffer& responses) {
-
+bool PacketManager::process_startup_packet(Packet* pkt,
+                                           ResponseBuffer& responses) {
   std::string token, value;
   std::unique_ptr<Packet> response(new Packet());
 
@@ -76,6 +76,7 @@ bool PacketManager::process_startup_packet(
     }
   }
 
+  // send auth-ok
   response->msg_type = 'R';
   packet_putint(response, 0, 4);
   responses.push_back(std::move(response));
@@ -87,7 +88,6 @@ bool PacketManager::process_startup_packet(
     return false;
   }
 
-  // send auth-ok
   send_ready_for_query(TXN_IDLE, responses);
   return true;
 }
@@ -96,7 +96,6 @@ bool PacketManager::process_startup_packet(
  * put_dummy_row_desc - Prepare a dummy row description packet
  */
 void PacketManager::put_dummy_row_desc(ResponseBuffer& responses) {
-
   std::unique_ptr<Packet> pkt(new Packet());
   pkt->msg_type = 'T';
   packet_putint(pkt, 5, 2);
@@ -116,9 +115,8 @@ void PacketManager::put_dummy_row_desc(ResponseBuffer& responses) {
   responses.push_back(std::move(pkt));
 }
 
-void PacketManager::put_dummy_data_row(
-    int colcount, int start, ResponseBuffer& responses) {
-
+void PacketManager::put_dummy_data_row(int colcount, int start,
+                                       ResponseBuffer& responses) {
   std::unique_ptr<Packet> pkt(new Packet());
   std::string data;
   pkt->msg_type = 'D';
@@ -136,7 +134,6 @@ void PacketManager::put_dummy_data_row(
 }
 
 void PacketManager::complete_command(int rows, ResponseBuffer& responses) {
-
   std::unique_ptr<Packet> pkt(new Packet());
   pkt->msg_type = 'C';
   std::string tag = "SELECT " + std::to_string(rows);
@@ -146,11 +143,19 @@ void PacketManager::complete_command(int rows, ResponseBuffer& responses) {
 }
 
 /*
+* put_empty_query_response - Informs the client that an empty query was sent
+*/
+void PacketManager::send_empty_query_response(ResponseBuffer& responses) {
+  std::unique_ptr<Packet> response(new Packet());
+  response->msg_type = 'I';
+  responses.push_back(std::move(response));
+}
+
+/*
  * process_packet - Main switch block; process incoming packets,
  *  Returns false if the seesion needs to be closed.
  */
-bool PacketManager::process_packet(Packet *pkt, ResponseBuffer& responses) {
-
+bool PacketManager::process_packet(Packet* pkt, ResponseBuffer& responses) {
   switch (pkt->msg_type) {
     case 'Q': {
       std::string q_str = packet_getstring(pkt, pkt->len);
@@ -159,11 +164,17 @@ bool PacketManager::process_packet(Packet *pkt, ResponseBuffer& responses) {
       std::vector<std::string> queries;
       boost::split(queries, q_str, boost::is_any_of(";"));
 
-      for (auto &query : queries) {
-        if (query.empty()) {
-          std::unique_ptr<Packet> response(new Packet());
-          response->msg_type = 'I';
-          responses.push_back(std::move(response));
+      // just a ';' sent
+      if (queries.size() == 1) {
+        send_empty_query_response(responses);
+        send_ready_for_query(TXN_IDLE, responses);
+        return true;
+      }
+
+      // iterate till before the trivial string after the last ';'
+      for (auto query = queries.begin(); query != queries.end() - 1; query++) {
+        if (query->empty()) {
+          send_empty_query_response(responses);
           send_ready_for_query(TXN_IDLE, responses);
           return true;
         }
@@ -201,8 +212,7 @@ bool PacketManager::process_packet(Packet *pkt, ResponseBuffer& responses) {
  */
 void PacketManager::send_error_response(
     std::vector<std::pair<uchar, std::string>> error_status,
-    ResponseBuffer& responses){
-
+    ResponseBuffer& responses) {
   std::unique_ptr<Packet> pkt(new Packet());
   pkt->msg_type = 'E';
 
@@ -218,10 +228,8 @@ void PacketManager::send_error_response(
   responses.push_back(std::move(pkt));
 }
 
-void PacketManager::send_ready_for_query(
-    uchar txn_status,
-    ResponseBuffer& responses) {
-
+void PacketManager::send_ready_for_query(uchar txn_status,
+                                         ResponseBuffer& responses) {
   std::unique_ptr<Packet> pkt(new Packet());
   pkt->msg_type = 'Z';
 
@@ -245,6 +253,7 @@ void PacketManager::manage_packets() {
     return;
   }
 
+  print_packet(&pkt);
   status = process_startup_packet(&pkt, responses);
   if (!write_packets(responses, &client) || !status) {
     // close client on write failure or status failure
@@ -254,6 +263,7 @@ void PacketManager::manage_packets() {
 
   pkt.reset();
   while (read_packet(&pkt, true, &client)) {
+    print_packet(&pkt);
     status = process_packet(&pkt, responses);
     if (!write_packets(responses, &client) || !status) {
       // close client on write failure or status failure
@@ -266,7 +276,7 @@ void PacketManager::manage_packets() {
 }
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
   if (argc != 2) {
     std::cout << "Usage: ./wire_server [port]" << std::endl;
     exit(EXIT_FAILURE);

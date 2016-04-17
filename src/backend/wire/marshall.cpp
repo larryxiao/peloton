@@ -79,7 +79,9 @@ PktBuf packet_getbytes(Packet *pkt, size_t len) {
  * 		if len=0? parse till the end of the string
  */
 std::string packet_getstring(Packet *pkt, size_t len) {
-  return std::string(std::begin(pkt->buf) + pkt->ptr, get_end_itr(pkt, len));
+  // exclude null char for std string
+  return std::string(std::begin(pkt->buf) + pkt->ptr,
+                     get_end_itr(pkt, len - 1));
 }
 
 /*
@@ -108,12 +110,12 @@ std::string get_string_token(Packet *pkt) {
   return std::string(start, find_itr);
 }
 
-void packet_putbyte(std::unique_ptr<Packet>& pkt, const uchar c) {
+void packet_putbyte(std::unique_ptr<Packet> &pkt, const uchar c) {
   pkt->buf.push_back(c);
   pkt->len++;
 }
 
-void packet_putstring(std::unique_ptr<Packet>& pkt, std::string &str) {
+void packet_putstring(std::unique_ptr<Packet> &pkt, std::string &str) {
   pkt->buf.insert(std::end(pkt->buf), std::begin(str), std::end(str));
   // add null character
   pkt->buf.push_back(0);
@@ -121,7 +123,7 @@ void packet_putstring(std::unique_ptr<Packet>& pkt, std::string &str) {
   pkt->len += str.size() + 1;
 }
 
-void packet_putint(std::unique_ptr<Packet>& pkt, int n, int base) {
+void packet_putint(std::unique_ptr<Packet> &pkt, int n, int base) {
   switch (base) {
     case 2:
       n = htons(n);
@@ -139,11 +141,10 @@ void packet_putint(std::unique_ptr<Packet>& pkt, int n, int base) {
   packet_putcbytes(pkt, reinterpret_cast<uchar *>(&n), base);
 }
 
-void packet_putcbytes(std::unique_ptr<Packet>& pkt, const uchar *b, int len) {
+void packet_putcbytes(std::unique_ptr<Packet> &pkt, const uchar *b, int len) {
   pkt->buf.insert(std::end(pkt->buf), b, b + len);
   pkt->len += len;
 }
-
 
 /*
  * read_packet - Tries to read a single packet, returns true on success,
@@ -158,8 +159,8 @@ bool read_packet(Packet *pkt, bool has_type_field, Client *client) {
   uint32_t pkt_size = 0, initial_read_size = sizeof(int32_t);
 
   if (has_type_field)
-  // need to read type character as well
-  initial_read_size++;
+    // need to read type character as well
+    initial_read_size++;
 
   // reads the type and size of packet
   PktBuf init_pkt;
@@ -197,11 +198,11 @@ bool read_packet(Packet *pkt, bool has_type_field, Client *client) {
   return true;
 }
 
-bool write_packets(std::vector<std::unique_ptr<Packet>>& packets,
+bool write_packets(std::vector<std::unique_ptr<Packet>> &packets,
                    Client *client) {
-  for (size_t i=0; i < packets.size(); i++) {
+  for (size_t i = 0; i < packets.size(); i++) {
     auto pkt = packets[i].get();
-    if(!client->sock->buffer_write_bytes(pkt->buf, pkt->len, pkt->msg_type))
+    if (!client->sock->buffer_write_bytes(pkt->buf, pkt->len, pkt->msg_type))
       return false;
   }
 
@@ -210,5 +211,5 @@ bool write_packets(std::vector<std::unique_ptr<Packet>>& packets,
   return client->sock->flush_write_buffer();
 }
 
-} // end wire
-} // end peloton
+}  // end wire
+}  // end peloton

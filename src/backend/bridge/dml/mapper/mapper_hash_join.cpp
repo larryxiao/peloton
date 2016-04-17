@@ -78,8 +78,8 @@ std::unique_ptr<planner::AbstractPlan> PlanTransformer::TransformHashJoin(
   std::vector<oid_t> outer_hashkeys =
       BuildColumnListFromExpStateList(hj_plan_state->outer_hashkeys);
 
-  bool non_trivial = (project_info.get() != nullptr &&
-                      project_info.get()->isNonTrivial());
+  bool non_trivial =
+      (project_info.get() != nullptr && project_info.get()->isNonTrivial());
   if (non_trivial) {
     // we have non-trivial projection
     LOG_INFO("We have non-trivial projection");

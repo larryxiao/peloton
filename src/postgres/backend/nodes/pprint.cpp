@@ -16,30 +16,23 @@
 
 /* static helpers */
 
-static void PrintPlan(FILE *DEST,
-                      const PlanState *planstate,
-                      const char * relationship,
-                      const char * plan_name,
-                      int ind);
+static void PrintPlan(FILE *DEST, const PlanState *planstate,
+                      const char *relationship, const char *plan_name, int ind);
 
-static void PrintSubPlan(FILE *DEST,
-                         List *plans,
-                         const char *plan_name,
+static void PrintSubPlan(FILE *DEST, List *plans, const char *plan_name,
                          int ind);
 
-static void PrintMember(FILE *DEST,
-                        List *plans,
-                        PlanState **planstates,
+static void PrintMember(FILE *DEST, List *plans, PlanState **planstates,
                         int ind);
 
 static void PrintModifyTableInfo(FILE *DEST, ModifyTableState *mtstate,
-                                   int ind);
+                                 int ind);
 
 /* deprecated */
 
 static void PrintPlanState(FILE *DEST, const PlanState *planstate, int ind);
 
-static void PrintList(FILE *DEST, const List* list, int ind);
+static void PrintList(FILE *DEST, const List *list, int ind);
 
 /* Utils */
 static void IndentHelper(FILE *DEST, int ind);
@@ -54,19 +47,19 @@ void PrintPlanStateTree(const PlanState *planstate) {
 }
 
 static void PrintPlan(FILE *DEST, const PlanState *planstate,
-                       const char * relationship, const char * plan_name,
-                       int ind) {
+                      const char *relationship, const char *plan_name,
+                      int ind) {
   Plan *plan = planstate->plan;
 
   assert(plan != nullptr);
 
-  const char* pname;  // node type for text output
-  const char* sname;
-  const char* operation = NULL;
-  const char* strategy = NULL;
-  const char* custom_name = NULL;
+  const char *pname;  // node type for text output
+  const char *sname;
+  const char *operation = NULL;
+  const char *strategy = NULL;
+  const char *custom_name = NULL;
 
-  //bool haschildren;
+  // bool haschildren;
 
   /* 1. Plan Type */
   switch (nodeTag(plan)) {
@@ -75,7 +68,7 @@ static void PrintPlan(FILE *DEST, const PlanState *planstate,
       break;
     case T_ModifyTable:
       sname = "ModifyTable";
-      switch (((ModifyTable *) plan)->operation) {
+      switch (((ModifyTable *)plan)->operation) {
         case CMD_INSERT:
           pname = operation = "ModifyTable:Insert";
           break;
@@ -154,7 +147,7 @@ static void PrintPlan(FILE *DEST, const PlanState *planstate,
       break;
     case T_CustomScan:
       sname = "Custom Scan";
-      custom_name = ((CustomScan *) plan)->methods->CustomName;
+      custom_name = ((CustomScan *)plan)->methods->CustomName;
       if (custom_name)
         pname = psprintf("Custom Scan (%s)", custom_name);
       else
@@ -166,8 +159,7 @@ static void PrintPlan(FILE *DEST, const PlanState *planstate,
        * The specified tablesample method can be fetched from RTE
        * */
       pname = sname = "Sample Scan";
-    }
-      break;
+    } break;
     case T_Material:
       pname = sname = "Materialize";
       break;
@@ -179,7 +171,7 @@ static void PrintPlan(FILE *DEST, const PlanState *planstate,
       break;
     case T_Agg:
       sname = "Aggregate";
-      switch (((Agg *) plan)->aggstrategy) {
+      switch (((Agg *)plan)->aggstrategy) {
         case AGG_PLAIN:
           pname = "Aggregate";
           strategy = "Plain";
@@ -206,7 +198,7 @@ static void PrintPlan(FILE *DEST, const PlanState *planstate,
       break;
     case T_SetOp:
       sname = "SetOp";
-      switch (((SetOp *) plan)->strategy) {
+      switch (((SetOp *)plan)->strategy) {
         case SETOP_SORTED:
           pname = "SetOp";
           strategy = "Sorted";
@@ -279,29 +271,27 @@ static void PrintPlan(FILE *DEST, const PlanState *planstate,
     case T_ForeignScan:
     case T_CustomScan:
       /* TODO: Scan target */
-      //if (((Scan *) plan)->scanrelid > 0)
+      // if (((Scan *) plan)->scanrelid > 0)
       break;
     case T_SampleScan:
       /* TODO: Scan target */
       break;
     case T_IndexScan: {
       /* TODO: Index Info and Scan target */
-    }
-      break;
+    } break;
     case T_IndexOnlyScan: {
       /* TODO: Index Info and Scan target */
-    }
-      break;
+    } break;
     case T_BitmapIndexScan: {
       /* TODO: Index Info and Scan target */
-    }
-      break;
+    } break;
     case T_ModifyTable:
       /* TODO: Modify target
        * ModifyTableTarget, for relation that was named in the original query
-       * ModifyTable_info(multiple target table or non-nominal relation, FDW and foreign , on conflict clause)
+       * ModifyTable_info(multiple target table or non-nominal relation, FDW and
+       * foreign , on conflict clause)
        * */
-      PrintModifyTableInfo(DEST, (ModifyTableState *) planstate, ind + 1);
+      PrintModifyTableInfo(DEST, (ModifyTableState *)planstate, ind + 1);
 
       break;
     case T_NestLoop:
@@ -309,7 +299,7 @@ static void PrintPlan(FILE *DEST, const PlanState *planstate,
     case T_HashJoin: {
       const char *jointype;
 
-      switch (((Join *) plan)->jointype) {
+      switch (((Join *)plan)->jointype) {
         case JOIN_INNER:
           jointype = "Inner";
           break;
@@ -335,12 +325,11 @@ static void PrintPlan(FILE *DEST, const PlanState *planstate,
 
       IndentHelper(DEST, ind + 1);
       fprintf(DEST, "Type: %s|", jointype);
-    }
-      break;
+    } break;
     case T_SetOp: {
       const char *setopcmd;
 
-      switch (((SetOp *) plan)->cmd) {
+      switch (((SetOp *)plan)->cmd) {
         case SETOPCMD_INTERSECT:
           setopcmd = "Intersect";
           break;
@@ -359,8 +348,7 @@ static void PrintPlan(FILE *DEST, const PlanState *planstate,
       }
       IndentHelper(DEST, ind + 1);
       fprintf(DEST, "Command: %s", setopcmd);
-    }
-      break;
+    } break;
     default:
       break;
   }
@@ -398,35 +386,33 @@ static void PrintPlan(FILE *DEST, const PlanState *planstate,
   /* right tree */
   if (innerPlanState(planstate)) {
     PrintPlan(DEST, innerPlanState(planstate), "RightTree", NULL, ind + 1);
-
   }
 
   /* special child plans */
   switch (nodeTag(plan)) {
     case T_ModifyTable:
-      PrintMember(DEST, ((ModifyTable *) plan)->plans,
-                   ((ModifyTableState *) planstate)->mt_plans, ind + 1);
+      PrintMember(DEST, ((ModifyTable *)plan)->plans,
+                  ((ModifyTableState *)planstate)->mt_plans, ind + 1);
       break;
     case T_Append:
-      PrintMember(DEST, ((Append *) plan)->appendplans,
-                   ((AppendState *) planstate)->appendplans, ind + 1);
+      PrintMember(DEST, ((Append *)plan)->appendplans,
+                  ((AppendState *)planstate)->appendplans, ind + 1);
       break;
     case T_MergeAppend:
-      PrintMember(DEST, ((MergeAppend *) plan)->mergeplans,
-                   ((MergeAppendState *) planstate)->mergeplans, ind + 1);
+      PrintMember(DEST, ((MergeAppend *)plan)->mergeplans,
+                  ((MergeAppendState *)planstate)->mergeplans, ind + 1);
       break;
     case T_BitmapAnd:
-      PrintMember(DEST, ((BitmapAnd *) plan)->bitmapplans,
-                   ((BitmapAndState *) planstate)->bitmapplans, ind + 1);
+      PrintMember(DEST, ((BitmapAnd *)plan)->bitmapplans,
+                  ((BitmapAndState *)planstate)->bitmapplans, ind + 1);
       break;
     case T_BitmapOr:
-      PrintMember(DEST, ((BitmapOr *) plan)->bitmapplans,
-                   ((BitmapOrState *) planstate)->bitmapplans, ind + 1);
+      PrintMember(DEST, ((BitmapOr *)plan)->bitmapplans,
+                  ((BitmapOrState *)planstate)->bitmapplans, ind + 1);
       break;
     case T_SubqueryScan:
-      PrintPlan(DEST, ((SubqueryScanState *) planstate)->subplan, "Subquery",
-      NULL,
-                 ind + 1);
+      PrintPlan(DEST, ((SubqueryScanState *)planstate)->subplan, "Subquery",
+                NULL, ind + 1);
       break;
     default:
       break;
@@ -435,23 +421,21 @@ static void PrintPlan(FILE *DEST, const PlanState *planstate,
   /* subPlan-s */
   if (planstate->subPlan)
     PrintSubPlan(DEST, planstate->subPlan, "SubPlan", ind + 1);
-
 }
 
 static void PrintSubPlan(FILE *DEST, List *plans, const char *relationship,
-                          int ind) {
+                         int ind) {
   ListCell *lst;
 
-  foreach(lst, plans)
-  {
-    SubPlanState *sps = (SubPlanState *) lfirst(lst);
-    SubPlan *sp = (SubPlan *) sps->xprstate.expr;
+  foreach (lst, plans) {
+    SubPlanState *sps = (SubPlanState *)lfirst(lst);
+    SubPlan *sp = (SubPlan *)sps->xprstate.expr;
     PrintPlan(DEST, sps->planstate, relationship, sp->plan_name, ind);
   }
 }
 
 static void PrintMember(FILE *DEST, List *plans, PlanState **planstates,
-                         int ind) {
+                        int ind) {
   int nplans = list_length(plans);
   int j;
   for (j = 0; j < nplans; ++j) {
@@ -460,21 +444,20 @@ static void PrintMember(FILE *DEST, List *plans, PlanState **planstates,
 }
 
 static void PrintModifyTableInfo(FILE *DEST, ModifyTableState *mtstate,
-                                   int ind) {
-  ModifyTable *node = (ModifyTable *) mtstate->ps.plan;
+                                 int ind) {
+  ModifyTable *node = (ModifyTable *)mtstate->ps.plan;
   bool labeltargets;
   int j;
 
   labeltargets =
-      (mtstate->mt_nplans > 1
-          || (mtstate->mt_nplans == 1
-              && mtstate->resultRelInfo->ri_RangeTableIndex
-                  != node->nominalRelation));
+      (mtstate->mt_nplans > 1 ||
+       (mtstate->mt_nplans == 1 &&
+        mtstate->resultRelInfo->ri_RangeTableIndex != node->nominalRelation));
   if (labeltargets) {
     IndentHelper(DEST, ind);
-    fprintf(
-        DEST,
-        "More than one target relations or the target relation is not nominal|");
+    fprintf(DEST,
+            "More than one target relations or the target relation is not "
+            "nominal|");
   }
 
   for (j = 0; j < mtstate->mt_nplans; ++j) {
@@ -491,7 +474,6 @@ static void PrintModifyTableInfo(FILE *DEST, ModifyTableState *mtstate,
     IndentHelper(DEST, ind);
     fprintf(DEST, "ON CONFLICT ACTION|");
   }
-
 }
 
 static void PrintPlanState(FILE *DEST, const PlanState *planstate, int ind) {
@@ -499,7 +481,7 @@ static void PrintPlanState(FILE *DEST, const PlanState *planstate, int ind) {
   if (planstate == NULL) {
     fprintf(DEST, "Plan: NULL|");
   } else {
-    fprintf(DEST, "Plan: %p", (void *) planstate);
+    fprintf(DEST, "Plan: %p", (void *)planstate);
 
     switch (nodeTag(planstate)) {
       case T_PlanState:
@@ -630,7 +612,7 @@ static void PrintPlanState(FILE *DEST, const PlanState *planstate, int ind) {
   }
 }
 
-static void PrintList(FILE *DEST, const List* list, int ind) {
+static void PrintList(FILE *DEST, const List *list, int ind) {
   ListCell *l;
   IndentHelper(DEST, ind);
   fprintf(DEST, "Subplan State List: |");
@@ -638,9 +620,8 @@ static void PrintList(FILE *DEST, const List* list, int ind) {
     IndentHelper(DEST, ind + 1);
     fprintf(DEST, "Empty List|");
   } else {
-    foreach(l, list)
-    {
-      SubPlanState *subplanstate = (SubPlanState *) lfirst(l);
+    foreach (l, list) {
+      SubPlanState *subplanstate = (SubPlanState *)lfirst(l);
       PrintPlanState(DEST, subplanstate->planstate, ind + 1);
     }
   }
@@ -649,7 +630,6 @@ static void PrintList(FILE *DEST, const List* list, int ind) {
 static void IndentHelper(FILE *DEST, int ind) {
   int i;
   for (i = 0; i < ind; i++) {
-    //fprintf(DEST, "-");
+    // fprintf(DEST, "-");
   }
 }
-

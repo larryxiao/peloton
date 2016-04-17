@@ -181,15 +181,13 @@
 
 #include "common/pg_lzcompress.h"
 
-
 /* ----------
  * Local definitions
  * ----------
  */
-#define PGLZ_MAX_HISTORY_LISTS	8192	/* must be power of 2 */
-#define PGLZ_HISTORY_SIZE		4096
-#define PGLZ_MAX_MATCH			273
-
+#define PGLZ_MAX_HISTORY_LISTS 8192 /* must be power of 2 */
+#define PGLZ_HISTORY_SIZE 4096
+#define PGLZ_MAX_MATCH 273
 
 /* ----------
  * PGLZ_HistEntry -
@@ -201,46 +199,41 @@
  * (because it's more than 4K positions old).
  * ----------
  */
-typedef struct PGLZ_HistEntry
-{
-	struct PGLZ_HistEntry *next;	/* links for my hash key's list */
-	struct PGLZ_HistEntry *prev;
-	int			hindex;			/* my current hash key */
-	const char *pos;			/* my input position */
+typedef struct PGLZ_HistEntry {
+  struct PGLZ_HistEntry *next; /* links for my hash key's list */
+  struct PGLZ_HistEntry *prev;
+  int hindex;      /* my current hash key */
+  const char *pos; /* my input position */
 } PGLZ_HistEntry;
-
 
 /* ----------
  * The provided standard strategies
  * ----------
  */
 static const PGLZ_Strategy strategy_default_data = {
-	32,							/* Data chunks less than 32 bytes are not
-								 * compressed */
-	INT_MAX,					/* No upper limit on what we'll try to
-								 * compress */
-	25,							/* Require 25% compression rate, or not worth
-								 * it */
-	1024,						/* Give up if no compression in the first 1KB */
-	128,						/* Stop history lookup if a match of 128 bytes
-								 * is found */
-	10							/* Lower good match size by 10% at every loop
-								 * iteration */
+    32,      /* Data chunks less than 32 bytes are not
+              * compressed */
+    INT_MAX, /* No upper limit on what we'll try to
+              * compress */
+    25,      /* Require 25% compression rate, or not worth
+              * it */
+    1024,    /* Give up if no compression in the first 1KB */
+    128,     /* Stop history lookup if a match of 128 bytes
+              * is found */
+    10       /* Lower good match size by 10% at every loop
+              * iteration */
 };
 const PGLZ_Strategy *const PGLZ_strategy_default = &strategy_default_data;
 
-
 static const PGLZ_Strategy strategy_always_data = {
-	0,							/* Chunks of any size are compressed */
-	INT_MAX,
-	0,							/* It's enough to save one single byte */
-	INT_MAX,					/* Never give up early */
-	128,						/* Stop history lookup if a match of 128 bytes
-								 * is found */
-	6							/* Look harder for a good match */
+    0,          /* Chunks of any size are compressed */
+    INT_MAX, 0, /* It's enough to save one single byte */
+    INT_MAX,    /* Never give up early */
+    128,        /* Stop history lookup if a match of 128 bytes
+                 * is found */
+    6           /* Look harder for a good match */
 };
 const PGLZ_Strategy *const PGLZ_strategy_always = &strategy_always_data;
-
 
 /* ----------
  * Statically allocated work arrays for history
@@ -253,8 +246,8 @@ static PGLZ_HistEntry hist_entries[PGLZ_HISTORY_SIZE + 1];
  * Element 0 in hist_entries is unused, and means 'invalid'. Likewise,
  * INVALID_ENTRY_PTR in next/prev pointers mean 'invalid'.
  */
-#define INVALID_ENTRY			0
-#define INVALID_ENTRY_PTR		(&hist_entries[INVALID_ENTRY])
+#define INVALID_ENTRY 0
+#define INVALID_ENTRY_PTR (&hist_entries[INVALID_ENTRY])
 
 /* ----------
  * pglz_hist_idx -
@@ -268,12 +261,10 @@ static PGLZ_HistEntry hist_entries[PGLZ_HISTORY_SIZE + 1];
  * hash keys more.
  * ----------
  */
-#define pglz_hist_idx(_s,_e, _mask) (										\
-			((((_e) - (_s)) < 4) ? (int) (_s)[0] :							\
-			 (((_s)[0] << 6) ^ ((_s)[1] << 4) ^								\
-			  ((_s)[2] << 2) ^ (_s)[3])) & (_mask)				\
-		)
-
+#define pglz_hist_idx(_s, _e, _mask)                                        \
+  (((((_e) - (_s)) < 4) ? (int)(_s)[0] : (((_s)[0] << 6) ^ ((_s)[1] << 4) ^ \
+                                          ((_s)[2] << 2) ^ (_s)[3])) &      \
+   (_mask))
 
 /* ----------
  * pglz_hist_add -
@@ -287,39 +278,37 @@ static PGLZ_HistEntry hist_entries[PGLZ_HISTORY_SIZE + 1];
  * _hn and _recycle are modified in the macro.
  * ----------
  */
-#define pglz_hist_add(_hs,_he,_hn,_recycle,_s,_e, _mask)	\
-do {									\
-			int __hindex = pglz_hist_idx((_s),(_e), (_mask));				\
-			int16 *__myhsp = &(_hs)[__hindex];								\
-			PGLZ_HistEntry *__myhe = &(_he)[_hn];							\
-			if (_recycle) {													\
-				if (__myhe->prev == NULL)									\
-					(_hs)[__myhe->hindex] = __myhe->next - (_he);			\
-				else														\
-					__myhe->prev->next = __myhe->next;						\
-				if (__myhe->next != NULL)									\
-					__myhe->next->prev = __myhe->prev;						\
-			}																\
-			__myhe->next = &(_he)[*__myhsp];								\
-			__myhe->prev = NULL;											\
-			__myhe->hindex = __hindex;										\
-			__myhe->pos  = (_s);											\
-			/* If there was an existing entry in this hash slot, link */	\
-			/* this new___ entry to it. However, the 0th entry in the */		\
-			/* entries table is unused, so we can freely scribble on it. */ \
-			/* So don't bother checking if the slot was used - we'll */		\
-			/* scribble on the unused entry if it was not, but that's */	\
-			/* harmless. Avoiding the branch in this critical path */		\
-			/* speeds this up a little bit. */								\
-			/* if (*__myhsp != INVALID_ENTRY) */							\
-				(_he)[(*__myhsp)].prev = __myhe;							\
-			*__myhsp = _hn;													\
-			if (++(_hn) >= PGLZ_HISTORY_SIZE + 1) {							\
-				(_hn) = 1;													\
-				(_recycle) = true;											\
-			}																\
-} while (0)
-
+#define pglz_hist_add(_hs, _he, _hn, _recycle, _s, _e, _mask)       \
+  do {                                                              \
+    int __hindex = pglz_hist_idx((_s), (_e), (_mask));              \
+    int16 *__myhsp = &(_hs)[__hindex];                              \
+    PGLZ_HistEntry *__myhe = &(_he)[_hn];                           \
+    if (_recycle) {                                                 \
+      if (__myhe->prev == NULL)                                     \
+        (_hs)[__myhe->hindex] = __myhe->next - (_he);               \
+      else                                                          \
+        __myhe->prev->next = __myhe->next;                          \
+      if (__myhe->next != NULL) __myhe->next->prev = __myhe->prev;  \
+    }                                                               \
+    __myhe->next = &(_he)[*__myhsp];                                \
+    __myhe->prev = NULL;                                            \
+    __myhe->hindex = __hindex;                                      \
+    __myhe->pos = (_s);                                             \
+    /* If there was an existing entry in this hash slot, link */    \
+    /* this new___ entry to it. However, the 0th entry in the */    \
+    /* entries table is unused, so we can freely scribble on it. */ \
+    /* So don't bother checking if the slot was used - we'll */     \
+    /* scribble on the unused entry if it was not, but that's */    \
+    /* harmless. Avoiding the branch in this critical path */       \
+    /* speeds this up a little bit. */                              \
+    /* if (*__myhsp != INVALID_ENTRY) */                            \
+    (_he)[(*__myhsp)].prev = __myhe;                                \
+    *__myhsp = _hn;                                                 \
+    if (++(_hn) >= PGLZ_HISTORY_SIZE + 1) {                         \
+      (_hn) = 1;                                                    \
+      (_recycle) = true;                                            \
+    }                                                               \
+  } while (0)
 
 /* ----------
  * pglz_out_ctrl -
@@ -327,17 +316,15 @@ do {									\
  *		Outputs the last and allocates a new___ control byte if needed.
  * ----------
  */
-#define pglz_out_ctrl(__ctrlp,__ctrlb,__ctrl,__buf) \
-do { \
-	if ((__ctrl & 0xff) == 0)												\
-	{																		\
-		*(__ctrlp) = __ctrlb;												\
-		__ctrlp = (__buf)++;												\
-		__ctrlb = 0;														\
-		__ctrl = 1;															\
-	}																		\
-} while (0)
-
+#define pglz_out_ctrl(__ctrlp, __ctrlb, __ctrl, __buf) \
+  do {                                                 \
+    if ((__ctrl & 0xff) == 0) {                        \
+      *(__ctrlp) = __ctrlb;                            \
+      __ctrlp = (__buf)++;                             \
+      __ctrlb = 0;                                     \
+      __ctrl = 1;                                      \
+    }                                                  \
+  } while (0)
 
 /* ----------
  * pglz_out_literal -
@@ -346,13 +333,12 @@ do { \
  *		appropriate control bit.
  * ----------
  */
-#define pglz_out_literal(_ctrlp,_ctrlb,_ctrl,_buf,_byte) \
-do { \
-	pglz_out_ctrl(_ctrlp,_ctrlb,_ctrl,_buf);								\
-	*(_buf)++ = (unsigned char)(_byte);										\
-	_ctrl <<= 1;															\
-} while (0)
-
+#define pglz_out_literal(_ctrlp, _ctrlb, _ctrl, _buf, _byte) \
+  do {                                                       \
+    pglz_out_ctrl(_ctrlp, _ctrlb, _ctrl, _buf);              \
+    *(_buf)++ = (unsigned char)(_byte);                      \
+    _ctrl <<= 1;                                             \
+  } while (0)
 
 /* ----------
  * pglz_out_tag -
@@ -362,24 +348,22 @@ do { \
  *		appropriate control bit.
  * ----------
  */
-#define pglz_out_tag(_ctrlp,_ctrlb,_ctrl,_buf,_len,_off) \
-do { \
-	pglz_out_ctrl(_ctrlp,_ctrlb,_ctrl,_buf);								\
-	_ctrlb |= _ctrl;														\
-	_ctrl <<= 1;															\
-	if (_len > 17)															\
-	{																		\
-		(_buf)[0] = (unsigned char)((((_off) & 0xf00) >> 4) | 0x0f);		\
-		(_buf)[1] = (unsigned char)(((_off) & 0xff));						\
-		(_buf)[2] = (unsigned char)((_len) - 18);							\
-		(_buf) += 3;														\
-	} else {																\
-		(_buf)[0] = (unsigned char)((((_off) & 0xf00) >> 4) | ((_len) - 3)); \
-		(_buf)[1] = (unsigned char)((_off) & 0xff);							\
-		(_buf) += 2;														\
-	}																		\
-} while (0)
-
+#define pglz_out_tag(_ctrlp, _ctrlb, _ctrl, _buf, _len, _off)          \
+  do {                                                                 \
+    pglz_out_ctrl(_ctrlp, _ctrlb, _ctrl, _buf);                        \
+    _ctrlb |= _ctrl;                                                   \
+    _ctrl <<= 1;                                                       \
+    if (_len > 17) {                                                   \
+      (_buf)[0] = (unsigned char)((((_off)&0xf00) >> 4) | 0x0f);       \
+      (_buf)[1] = (unsigned char)(((_off)&0xff));                      \
+      (_buf)[2] = (unsigned char)((_len)-18);                          \
+      (_buf) += 3;                                                     \
+    } else {                                                           \
+      (_buf)[0] = (unsigned char)((((_off)&0xf00) >> 4) | ((_len)-3)); \
+      (_buf)[1] = (unsigned char)((_off)&0xff);                        \
+      (_buf) += 2;                                                     \
+    }                                                                  \
+  } while (0)
 
 /* ----------
  * pglz_find_match -
@@ -389,108 +373,94 @@ do { \
  *		in the input buffer.
  * ----------
  */
-static inline int
-pglz_find_match(int16 *hstart, const char *input, const char *end,
-				int *lenp, int *offp, int good_match, int good_drop, int mask)
-{
-	PGLZ_HistEntry *hent;
-	int16		hentno;
-	int32		len = 0;
-	int32		off = 0;
+static inline int pglz_find_match(int16 *hstart, const char *input,
+                                  const char *end, int *lenp, int *offp,
+                                  int good_match, int good_drop, int mask) {
+  PGLZ_HistEntry *hent;
+  int16 hentno;
+  int32 len = 0;
+  int32 off = 0;
 
-	/*
-	 * Traverse the linked history list until a good enough match is found.
-	 */
-	hentno = hstart[pglz_hist_idx(input, end, mask)];
-	hent = &hist_entries[hentno];
-	while (hent != INVALID_ENTRY_PTR)
-	{
-		const char *ip = input;
-		const char *hp = hent->pos;
-		int32		thisoff;
-		int32		thislen;
+  /*
+   * Traverse the linked history list until a good enough match is found.
+   */
+  hentno = hstart[pglz_hist_idx(input, end, mask)];
+  hent = &hist_entries[hentno];
+  while (hent != INVALID_ENTRY_PTR) {
+    const char *ip = input;
+    const char *hp = hent->pos;
+    int32 thisoff;
+    int32 thislen;
 
-		/*
-		 * Stop if the offset does not fit into our tag anymore.
-		 */
-		thisoff = ip - hp;
-		if (thisoff >= 0x0fff)
-			break;
+    /*
+     * Stop if the offset does not fit into our tag anymore.
+     */
+    thisoff = ip - hp;
+    if (thisoff >= 0x0fff) break;
 
-		/*
-		 * Determine length of match. A better match must be larger than the
-		 * best so far. And if we already have a match of 16 or more bytes,
-		 * it's worth the call overhead to use memcmp() to check if this match
-		 * is equal for the same size. After that we must fallback to
-		 * character by character comparison to know the exact position where
-		 * the diff occurred.
-		 */
-		thislen = 0;
-		if (len >= 16)
-		{
-			if (memcmp(ip, hp, len) == 0)
-			{
-				thislen = len;
-				ip += len;
-				hp += len;
-				while (ip < end && *ip == *hp && thislen < PGLZ_MAX_MATCH)
-				{
-					thislen++;
-					ip++;
-					hp++;
-				}
-			}
-		}
-		else
-		{
-			while (ip < end && *ip == *hp && thislen < PGLZ_MAX_MATCH)
-			{
-				thislen++;
-				ip++;
-				hp++;
-			}
-		}
+    /*
+     * Determine length of match. A better match must be larger than the
+     * best so far. And if we already have a match of 16 or more bytes,
+     * it's worth the call overhead to use memcmp() to check if this match
+     * is equal for the same size. After that we must fallback to
+     * character by character comparison to know the exact position where
+     * the diff occurred.
+     */
+    thislen = 0;
+    if (len >= 16) {
+      if (memcmp(ip, hp, len) == 0) {
+        thislen = len;
+        ip += len;
+        hp += len;
+        while (ip < end && *ip == *hp && thislen < PGLZ_MAX_MATCH) {
+          thislen++;
+          ip++;
+          hp++;
+        }
+      }
+    } else {
+      while (ip < end && *ip == *hp && thislen < PGLZ_MAX_MATCH) {
+        thislen++;
+        ip++;
+        hp++;
+      }
+    }
 
-		/*
-		 * Remember this match as the best (if it is)
-		 */
-		if (thislen > len)
-		{
-			len = thislen;
-			off = thisoff;
-		}
+    /*
+     * Remember this match as the best (if it is)
+     */
+    if (thislen > len) {
+      len = thislen;
+      off = thisoff;
+    }
 
-		/*
-		 * Advance to the next history entry
-		 */
-		hent = hent->next;
+    /*
+     * Advance to the next history entry
+     */
+    hent = hent->next;
 
-		/*
-		 * Be happy with lesser good matches the more entries we visited. But
-		 * no point in doing calculation if we're at end of list.
-		 */
-		if (hent != INVALID_ENTRY_PTR)
-		{
-			if (len >= good_match)
-				break;
-			good_match -= (good_match * good_drop) / 100;
-		}
-	}
+    /*
+     * Be happy with lesser good matches the more entries we visited. But
+     * no point in doing calculation if we're at end of list.
+     */
+    if (hent != INVALID_ENTRY_PTR) {
+      if (len >= good_match) break;
+      good_match -= (good_match * good_drop) / 100;
+    }
+  }
 
-	/*
-	 * Return match information only if it results at least in one byte
-	 * reduction.
-	 */
-	if (len > 2)
-	{
-		*lenp = len;
-		*offp = off;
-		return 1;
-	}
+  /*
+   * Return match information only if it results at least in one byte
+   * reduction.
+   */
+  if (len > 2) {
+    *lenp = len;
+    *offp = off;
+    return 1;
+  }
 
-	return 0;
+  return 0;
 }
-
 
 /* ----------
  * pglz_compress -
@@ -499,176 +469,159 @@ pglz_find_match(int16 *hstart, const char *input, const char *end,
  *		bytes written in buffer dest, or -1 if compression fails.
  * ----------
  */
-int32
-pglz_compress(const char *source, int32 slen, char *dest,
-			  const PGLZ_Strategy *strategy)
-{
-	unsigned char *bp = (unsigned char *) dest;
-	unsigned char *bstart = bp;
-	int			hist_next = 1;
-	bool		hist_recycle = false;
-	const char *dp = source;
-	const char *dend = source + slen;
-	unsigned char ctrl_dummy = 0;
-	unsigned char *ctrlp = &ctrl_dummy;
-	unsigned char ctrlb = 0;
-	unsigned char ctrl = 0;
-	bool		found_match = false;
-	int32		match_len;
-	int32		match_off;
-	int32		good_match;
-	int32		good_drop;
-	int32		result_size;
-	int32		result_max;
-	int32		need_rate;
-	int			hashsz;
-	int			mask;
+int32 pglz_compress(const char *source, int32 slen, char *dest,
+                    const PGLZ_Strategy *strategy) {
+  unsigned char *bp = (unsigned char *)dest;
+  unsigned char *bstart = bp;
+  int hist_next = 1;
+  bool hist_recycle = false;
+  const char *dp = source;
+  const char *dend = source + slen;
+  unsigned char ctrl_dummy = 0;
+  unsigned char *ctrlp = &ctrl_dummy;
+  unsigned char ctrlb = 0;
+  unsigned char ctrl = 0;
+  bool found_match = false;
+  int32 match_len;
+  int32 match_off;
+  int32 good_match;
+  int32 good_drop;
+  int32 result_size;
+  int32 result_max;
+  int32 need_rate;
+  int hashsz;
+  int mask;
 
-	/*
-	 * Our fallback strategy is the default.
-	 */
-	if (strategy == NULL)
-		strategy = PGLZ_strategy_default;
+  /*
+   * Our fallback strategy is the default.
+   */
+  if (strategy == NULL) strategy = PGLZ_strategy_default;
 
-	/*
-	 * If the strategy forbids compression (at all or if source chunk size out
-	 * of range), fail.
-	 */
-	if (strategy->match_size_good <= 0 ||
-		slen < strategy->min_input_size ||
-		slen > strategy->max_input_size)
-		return -1;
+  /*
+   * If the strategy forbids compression (at all or if source chunk size out
+   * of range), fail.
+   */
+  if (strategy->match_size_good <= 0 || slen < strategy->min_input_size ||
+      slen > strategy->max_input_size)
+    return -1;
 
-	/*
-	 * Limit the match parameters to the supported range.
-	 */
-	good_match = strategy->match_size_good;
-	if (good_match > PGLZ_MAX_MATCH)
-		good_match = PGLZ_MAX_MATCH;
-	else if (good_match < 17)
-		good_match = 17;
+  /*
+   * Limit the match parameters to the supported range.
+   */
+  good_match = strategy->match_size_good;
+  if (good_match > PGLZ_MAX_MATCH)
+    good_match = PGLZ_MAX_MATCH;
+  else if (good_match < 17)
+    good_match = 17;
 
-	good_drop = strategy->match_size_drop;
-	if (good_drop < 0)
-		good_drop = 0;
-	else if (good_drop > 100)
-		good_drop = 100;
+  good_drop = strategy->match_size_drop;
+  if (good_drop < 0)
+    good_drop = 0;
+  else if (good_drop > 100)
+    good_drop = 100;
 
-	need_rate = strategy->min_comp_rate;
-	if (need_rate < 0)
-		need_rate = 0;
-	else if (need_rate > 99)
-		need_rate = 99;
+  need_rate = strategy->min_comp_rate;
+  if (need_rate < 0)
+    need_rate = 0;
+  else if (need_rate > 99)
+    need_rate = 99;
 
-	/*
-	 * Compute the maximum result size allowed by the strategy, namely the
-	 * input size minus the minimum wanted compression rate.  This had better
-	 * be <= slen, else we might overrun the provided output buffer.
-	 */
-	if (slen > (INT_MAX / 100))
-	{
-		/* Approximate to avoid overflow */
-		result_max = (slen / 100) * (100 - need_rate);
-	}
-	else
-		result_max = (slen * (100 - need_rate)) / 100;
+  /*
+   * Compute the maximum result size allowed by the strategy, namely the
+   * input size minus the minimum wanted compression rate.  This had better
+   * be <= slen, else we might overrun the provided output buffer.
+   */
+  if (slen > (INT_MAX / 100)) {
+    /* Approximate to avoid overflow */
+    result_max = (slen / 100) * (100 - need_rate);
+  } else
+    result_max = (slen * (100 - need_rate)) / 100;
 
-	/*
-	 * Experiments suggest that these hash sizes work pretty well. A large
-	 * hash table minimizes collision, but has a higher startup cost. For a
-	 * small input, the startup cost dominates. The table size must be a power
-	 * of two.
-	 */
-	if (slen < 128)
-		hashsz = 512;
-	else if (slen < 256)
-		hashsz = 1024;
-	else if (slen < 512)
-		hashsz = 2048;
-	else if (slen < 1024)
-		hashsz = 4096;
-	else
-		hashsz = 8192;
-	mask = hashsz - 1;
+  /*
+   * Experiments suggest that these hash sizes work pretty well. A large
+   * hash table minimizes collision, but has a higher startup cost. For a
+   * small input, the startup cost dominates. The table size must be a power
+   * of two.
+   */
+  if (slen < 128)
+    hashsz = 512;
+  else if (slen < 256)
+    hashsz = 1024;
+  else if (slen < 512)
+    hashsz = 2048;
+  else if (slen < 1024)
+    hashsz = 4096;
+  else
+    hashsz = 8192;
+  mask = hashsz - 1;
 
-	/*
-	 * Initialize the history lists to empty.  We do not need to zero the
-	 * hist_entries[] array; its entries are initialized as they are used.
-	 */
-	memset(hist_start, 0, hashsz * sizeof(int16));
+  /*
+   * Initialize the history lists to empty.  We do not need to zero the
+   * hist_entries[] array; its entries are initialized as they are used.
+   */
+  memset(hist_start, 0, hashsz * sizeof(int16));
 
-	/*
-	 * Compress the source directly into the output buffer.
-	 */
-	while (dp < dend)
-	{
-		/*
-		 * If we already exceeded the maximum result size, fail.
-		 *
-		 * We check once per loop; since the loop body could emit as many as 4
-		 * bytes (a control byte and 3-byte tag), PGLZ_MAX_OUTPUT() had better
-		 * allow 4 slop bytes.
-		 */
-		if (bp - bstart >= result_max)
-			return -1;
+  /*
+   * Compress the source directly into the output buffer.
+   */
+  while (dp < dend) {
+    /*
+     * If we already exceeded the maximum result size, fail.
+     *
+     * We check once per loop; since the loop body could emit as many as 4
+     * bytes (a control byte and 3-byte tag), PGLZ_MAX_OUTPUT() had better
+     * allow 4 slop bytes.
+     */
+    if (bp - bstart >= result_max) return -1;
 
-		/*
-		 * If we've emitted more than first_success_by bytes without finding
-		 * anything compressible at all, fail.  This lets us fall out
-		 * reasonably quickly when looking at incompressible input (such as
-		 * pre-compressed data).
-		 */
-		if (!found_match && bp - bstart >= strategy->first_success_by)
-			return -1;
+    /*
+     * If we've emitted more than first_success_by bytes without finding
+     * anything compressible at all, fail.  This lets us fall out
+     * reasonably quickly when looking at incompressible input (such as
+     * pre-compressed data).
+     */
+    if (!found_match && bp - bstart >= strategy->first_success_by) return -1;
 
-		/*
-		 * Try to find a match in the history
-		 */
-		if (pglz_find_match(hist_start, dp, dend, &match_len,
-							&match_off, good_match, good_drop, mask))
-		{
-			/*
-			 * Create the tag and add history entries for all matched
-			 * characters.
-			 */
-			pglz_out_tag(ctrlp, ctrlb, ctrl, bp, match_len, match_off);
-			while (match_len--)
-			{
-				pglz_hist_add(hist_start, hist_entries,
-							  hist_next, hist_recycle,
-							  dp, dend, mask);
-				dp++;			/* Do not do this ++ in the line above! */
-				/* The macro would do it four times - Jan.  */
-			}
-			found_match = true;
-		}
-		else
-		{
-			/*
-			 * No match found. Copy one literal byte.
-			 */
-			pglz_out_literal(ctrlp, ctrlb, ctrl, bp, *dp);
-			pglz_hist_add(hist_start, hist_entries,
-						  hist_next, hist_recycle,
-						  dp, dend, mask);
-			dp++;				/* Do not do this ++ in the line above! */
-			/* The macro would do it four times - Jan.  */
-		}
-	}
+    /*
+     * Try to find a match in the history
+     */
+    if (pglz_find_match(hist_start, dp, dend, &match_len, &match_off,
+                        good_match, good_drop, mask)) {
+      /*
+       * Create the tag and add history entries for all matched
+       * characters.
+       */
+      pglz_out_tag(ctrlp, ctrlb, ctrl, bp, match_len, match_off);
+      while (match_len--) {
+        pglz_hist_add(hist_start, hist_entries, hist_next, hist_recycle, dp,
+                      dend, mask);
+        dp++; /* Do not do this ++ in the line above! */
+              /* The macro would do it four times - Jan.  */
+      }
+      found_match = true;
+    } else {
+      /*
+       * No match found. Copy one literal byte.
+       */
+      pglz_out_literal(ctrlp, ctrlb, ctrl, bp, *dp);
+      pglz_hist_add(hist_start, hist_entries, hist_next, hist_recycle, dp, dend,
+                    mask);
+      dp++; /* Do not do this ++ in the line above! */
+            /* The macro would do it four times - Jan.  */
+    }
+  }
 
-	/*
-	 * Write out the last control byte and check that we haven't overrun the
-	 * output size allowed by the strategy.
-	 */
-	*ctrlp = ctrlb;
-	result_size = bp - bstart;
-	if (result_size >= result_max)
-		return -1;
+  /*
+   * Write out the last control byte and check that we haven't overrun the
+   * output size allowed by the strategy.
+   */
+  *ctrlp = ctrlb;
+  result_size = bp - bstart;
+  if (result_size >= result_max) return -1;
 
-	/* success */
-	return result_size;
+  /* success */
+  return result_size;
 }
-
 
 /* ----------
  * pglz_decompress -
@@ -678,101 +631,90 @@ pglz_compress(const char *source, int32 slen, char *dest,
  *		fails.
  * ----------
  */
-int32
-pglz_decompress(const char *source, int32 slen, char *dest,
-				int32 rawsize)
-{
-	const unsigned char *sp;
-	const unsigned char *srcend;
-	unsigned char *dp;
-	unsigned char *destend;
+int32 pglz_decompress(const char *source, int32 slen, char *dest,
+                      int32 rawsize) {
+  const unsigned char *sp;
+  const unsigned char *srcend;
+  unsigned char *dp;
+  unsigned char *destend;
 
-	sp = (const unsigned char *) source;
-	srcend = ((const unsigned char *) source) + slen;
-	dp = (unsigned char *) dest;
-	destend = dp + rawsize;
+  sp = (const unsigned char *)source;
+  srcend = ((const unsigned char *)source) + slen;
+  dp = (unsigned char *)dest;
+  destend = dp + rawsize;
 
-	while (sp < srcend && dp < destend)
-	{
-		/*
-		 * Read one control byte and process the next 8 items (or as many as
-		 * remain in the compressed input).
-		 */
-		unsigned char ctrl = *sp++;
-		int			ctrlc;
+  while (sp < srcend && dp < destend) {
+    /*
+     * Read one control byte and process the next 8 items (or as many as
+     * remain in the compressed input).
+     */
+    unsigned char ctrl = *sp++;
+    int ctrlc;
 
-		for (ctrlc = 0; ctrlc < 8 && sp < srcend; ctrlc++)
-		{
-			if (ctrl & 1)
-			{
-				/*
-				 * Otherwise it contains the match length minus 3 and the
-				 * upper 4 bits of the offset. The next following byte
-				 * contains the lower 8 bits of the offset. If the length is
-				 * coded as 18, another extension tag byte tells how much
-				 * longer the match really was (0-255).
-				 */
-				int32		len;
-				int32		off;
+    for (ctrlc = 0; ctrlc < 8 && sp < srcend; ctrlc++) {
+      if (ctrl & 1) {
+        /*
+         * Otherwise it contains the match length minus 3 and the
+         * upper 4 bits of the offset. The next following byte
+         * contains the lower 8 bits of the offset. If the length is
+         * coded as 18, another extension tag byte tells how much
+         * longer the match really was (0-255).
+         */
+        int32 len;
+        int32 off;
 
-				len = (sp[0] & 0x0f) + 3;
-				off = ((sp[0] & 0xf0) << 4) | sp[1];
-				sp += 2;
-				if (len == 18)
-					len += *sp++;
+        len = (sp[0] & 0x0f) + 3;
+        off = ((sp[0] & 0xf0) << 4) | sp[1];
+        sp += 2;
+        if (len == 18) len += *sp++;
 
-				/*
-				 * Check for output buffer overrun, to ensure we don't clobber
-				 * memory in case of corrupt input.  Note: we must advance dp
-				 * here to ensure the error is detected below the loop.  We
-				 * don't simply put the elog inside the loop since that will
-				 * probably interfere with optimization.
-				 */
-				if (dp + len > destend)
-				{
-					dp += len;
-					break;
-				}
+        /*
+         * Check for output buffer overrun, to ensure we don't clobber
+         * memory in case of corrupt input.  Note: we must advance dp
+         * here to ensure the error is detected below the loop.  We
+         * don't simply put the elog inside the loop since that will
+         * probably interfere with optimization.
+         */
+        if (dp + len > destend) {
+          dp += len;
+          break;
+        }
 
-				/*
-				 * Now we copy the bytes specified by the tag from OUTPUT to
-				 * OUTPUT. It is dangerous and platform dependent to use
-				 * memcpy() here, because the copied areas could overlap
-				 * extremely!
-				 */
-				while (len--)
-				{
-					*dp = dp[-off];
-					dp++;
-				}
-			}
-			else
-			{
-				/*
-				 * An unset control bit means LITERAL BYTE. So we just copy
-				 * one from INPUT to OUTPUT.
-				 */
-				if (dp >= destend)		/* check for buffer overrun */
-					break;		/* do not clobber memory */
+        /*
+         * Now we copy the bytes specified by the tag from OUTPUT to
+         * OUTPUT. It is dangerous and platform dependent to use
+         * memcpy() here, because the copied areas could overlap
+         * extremely!
+         */
+        while (len--) {
+          *dp = dp[-off];
+          dp++;
+        }
+      } else {
+        /*
+         * An unset control bit means LITERAL BYTE. So we just copy
+         * one from INPUT to OUTPUT.
+         */
+        if (dp >= destend) /* check for buffer overrun */
+          break;           /* do not clobber memory */
 
-				*dp++ = *sp++;
-			}
+        *dp++ = *sp++;
+      }
 
-			/*
-			 * Advance the control bit
-			 */
-			ctrl >>= 1;
-		}
-	}
+      /*
+       * Advance the control bit
+       */
+      ctrl >>= 1;
+    }
+  }
 
-	/*
-	 * Check we decompressed the right amount.
-	 */
-	if (dp != destend || sp != srcend)
-		return -1;
+  /*
+   * Check we decompressed the right amount.
+   */
+  if (dp != destend || sp != srcend) return -1;
 
-	/*
-	 * That's it.
-	 */
-	return rawsize;
+  /*
+   * That's it.
+   */
+  return rawsize;
 }

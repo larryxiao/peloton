@@ -29,9 +29,7 @@ std::ofstream out("outputfile.summary");
 
 static void WriteOutput(double stat) {
   LOG_INFO("----------------------------------------------------------");
-  LOG_INFO("%d :: %lf tps",
-           state.scale_factor,
-           stat);
+  LOG_INFO("%d :: %lf tps", state.scale_factor, stat);
 
   out << state.scale_factor << " ";
   out << stat << "\n";
@@ -40,7 +38,6 @@ static void WriteOutput(double stat) {
 
 // Main Entry Point
 void RunBenchmark() {
-
   // Create the database
   CreateTPCCDatabase();
 
@@ -58,8 +55,8 @@ void RunBenchmark() {
 }  // namespace peloton
 
 int main(int argc, char **argv) {
-  peloton::benchmark::tpcc::ParseArguments(
-      argc, argv, peloton::benchmark::tpcc::state);
+  peloton::benchmark::tpcc::ParseArguments(argc, argv,
+                                           peloton::benchmark::tpcc::state);
 
   peloton::benchmark::tpcc::RunBenchmark();
 

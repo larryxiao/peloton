@@ -61,18 +61,14 @@ size_t GetLogFileSize();
 
 static void WriteOutput(double value) {
   LOG_INFO("----------------------------------------------------------\n");
-  LOG_INFO("%d %f %d %d :: %lf",
-           state.logging_type,
-           ycsb::state.update_ratio,
-           ycsb::state.scale_factor,
-           ycsb::state.backend_count,
-           value);
+  LOG_INFO("%d %f %d %d :: %lf", state.logging_type, ycsb::state.update_ratio,
+           ycsb::state.scale_factor, ycsb::state.backend_count, value);
 
-  auto &storage_manager = storage::StorageManager::GetInstance();
+  auto& storage_manager = storage::StorageManager::GetInstance();
   auto& log_manager = logging::LogManager::GetInstance();
   auto frontend_logger = log_manager.GetFrontendLogger();
   auto fsync_count = 0;
-  if(frontend_logger != nullptr){
+  if (frontend_logger != nullptr) {
     fsync_count = frontend_logger->GetFsyncCount();
   }
 
@@ -89,12 +85,12 @@ static void WriteOutput(double value) {
 }
 
 std::string GetFilePath(std::string directory_path, std::string file_name) {
-	std::string file_path = directory_path;
+  std::string file_path = directory_path;
 
-	// Add a trailing slash to a file path if needed
-	if (!file_path.empty() && file_path.back() != '/') file_path += '/';
+  // Add a trailing slash to a file path if needed
+  if (!file_path.empty() && file_path.back() != '/') file_path += '/';
 
-	file_path += file_name;
+  file_path += file_name;
 
   return file_path;
 }
@@ -103,22 +99,22 @@ std::string GetFilePath(std::string directory_path, std::string file_name) {
  * @brief writing a simple log file
  */
 bool PrepareLogFile(std::string file_name) {
-	auto file_path = GetFilePath(state.log_file_dir, file_name);
+  auto file_path = GetFilePath(state.log_file_dir, file_name);
 
-	std::ifstream log_file(file_path);
+  std::ifstream log_file(file_path);
 
-	// Reset the log file if exists
-	if (log_file.good()) {
-		std::remove(file_path.c_str());
-	}
-	log_file.close();
+  // Reset the log file if exists
+  if (log_file.good()) {
+    std::remove(file_path.c_str());
+  }
+  log_file.close();
 
-	// start a thread for logging
-	auto& log_manager = logging::LogManager::GetInstance();
-	if (log_manager.ContainsFrontendLogger() == true) {
-		LOG_ERROR("another logging thread is running now");
-		return false;
-	}
+  // start a thread for logging
+  auto& log_manager = logging::LogManager::GetInstance();
+  if (log_manager.ContainsFrontendLogger() == true) {
+    LOG_ERROR("another logging thread is running now");
+    return false;
+  }
 
   Timer<> timer;
   std::thread thread;
@@ -126,27 +122,27 @@ bool PrepareLogFile(std::string file_name) {
   timer.Start();
 
   // Start frontend logger if in a valid logging mode
-	if (peloton_logging_mode != LOGGING_TYPE_INVALID) {
-	  LOG_INFO("Log path :: %s", file_path.c_str());
+  if (peloton_logging_mode != LOGGING_TYPE_INVALID) {
+    LOG_INFO("Log path :: %s", file_path.c_str());
 
-	  // set log file and logging type
-	  log_manager.SetLogFileName(file_path);
+    // set log file and logging type
+    log_manager.SetLogFileName(file_path);
 
-	  // start off the frontend logger of appropriate type in STANDBY mode
-	  thread = std::thread(&logging::LogManager::StartStandbyMode, &log_manager);
+    // start off the frontend logger of appropriate type in STANDBY mode
+    thread = std::thread(&logging::LogManager::StartStandbyMode, &log_manager);
 
-	  // wait for the frontend logger to enter STANDBY mode
-	  log_manager.WaitForModeTransition(LOGGING_STATUS_TYPE_STANDBY, true);
+    // wait for the frontend logger to enter STANDBY mode
+    log_manager.WaitForModeTransition(LOGGING_STATUS_TYPE_STANDBY, true);
 
-	  // STANDBY -> RECOVERY mode
-	  log_manager.StartRecoveryMode();
+    // STANDBY -> RECOVERY mode
+    log_manager.StartRecoveryMode();
 
-	  // Wait for the frontend logger to enter LOGGING mode
-	  log_manager.WaitForModeTransition(LOGGING_STATUS_TYPE_LOGGING, true);
-	}
+    // Wait for the frontend logger to enter LOGGING mode
+    log_manager.WaitForModeTransition(LOGGING_STATUS_TYPE_LOGGING, true);
+  }
 
-	// Build the log
-	BuildLog();
+  // Build the log
+  BuildLog();
 
   // Stop frontend logger if in a valid logging mode
   if (peloton_logging_mode != LOGGING_TYPE_INVALID) {
@@ -159,7 +155,8 @@ bool PrepareLogFile(std::string file_name) {
   timer.Stop();
 
   auto duration = timer.GetDuration();
-  auto throughput = (ycsb::state.transaction_count * ycsb::state.backend_count)/duration;
+  auto throughput =
+      (ycsb::state.transaction_count * ycsb::state.backend_count) / duration;
 
   // Log the build log time
   if (state.experiment_type == EXPERIMENT_TYPE_INVALID ||
@@ -179,7 +176,7 @@ bool PrepareLogFile(std::string file_name) {
 //===--------------------------------------------------------------------===//
 
 void ResetSystem() {
-	// XXX Initialize oid since we assume that we restart the system
+  // XXX Initialize oid since we assume that we restart the system
 
   auto& txn_manager = concurrency::TransactionManagerFactory::GetInstance();
   txn_manager.ResetStates();
@@ -189,46 +186,46 @@ void ResetSystem() {
  * @brief recover the database and check the tuples
  */
 void DoRecovery(std::string file_name) {
-	auto file_path = GetFilePath(state.log_file_dir, file_name);
+  auto file_path = GetFilePath(state.log_file_dir, file_name);
 
-	std::ifstream log_file(file_path);
+  std::ifstream log_file(file_path);
 
-	// Reset the log file if exists
-	log_file.close();
+  // Reset the log file if exists
+  log_file.close();
 
-	ycsb::CreateYCSBDatabase();
+  ycsb::CreateYCSBDatabase();
 
-	//===--------------------------------------------------------------------===//
-	// RECOVERY
-	//===--------------------------------------------------------------------===//
+  //===--------------------------------------------------------------------===//
+  // RECOVERY
+  //===--------------------------------------------------------------------===//
 
-	Timer<std::milli> timer;
-	timer.Start();
+  Timer<std::milli> timer;
+  timer.Start();
 
   // reset frontend logger to reopen log file
   auto& log_manager = logging::LogManager::GetInstance();
   log_manager.ResetFrontendLogger();
 
   // set log file and logging type
-	log_manager.SetLogFileName(file_path);
+  log_manager.SetLogFileName(file_path);
 
-	// start off the frontend logger of appropriate type in STANDBY mode
-	std::thread thread(&logging::LogManager::StartStandbyMode, &log_manager);
+  // start off the frontend logger of appropriate type in STANDBY mode
+  std::thread thread(&logging::LogManager::StartStandbyMode, &log_manager);
 
-	// wait for the frontend logger to enter STANDBY mode
-	log_manager.WaitForModeTransition(LOGGING_STATUS_TYPE_STANDBY, true);
+  // wait for the frontend logger to enter STANDBY mode
+  log_manager.WaitForModeTransition(LOGGING_STATUS_TYPE_STANDBY, true);
 
-	// STANDBY -> RECOVERY mode
-	log_manager.StartRecoveryMode();
+  // STANDBY -> RECOVERY mode
+  log_manager.StartRecoveryMode();
 
-	// Wait for the frontend logger to enter LOGGING mode after recovery
-	log_manager.WaitForModeTransition(LOGGING_STATUS_TYPE_LOGGING, true);
+  // Wait for the frontend logger to enter LOGGING mode after recovery
+  log_manager.WaitForModeTransition(LOGGING_STATUS_TYPE_LOGGING, true);
 
-	if (log_manager.EndLogging()) {
-		thread.join();
-	} else {
-		LOG_ERROR("Failed to terminate logging thread");
-	}
+  if (log_manager.EndLogging()) {
+    thread.join();
+  } else {
+    LOG_ERROR("Failed to terminate logging thread");
+  }
 
   timer.Stop();
 
@@ -236,7 +233,6 @@ void DoRecovery(std::string file_name) {
   if (state.experiment_type == EXPERIMENT_TYPE_RECOVERY) {
     WriteOutput(timer.GetDuration());
   }
-
 }
 
 //===--------------------------------------------------------------------===//
@@ -244,41 +240,39 @@ void DoRecovery(std::string file_name) {
 //===--------------------------------------------------------------------===//
 
 void BuildLog() {
+  ycsb::CreateYCSBDatabase();
 
-	ycsb::CreateYCSBDatabase();
+  ycsb::LoadYCSBDatabase();
 
-	ycsb::LoadYCSBDatabase();
-
-	//===--------------------------------------------------------------------===//
-	// ACTIVE PROCESSING
-	//===--------------------------------------------------------------------===//
-	ycsb::RunWorkload();
-
+  //===--------------------------------------------------------------------===//
+  // ACTIVE PROCESSING
+  //===--------------------------------------------------------------------===//
+  ycsb::RunWorkload();
 }
 
 size_t GetLogFileSize() {
-	struct stat log_stats;
+  struct stat log_stats;
 
-	auto& log_manager = logging::LogManager::GetInstance();
-	std::string log_file_name = log_manager.GetLogFileName();
+  auto& log_manager = logging::LogManager::GetInstance();
+  std::string log_file_name = log_manager.GetLogFileName();
 
-	// open log file and file descriptor
-	// we open it in append + binary mode
-	auto log_file = fopen(log_file_name.c_str(), "r");
-	if (log_file == NULL) {
-		LOG_ERROR("LogFile is NULL");
-	}
+  // open log file and file descriptor
+  // we open it in append + binary mode
+  auto log_file = fopen(log_file_name.c_str(), "r");
+  if (log_file == NULL) {
+    LOG_ERROR("LogFile is NULL");
+  }
 
-	// also, get the descriptor
-	auto log_file_fd = fileno(log_file);
-	if (log_file_fd == -1) {
-		LOG_ERROR("log_file_fd is -1");
-	}
+  // also, get the descriptor
+  auto log_file_fd = fileno(log_file);
+  if (log_file_fd == -1) {
+    LOG_ERROR("log_file_fd is -1");
+  }
 
-	fstat(log_file_fd, &log_stats);
-	auto log_file_size = log_stats.st_size;
+  fstat(log_file_fd, &log_stats);
+  auto log_file_size = log_stats.st_size;
 
-	return log_file_size;
+  return log_file_size;
 }
 
 }  // namespace logger

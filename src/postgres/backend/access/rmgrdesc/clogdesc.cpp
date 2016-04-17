@@ -16,36 +16,29 @@
 
 #include "access/clog.h"
 
+void clog_desc(StringInfo buf, XLogReaderState *record) {
+  char *rec = XLogRecGetData(record);
+  uint8 info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
 
-void
-clog_desc(StringInfo buf, XLogReaderState *record)
-{
-	char	   *rec = XLogRecGetData(record);
-	uint8		info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
+  if (info == CLOG_ZEROPAGE || info == CLOG_TRUNCATE) {
+    int pageno;
 
-	if (info == CLOG_ZEROPAGE || info == CLOG_TRUNCATE)
-	{
-		int			pageno;
-
-		memcpy(&pageno, rec, sizeof(int));
-		appendStringInfo(buf, "%d", pageno);
-	}
+    memcpy(&pageno, rec, sizeof(int));
+    appendStringInfo(buf, "%d", pageno);
+  }
 }
 
-const char *
-clog_identify(uint8 info)
-{
-	const char *id = NULL;
+const char *clog_identify(uint8 info) {
+  const char *id = NULL;
 
-	switch (info & ~XLR_INFO_MASK)
-	{
-		case CLOG_ZEROPAGE:
-			id = "ZEROPAGE";
-			break;
-		case CLOG_TRUNCATE:
-			id = "TRUNCATE";
-			break;
-	}
+  switch (info & ~XLR_INFO_MASK) {
+    case CLOG_ZEROPAGE:
+      id = "ZEROPAGE";
+      break;
+    case CLOG_TRUNCATE:
+      id = "TRUNCATE";
+      break;
+  }
 
-	return id;
+  return id;
 }

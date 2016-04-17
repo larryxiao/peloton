@@ -161,7 +161,8 @@ bool OptimisticTxnManager::PerformUpdate(const oid_t &tile_group_id,
   auto tile_group_header =
       catalog::Manager::GetInstance().GetTileGroup(tile_group_id)->GetHeader();
   auto new_tile_group_header = catalog::Manager::GetInstance()
-      .GetTileGroup(new_location.block)->GetHeader();
+                                   .GetTileGroup(new_location.block)
+                                   ->GetHeader();
 
   // if we can perform update, then we must have already locked the older
   // version.
@@ -212,7 +213,8 @@ bool OptimisticTxnManager::PerformDelete(const oid_t &tile_group_id,
   auto tile_group_header =
       catalog::Manager::GetInstance().GetTileGroup(tile_group_id)->GetHeader();
   auto new_tile_group_header = catalog::Manager::GetInstance()
-      .GetTileGroup(new_location.block)->GetHeader();
+                                   .GetTileGroup(new_location.block)
+                                   ->GetHeader();
 
   // if we can perform update, then we must have already locked the older
   // version.
@@ -320,19 +322,20 @@ Result OptimisticTxnManager::CommitTransaction() {
           continue;
         } else {
           if (tile_group_header->GetTransactionId(tuple_slot) ==
-                  INITIAL_TXN_ID && tile_group_header->GetBeginCommitId(
-                                        tuple_slot) <= end_commit_id &&
+                  INITIAL_TXN_ID &&
+              tile_group_header->GetBeginCommitId(tuple_slot) <=
+                  end_commit_id &&
               tile_group_header->GetEndCommitId(tuple_slot) >= end_commit_id) {
             // the version is not owned by other txns and is still visible.
             continue;
           }
         }
         LOG_TRACE("transaction id=%lu",
-                 tile_group_header->GetTransactionId(tuple_slot));
+                  tile_group_header->GetTransactionId(tuple_slot));
         LOG_TRACE("begin commit id=%lu",
-                 tile_group_header->GetBeginCommitId(tuple_slot));
+                  tile_group_header->GetBeginCommitId(tuple_slot));
         LOG_TRACE("end commit id=%lu",
-                 tile_group_header->GetEndCommitId(tuple_slot));
+                  tile_group_header->GetEndCommitId(tuple_slot));
         // otherwise, validation fails. abort transaction.
         return AbortTransaction();
       }

@@ -275,7 +275,8 @@ executor::AbstractExecutor *BuildExecutorTree(
   // Recurse
   auto &children = plan->GetChildren();
   for (auto &child : children) {
-    child_executor = BuildExecutorTree(child_executor, child.get(), executor_context);
+    child_executor =
+        BuildExecutorTree(child_executor, child.get(), executor_context);
   }
 
   return root;

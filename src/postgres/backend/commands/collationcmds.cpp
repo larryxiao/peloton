@@ -37,114 +37,99 @@
 /*
  * CREATE COLLATION
  */
-ObjectAddress
-DefineCollation(List *names, List *parameters)
-{
-	char	   *collName;
-	Oid			collNamespace;
-	AclResult	aclresult;
-	ListCell   *pl;
-	DefElem    *fromEl = NULL;
-	DefElem    *localeEl = NULL;
-	DefElem    *lccollateEl = NULL;
-	DefElem    *lcctypeEl = NULL;
-	char	   *collcollate = NULL;
-	char	   *collctype = NULL;
-	Oid			newoid;
-	ObjectAddress address;
+ObjectAddress DefineCollation(List *names, List *parameters) {
+  char *collName;
+  Oid collNamespace;
+  AclResult aclresult;
+  ListCell *pl;
+  DefElem *fromEl = NULL;
+  DefElem *localeEl = NULL;
+  DefElem *lccollateEl = NULL;
+  DefElem *lcctypeEl = NULL;
+  char *collcollate = NULL;
+  char *collctype = NULL;
+  Oid newoid;
+  ObjectAddress address;
 
-	collNamespace = QualifiedNameGetCreationNamespace(names, &collName);
+  collNamespace = QualifiedNameGetCreationNamespace(names, &collName);
 
-	aclresult = pg_namespace_aclcheck(collNamespace, GetUserId(), ACL_CREATE);
-	if (aclresult != ACLCHECK_OK)
-		aclcheck_error(aclresult, ACL_KIND_NAMESPACE,
-					   get_namespace_name(collNamespace));
+  aclresult = pg_namespace_aclcheck(collNamespace, GetUserId(), ACL_CREATE);
+  if (aclresult != ACLCHECK_OK)
+    aclcheck_error(aclresult, ACL_KIND_NAMESPACE,
+                   get_namespace_name(collNamespace));
 
-	foreach(pl, parameters)
-	{
-		DefElem    *defel = (DefElem *) lfirst(pl);
-		DefElem   **defelp;
+  foreach (pl, parameters) {
+    DefElem *defel = (DefElem *)lfirst(pl);
+    DefElem **defelp;
 
-		if (pg_strcasecmp(defel->defname, "from") == 0)
-			defelp = &fromEl;
-		else if (pg_strcasecmp(defel->defname, "locale") == 0)
-			defelp = &localeEl;
-		else if (pg_strcasecmp(defel->defname, "lc_collate") == 0)
-			defelp = &lccollateEl;
-		else if (pg_strcasecmp(defel->defname, "lc_ctype") == 0)
-			defelp = &lcctypeEl;
-		else
-		{
-			ereport(ERROR,
-					(errcode(ERRCODE_SYNTAX_ERROR),
-					 errmsg("collation attribute \"%s\" not recognized",
-							defel->defname)));
-			break;
-		}
+    if (pg_strcasecmp(defel->defname, "from") == 0)
+      defelp = &fromEl;
+    else if (pg_strcasecmp(defel->defname, "locale") == 0)
+      defelp = &localeEl;
+    else if (pg_strcasecmp(defel->defname, "lc_collate") == 0)
+      defelp = &lccollateEl;
+    else if (pg_strcasecmp(defel->defname, "lc_ctype") == 0)
+      defelp = &lcctypeEl;
+    else {
+      ereport(ERROR, (errcode(ERRCODE_SYNTAX_ERROR),
+                      errmsg("collation attribute \"%s\" not recognized",
+                             defel->defname)));
+      break;
+    }
 
-		*defelp = defel;
-	}
+    *defelp = defel;
+  }
 
-	if ((localeEl && (lccollateEl || lcctypeEl))
-		|| (fromEl && list_length(parameters) != 1))
-		ereport(ERROR,
-				(errcode(ERRCODE_SYNTAX_ERROR),
-				 errmsg("conflicting or redundant options")));
+  if ((localeEl && (lccollateEl || lcctypeEl)) ||
+      (fromEl && list_length(parameters) != 1))
+    ereport(ERROR, (errcode(ERRCODE_SYNTAX_ERROR),
+                    errmsg("conflicting or redundant options")));
 
-	if (fromEl)
-	{
-		Oid			collid;
-		HeapTuple	tp;
+  if (fromEl) {
+    Oid collid;
+    HeapTuple tp;
 
-		collid = get_collation_oid(defGetQualifiedName(fromEl), false);
-		tp = SearchSysCache1(COLLOID, ObjectIdGetDatum(collid));
-		if (!HeapTupleIsValid(tp))
-			elog(ERROR, "cache lookup failed for collation %u", collid);
+    collid = get_collation_oid(defGetQualifiedName(fromEl), false);
+    tp = SearchSysCache1(COLLOID, ObjectIdGetDatum(collid));
+    if (!HeapTupleIsValid(tp))
+      elog(ERROR, "cache lookup failed for collation %u", collid);
 
-		collcollate = pstrdup(NameStr(((Form_pg_collation) GETSTRUCT(tp))->collcollate));
-		collctype = pstrdup(NameStr(((Form_pg_collation) GETSTRUCT(tp))->collctype));
+    collcollate =
+        pstrdup(NameStr(((Form_pg_collation)GETSTRUCT(tp))->collcollate));
+    collctype = pstrdup(NameStr(((Form_pg_collation)GETSTRUCT(tp))->collctype));
 
-		ReleaseSysCache(tp);
-	}
+    ReleaseSysCache(tp);
+  }
 
-	if (localeEl)
-	{
-		collcollate = defGetString(localeEl);
-		collctype = defGetString(localeEl);
-	}
+  if (localeEl) {
+    collcollate = defGetString(localeEl);
+    collctype = defGetString(localeEl);
+  }
 
-	if (lccollateEl)
-		collcollate = defGetString(lccollateEl);
+  if (lccollateEl) collcollate = defGetString(lccollateEl);
 
-	if (lcctypeEl)
-		collctype = defGetString(lcctypeEl);
+  if (lcctypeEl) collctype = defGetString(lcctypeEl);
 
-	if (!collcollate)
-		ereport(ERROR,
-				(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
-				 errmsg("parameter \"lc_collate\" must be specified")));
+  if (!collcollate)
+    ereport(ERROR, (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
+                    errmsg("parameter \"lc_collate\" must be specified")));
 
-	if (!collctype)
-		ereport(ERROR,
-				(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
-				 errmsg("parameter \"lc_ctype\" must be specified")));
+  if (!collctype)
+    ereport(ERROR, (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
+                    errmsg("parameter \"lc_ctype\" must be specified")));
 
-	check_encoding_locale_matches(GetDatabaseEncoding(), collcollate, collctype);
+  check_encoding_locale_matches(GetDatabaseEncoding(), collcollate, collctype);
 
-	newoid = CollationCreate(collName,
-							 collNamespace,
-							 GetUserId(),
-							 GetDatabaseEncoding(),
-							 collcollate,
-							 collctype);
+  newoid = CollationCreate(collName, collNamespace, GetUserId(),
+                           GetDatabaseEncoding(), collcollate, collctype);
 
-	ObjectAddressSet(address, CollationRelationId, newoid);
+  ObjectAddressSet(address, CollationRelationId, newoid);
 
-	/* check that the locales can be loaded */
-	CommandCounterIncrement();
-	(void) pg_newlocale_from_collation(newoid);
+  /* check that the locales can be loaded */
+  CommandCounterIncrement();
+  (void)pg_newlocale_from_collation(newoid);
 
-	return address;
+  return address;
 }
 
 /*
@@ -153,27 +138,22 @@ DefineCollation(List *names, List *parameters)
  * Is there a collation with the same name of the given collation already in
  * the given namescpace___?  If so, raise an appropriate error message.
  */
-void
-IsThereCollationInNamespace(const char *collname, Oid nspOid)
-{
-	/* make sure the name doesn't already exist in new___ schema */
-	if (SearchSysCacheExists3(COLLNAMEENCNSP,
-							  CStringGetDatum(collname),
-							  Int32GetDatum(GetDatabaseEncoding()),
-							  ObjectIdGetDatum(nspOid)))
-		ereport(ERROR,
-				(errcode(ERRCODE_DUPLICATE_OBJECT),
-				 errmsg("collation \"%s\" for encoding \"%s\" already exists in schema \"%s\"",
-						collname, GetDatabaseEncodingName(),
-						get_namespace_name(nspOid))));
+void IsThereCollationInNamespace(const char *collname, Oid nspOid) {
+  /* make sure the name doesn't already exist in new___ schema */
+  if (SearchSysCacheExists3(COLLNAMEENCNSP, CStringGetDatum(collname),
+                            Int32GetDatum(GetDatabaseEncoding()),
+                            ObjectIdGetDatum(nspOid)))
+    ereport(ERROR, (errcode(ERRCODE_DUPLICATE_OBJECT),
+                    errmsg(
+                        "collation \"%s\" for encoding \"%s\" already exists "
+                        "in schema \"%s\"",
+                        collname, GetDatabaseEncodingName(),
+                        get_namespace_name(nspOid))));
 
-	/* mustn't match an any-encoding entry, either */
-	if (SearchSysCacheExists3(COLLNAMEENCNSP,
-							  CStringGetDatum(collname),
-							  Int32GetDatum(-1),
-							  ObjectIdGetDatum(nspOid)))
-		ereport(ERROR,
-				(errcode(ERRCODE_DUPLICATE_OBJECT),
-				 errmsg("collation \"%s\" already exists in schema \"%s\"",
-						collname, get_namespace_name(nspOid))));
+  /* mustn't match an any-encoding entry, either */
+  if (SearchSysCacheExists3(COLLNAMEENCNSP, CStringGetDatum(collname),
+                            Int32GetDatum(-1), ObjectIdGetDatum(nspOid)))
+    ereport(ERROR, (errcode(ERRCODE_DUPLICATE_OBJECT),
+                    errmsg("collation \"%s\" already exists in schema \"%s\"",
+                           collname, get_namespace_name(nspOid))));
 }

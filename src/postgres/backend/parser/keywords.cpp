@@ -17,11 +17,12 @@
 
 #include "parser/gramparse.h"
 
-#define PG_KEYWORD(a,b,c) {a,b,c},
-
+#define PG_KEYWORD(a, b, c) \
+  { a, b, c }               \
+  ,
 
 const ScanKeyword ScanKeywords[] = {
 #include "parser/kwlist.h"
 };
 
-const int	NumScanKeywords = lengthof(ScanKeywords);
+const int NumScanKeywords = lengthof(ScanKeywords);

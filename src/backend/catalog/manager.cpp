@@ -22,7 +22,7 @@
 namespace peloton {
 
 namespace concurrency {
-  class TransactionManagerFactory;
+class TransactionManagerFactory;
 }
 
 namespace catalog {

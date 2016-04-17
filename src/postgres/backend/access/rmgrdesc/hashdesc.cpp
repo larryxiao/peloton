@@ -16,13 +16,6 @@
 
 #include "access/hash.h"
 
-void
-hash_desc(StringInfo buf, XLogReaderState *record)
-{
-}
+void hash_desc(StringInfo buf, XLogReaderState *record) {}
 
-const char *
-hash_identify(uint8 info)
-{
-	return NULL;
-}
+const char *hash_identify(uint8 info) { return NULL; }

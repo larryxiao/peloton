@@ -112,9 +112,9 @@ class ConstantFunctionExpression : public expression::AbstractExpression {
     return (buffer.str());
   }
 
-    expression::AbstractExpression *Copy() const {
-      return new ConstantFunctionExpression<F>();
-    }
+  expression::AbstractExpression *Copy() const {
+    return new ConstantFunctionExpression<F>();
+  }
 };
 
 /*
@@ -145,10 +145,10 @@ class UnaryFunctionExpression : public expression::AbstractExpression {
     return (buffer.str());
   }
 
-    expression::AbstractExpression *Copy() const {
-      assert(m_child != nullptr);
-      return new UnaryFunctionExpression<F>(m_child->Copy());
-    }
+  expression::AbstractExpression *Copy() const {
+    assert(m_child != nullptr);
+    return new UnaryFunctionExpression<F>(m_child->Copy());
+  }
 };
 
 /*
@@ -199,21 +199,21 @@ class GeneralFunctionExpression : public expression::AbstractExpression {
     return (buffer.str());
   }
 
-    expression::AbstractExpression *Copy() const {
-      std::vector<expression::AbstractExpression *> args;
-      for (auto arg : m_args) {
-        args.push_back(arg->Copy());
-      }
-
-      return new GeneralFunctionExpression<F>(args);
+  expression::AbstractExpression *Copy() const {
+    std::vector<expression::AbstractExpression *> args;
+    for (auto arg : m_args) {
+      args.push_back(arg->Copy());
     }
+
+    return new GeneralFunctionExpression<F>(args);
+  }
 
  private:
   const std::vector<AbstractExpression *> &m_args;
 };
 
 expression::AbstractExpression *expression::ExpressionUtil::FunctionFactory(
-    int functionId, const std::vector<AbstractExpression *>& arguments) {
+    int functionId, const std::vector<AbstractExpression *> &arguments) {
   AbstractExpression *ret = 0;
   size_t nArgs = arguments.size();
   if (nArgs == 0) {
@@ -249,8 +249,7 @@ expression::AbstractExpression *expression::ExpressionUtil::FunctionFactory(
             (arguments)[0]);
         break;
       case FUNC_EXTRACT_WEEKDAY:
-        ret =
-            new UnaryFunctionExpression<FUNC_EXTRACT_WEEKDAY>((arguments)[0]);
+        ret = new UnaryFunctionExpression<FUNC_EXTRACT_WEEKDAY>((arguments)[0]);
         break;
       case FUNC_EXTRACT_DAY_OF_YEAR:
         ret = new UnaryFunctionExpression<FUNC_EXTRACT_DAY_OF_YEAR>(
@@ -266,8 +265,7 @@ expression::AbstractExpression *expression::ExpressionUtil::FunctionFactory(
         ret = new UnaryFunctionExpression<FUNC_EXTRACT_MONTH>((arguments)[0]);
         break;
       case FUNC_EXTRACT_QUARTER:
-        ret =
-            new UnaryFunctionExpression<FUNC_EXTRACT_QUARTER>((arguments)[0]);
+        ret = new UnaryFunctionExpression<FUNC_EXTRACT_QUARTER>((arguments)[0]);
         break;
       case FUNC_EXTRACT_SECOND:
         ret = new UnaryFunctionExpression<FUNC_EXTRACT_SECOND>((arguments)[0]);
@@ -324,12 +322,10 @@ expression::AbstractExpression *expression::ExpressionUtil::FunctionFactory(
         ret = new UnaryFunctionExpression<FUNC_TRUNCATE_HOUR>((arguments)[0]);
         break;
       case FUNC_TRUNCATE_MINUTE:
-        ret =
-            new UnaryFunctionExpression<FUNC_TRUNCATE_MINUTE>((arguments)[0]);
+        ret = new UnaryFunctionExpression<FUNC_TRUNCATE_MINUTE>((arguments)[0]);
         break;
       case FUNC_TRUNCATE_SECOND:
-        ret =
-            new UnaryFunctionExpression<FUNC_TRUNCATE_SECOND>((arguments)[0]);
+        ret = new UnaryFunctionExpression<FUNC_TRUNCATE_SECOND>((arguments)[0]);
         break;
       case FUNC_TRUNCATE_MILLISECOND:
         ret = new UnaryFunctionExpression<FUNC_TRUNCATE_MILLISECOND>(
@@ -363,8 +359,8 @@ expression::AbstractExpression *expression::ExpressionUtil::FunctionFactory(
         ret = new UnaryFunctionExpression<FUNC_SQRT>((arguments)[0]);
         break;
       case FUNC_VOLT_ARRAY_LENGTH:
-        ret = new UnaryFunctionExpression<FUNC_VOLT_ARRAY_LENGTH>(
-            (arguments)[0]);
+        ret =
+            new UnaryFunctionExpression<FUNC_VOLT_ARRAY_LENGTH>((arguments)[0]);
         break;
       case FUNC_VOLT_BITNOT:
         ret = new UnaryFunctionExpression<FUNC_VOLT_BITNOT>((arguments)[0]);
@@ -437,27 +433,25 @@ expression::AbstractExpression *expression::ExpressionUtil::FunctionFactory(
         ret = new GeneralFunctionExpression<FUNC_TRIM_LEADING_CHAR>(arguments);
         break;
       case FUNC_TRIM_TRAILING_CHAR:
-        ret =
-            new GeneralFunctionExpression<FUNC_TRIM_TRAILING_CHAR>(arguments);
+        ret = new GeneralFunctionExpression<FUNC_TRIM_TRAILING_CHAR>(arguments);
         break;
       case FUNC_VOLT_ARRAY_ELEMENT:
-        ret =
-            new GeneralFunctionExpression<FUNC_VOLT_ARRAY_ELEMENT>(arguments);
+        ret = new GeneralFunctionExpression<FUNC_VOLT_ARRAY_ELEMENT>(arguments);
         break;
       case FUNC_VOLT_BIT_SHIFT_LEFT:
         ret =
             new GeneralFunctionExpression<FUNC_VOLT_BIT_SHIFT_LEFT>(arguments);
         break;
       case FUNC_VOLT_BIT_SHIFT_RIGHT:
-        ret = new GeneralFunctionExpression<FUNC_VOLT_BIT_SHIFT_RIGHT>(
-            arguments);
+        ret =
+            new GeneralFunctionExpression<FUNC_VOLT_BIT_SHIFT_RIGHT>(arguments);
         break;
       case FUNC_VOLT_FIELD:
         ret = new GeneralFunctionExpression<FUNC_VOLT_FIELD>(arguments);
         break;
       case FUNC_VOLT_FORMAT_CURRENCY:
-        ret = new GeneralFunctionExpression<FUNC_VOLT_FORMAT_CURRENCY>(
-            arguments);
+        ret =
+            new GeneralFunctionExpression<FUNC_VOLT_FORMAT_CURRENCY>(arguments);
         break;
       case FUNC_VOLT_SET_FIELD:
         ret = new GeneralFunctionExpression<FUNC_VOLT_SET_FIELD>(arguments);

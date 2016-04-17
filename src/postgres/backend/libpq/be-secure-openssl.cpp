@@ -76,16 +76,15 @@
 #include "tcop/tcopprot.h"
 #include "utils/memutils.h"
 
-
 static int my_sock_read(BIO *h, char *buf, int size);
 static int my_sock_write(BIO *h, const char *buf, int size);
 static BIO_METHOD *my_BIO_s_socket(void);
 static int my_SSL_set_fd(Port *port, int fd);
 
-static DH  *load_dh_file(int keylength);
-static DH  *load_dh_buffer(const char *, size_t);
-static DH  *tmp_dh_cb(SSL *s, int is_export, int keylength);
-static int	verify_cb(int, X509_STORE_CTX *);
+static DH *load_dh_file(int keylength);
+static DH *load_dh_buffer(const char *, size_t);
+static DH *tmp_dh_cb(SSL *s, int is_export, int keylength);
+static int verify_cb(int, X509_STORE_CTX *);
 static void info_cb(const SSL *ssl, int type, int args);
 static void initialize_ecdh(void);
 static const char *SSLerrmessage(void);
@@ -125,20 +124,20 @@ static SSL_CTX *SSL_context = NULL;
  */
 
 static const char file_dh512[] =
-"-----BEGIN DH PARAMETERS-----\n\
+    "-----BEGIN DH PARAMETERS-----\n\
 MEYCQQD1Kv884bEpQBgRjXyEpwpy1obEAxnIByl6ypUM2Zafq9AKUJsCRtMIPWak\n\
 XUGfnHy9iUsiGSa6q6Jew1XpKgVfAgEC\n\
 -----END DH PARAMETERS-----\n";
 
 static const char file_dh1024[] =
-"-----BEGIN DH PARAMETERS-----\n\
+    "-----BEGIN DH PARAMETERS-----\n\
 MIGHAoGBAPSI/VhOSdvNILSd5JEHNmszbDgNRR0PfIizHHxbLY7288kjwEPwpVsY\n\
 jY67VYy4XTjTNP18F1dDox0YbN4zISy1Kv884bEpQBgRjXyEpwpy1obEAxnIByl6\n\
 ypUM2Zafq9AKUJsCRtMIPWakXUGfnHy9iUsiGSa6q6Jew1XpL3jHAgEC\n\
 -----END DH PARAMETERS-----\n";
 
 static const char file_dh2048[] =
-"-----BEGIN DH PARAMETERS-----\n\
+    "-----BEGIN DH PARAMETERS-----\n\
 MIIBCAKCAQEA9kJXtwh/CBdyorrWqULzBej5UxE5T7bxbrlLOCDaAadWoxTpj0BV\n\
 89AHxstDqZSt90xkhkn4DIO9ZekX1KHTUPj1WV/cdlJPPT2N286Z4VeSWc39uK50\n\
 T8X8dryDxUcwYc58yWb/Ffm7/ZFexwGq01uejaClcjrUGvC/RgBYK+X0iP1YTknb\n\
@@ -148,7 +147,7 @@ CD1mpF1Bn5x8vYlLIhkmuquiXsNV6TILOwIBAg==\n\
 -----END DH PARAMETERS-----\n";
 
 static const char file_dh4096[] =
-"-----BEGIN DH PARAMETERS-----\n\
+    "-----BEGIN DH PARAMETERS-----\n\
 MIICCAKCAgEA+hRyUsFN4VpJ1O8JLcCo/VWr19k3BCgJ4uk+d+KhehjdRqNDNyOQ\n\
 l/MOyQNQfWXPeGKmOmIig6Ev/nm6Nf9Z2B1h3R4hExf+zTiHnvVPeRBhjdQi81rt\n\
 Xeoh6TNrSBIKIHfUJWBh3va0TxxjQIs6IZOLeVNRLMqzeylWqMf49HsIXqbcokUS\n\
@@ -162,7 +161,6 @@ AaqLulO7R8Ifa1SwF2DteSGVtgWEN8gDpN3RBmmPTDngyF2DHb5qmpnznwtFKdTL\n\
 KWbuHn491xNO25CQWMtem80uKw+pTnisBRF/454n1Jnhub144YRBoN8CAQI=\n\
 -----END DH PARAMETERS-----\n";
 
-
 /* ------------------------------------------------------------ */
 /*						 Public interface						*/
 /* ------------------------------------------------------------ */
@@ -170,506 +168,451 @@ KWbuHn491xNO25CQWMtem80uKw+pTnisBRF/454n1Jnhub144YRBoN8CAQI=\n\
 /*
  *	Initialize global SSL context.
  */
-void
-be_tls_init(void)
-{
-	struct stat buf;
+void be_tls_init(void) {
+  struct stat buf;
 
-	STACK_OF(X509_NAME) *root_cert_list = NULL;
+  STACK_OF(X509_NAME) *root_cert_list = NULL;
 
-	if (!SSL_context)
-	{
+  if (!SSL_context) {
 #if SSLEAY_VERSION_NUMBER >= 0x0907000L
-		OPENSSL_config(NULL);
+    OPENSSL_config(NULL);
 #endif
-		SSL_library_init();
-		SSL_load_error_strings();
+    SSL_library_init();
+    SSL_load_error_strings();
 
-		/*
-		 * We use SSLv23_method() because it can negotiate use of the highest
-		 * mutually supported protocol version, while alternatives like
-		 * TLSv1_2_method() permit only one specific version.  Note that we
-		 * don't actually allow SSL v2 or v3, only TLS protocols (see below).
-		 */
-		SSL_context = SSL_CTX_new(SSLv23_method());
-		if (!SSL_context)
-			ereport(FATAL,
-					(errmsg("could not create SSL context: %s",
-							SSLerrmessage())));
+    /*
+     * We use SSLv23_method() because it can negotiate use of the highest
+     * mutually supported protocol version, while alternatives like
+     * TLSv1_2_method() permit only one specific version.  Note that we
+     * don't actually allow SSL v2 or v3, only TLS protocols (see below).
+     */
+    SSL_context = SSL_CTX_new(SSLv23_method());
+    if (!SSL_context)
+      ereport(FATAL,
+              (errmsg("could not create SSL context: %s", SSLerrmessage())));
 
-		/*
-		 * Disable OpenSSL's moving-write-buffer sanity check, because it
-		 * causes unnecessary failures in nonblocking send cases.
-		 */
-		SSL_CTX_set_mode(SSL_context, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
+    /*
+     * Disable OpenSSL's moving-write-buffer sanity check, because it
+     * causes unnecessary failures in nonblocking send cases.
+     */
+    SSL_CTX_set_mode(SSL_context, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
 
-		/*
-		 * Load and verify server's certificate and private___ key
-		 */
-		if (SSL_CTX_use_certificate_chain_file(SSL_context,
-											   ssl_cert_file) != 1)
-			ereport(FATAL,
-					(errcode(ERRCODE_CONFIG_FILE_ERROR),
-				  errmsg("could not load server certificate file \"%s\": %s",
-						 ssl_cert_file, SSLerrmessage())));
+    /*
+     * Load and verify server's certificate and private___ key
+     */
+    if (SSL_CTX_use_certificate_chain_file(SSL_context, ssl_cert_file) != 1)
+      ereport(FATAL,
+              (errcode(ERRCODE_CONFIG_FILE_ERROR),
+               errmsg("could not load server certificate file \"%s\": %s",
+                      ssl_cert_file, SSLerrmessage())));
 
-		if (stat(ssl_key_file, &buf) != 0)
-			ereport(FATAL,
-					(errcode_for_file_access(),
-					 errmsg("could not access private___ key file \"%s\": %m",
-							ssl_key_file)));
+    if (stat(ssl_key_file, &buf) != 0)
+      ereport(FATAL, (errcode_for_file_access(),
+                      errmsg("could not access private___ key file \"%s\": %m",
+                             ssl_key_file)));
 
-		/*
-		 * Require no public access to key file.
-		 *
-		 * XXX temporarily suppress check when on Windows, because there may
-		 * not be proper support for Unix-y file permissions.  Need to think
-		 * of a reasonable check to apply on Windows.  (See also the data
-		 * directory permission check in postmaster.c)
-		 */
+/*
+ * Require no public access to key file.
+ *
+ * XXX temporarily suppress check when on Windows, because there may
+ * not be proper support for Unix-y file permissions.  Need to think
+ * of a reasonable check to apply on Windows.  (See also the data
+ * directory permission check in postmaster.c)
+ */
 #if !defined(WIN32) && !defined(__CYGWIN__)
-		if (!S_ISREG(buf.st_mode) || buf.st_mode & (S_IRWXG | S_IRWXO))
-			ereport(FATAL,
-					(errcode(ERRCODE_CONFIG_FILE_ERROR),
-				  errmsg("private___ key file \"%s\" has group or world access",
-						 ssl_key_file),
-				   errdetail("Permissions should be u=rw (0600) or less.")));
+    if (!S_ISREG(buf.st_mode) || buf.st_mode & (S_IRWXG | S_IRWXO))
+      ereport(FATAL,
+              (errcode(ERRCODE_CONFIG_FILE_ERROR),
+               errmsg("private___ key file \"%s\" has group or world access",
+                      ssl_key_file),
+               errdetail("Permissions should be u=rw (0600) or less.")));
 #endif
 
-		if (SSL_CTX_use_PrivateKey_file(SSL_context,
-										ssl_key_file,
-										SSL_FILETYPE_PEM) != 1)
-			ereport(FATAL,
-					(errmsg("could not load private___ key file \"%s\": %s",
-							ssl_key_file, SSLerrmessage())));
+    if (SSL_CTX_use_PrivateKey_file(SSL_context, ssl_key_file,
+                                    SSL_FILETYPE_PEM) != 1)
+      ereport(FATAL, (errmsg("could not load private___ key file \"%s\": %s",
+                             ssl_key_file, SSLerrmessage())));
 
-		if (SSL_CTX_check_private_key(SSL_context) != 1)
-			ereport(FATAL,
-					(errmsg("check of private___ key failed: %s",
-							SSLerrmessage())));
-	}
+    if (SSL_CTX_check_private_key(SSL_context) != 1)
+      ereport(FATAL,
+              (errmsg("check of private___ key failed: %s", SSLerrmessage())));
+  }
 
-	/* set up ephemeral DH keys, and disallow SSL v2/v3 while at it */
-	SSL_CTX_set_tmp_dh_callback(SSL_context, tmp_dh_cb);
-	SSL_CTX_set_options(SSL_context,
-						SSL_OP_SINGLE_DH_USE |
-						SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3);
+  /* set up ephemeral DH keys, and disallow SSL v2/v3 while at it */
+  SSL_CTX_set_tmp_dh_callback(SSL_context, tmp_dh_cb);
+  SSL_CTX_set_options(SSL_context,
+                      SSL_OP_SINGLE_DH_USE | SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3);
 
-	/* set up ephemeral ECDH keys */
-	initialize_ecdh();
+  /* set up ephemeral ECDH keys */
+  initialize_ecdh();
 
-	/* set up the allowed cipher list */
-	if (SSL_CTX_set_cipher_list(SSL_context, SSLCipherSuites) != 1)
-		elog(FATAL, "could not set the cipher list (no valid ciphers available)");
+  /* set up the allowed cipher list */
+  if (SSL_CTX_set_cipher_list(SSL_context, SSLCipherSuites) != 1)
+    elog(FATAL, "could not set the cipher list (no valid ciphers available)");
 
-	/* Let server choose order */
-	if (SSLPreferServerCiphers)
-		SSL_CTX_set_options(SSL_context, SSL_OP_CIPHER_SERVER_PREFERENCE);
+  /* Let server choose order */
+  if (SSLPreferServerCiphers)
+    SSL_CTX_set_options(SSL_context, SSL_OP_CIPHER_SERVER_PREFERENCE);
 
-	/*
-	 * Load CA store, so we can verify client certificates if needed.
-	 */
-	if (ssl_ca_file[0])
-	{
-		if (SSL_CTX_load_verify_locations(SSL_context, ssl_ca_file, NULL) != 1 ||
-			(root_cert_list = SSL_load_client_CA_file(ssl_ca_file)) == NULL)
-			ereport(FATAL,
-					(errmsg("could not load root certificate file \"%s\": %s",
-							ssl_ca_file, SSLerrmessage())));
-	}
+  /*
+   * Load CA store, so we can verify client certificates if needed.
+   */
+  if (ssl_ca_file[0]) {
+    if (SSL_CTX_load_verify_locations(SSL_context, ssl_ca_file, NULL) != 1 ||
+        (root_cert_list = SSL_load_client_CA_file(ssl_ca_file)) == NULL)
+      ereport(FATAL, (errmsg("could not load root certificate file \"%s\": %s",
+                             ssl_ca_file, SSLerrmessage())));
+  }
 
-	/*----------
-	 * Load the Certificate Revocation List (CRL).
-	 * http://searchsecurity.techtarget.com/sDefinition/0,,sid14_gci803160,00.html
-	 *----------
-	 */
-	if (ssl_crl_file[0])
-	{
-		X509_STORE *cvstore = SSL_CTX_get_cert_store(SSL_context);
+  /*----------
+   * Load the Certificate Revocation List (CRL).
+   * http://searchsecurity.techtarget.com/sDefinition/0,,sid14_gci803160,00.html
+   *----------
+   */
+  if (ssl_crl_file[0]) {
+    X509_STORE *cvstore = SSL_CTX_get_cert_store(SSL_context);
 
-		if (cvstore)
-		{
-			/* Set the flags to check against the complete CRL chain */
-			if (X509_STORE_load_locations(cvstore, ssl_crl_file, NULL) == 1)
-			{
-				/* OpenSSL 0.96 does not support X509_V_FLAG_CRL_CHECK */
+    if (cvstore) {
+      /* Set the flags to check against the complete CRL chain */
+      if (X509_STORE_load_locations(cvstore, ssl_crl_file, NULL) == 1) {
+/* OpenSSL 0.96 does not support X509_V_FLAG_CRL_CHECK */
 #ifdef X509_V_FLAG_CRL_CHECK
-				X509_STORE_set_flags(cvstore,
-						  X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL);
+        X509_STORE_set_flags(cvstore,
+                             X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL);
 #else
-				ereport(LOG,
-				(errmsg("SSL certificate revocation list file \"%s\" ignored",
-						ssl_crl_file),
-				 errdetail("SSL library does not support certificate revocation lists.")));
+        ereport(LOG,
+                (errmsg("SSL certificate revocation list file \"%s\" ignored",
+                        ssl_crl_file),
+                 errdetail(
+                     "SSL library does not support certificate revocation "
+                     "lists.")));
 #endif
-			}
-			else
-				ereport(FATAL,
-						(errmsg("could not load SSL certificate revocation list file \"%s\": %s",
-								ssl_crl_file, SSLerrmessage())));
-		}
-	}
+      } else
+        ereport(FATAL, (errmsg(
+                           "could not load SSL certificate revocation list "
+                           "file \"%s\": %s",
+                           ssl_crl_file, SSLerrmessage())));
+    }
+  }
 
-	if (ssl_ca_file[0])
-	{
-		/*
-		 * Always ask for SSL client cert, but don't fail if it's not
-		 * presented.  We might fail such connections later, depending on what
-		 * we find in pg_hba.conf.
-		 */
-		SSL_CTX_set_verify(SSL_context,
-						   (SSL_VERIFY_PEER |
-							SSL_VERIFY_CLIENT_ONCE),
-						   verify_cb);
+  if (ssl_ca_file[0]) {
+    /*
+     * Always ask for SSL client cert, but don't fail if it's not
+     * presented.  We might fail such connections later, depending on what
+     * we find in pg_hba.conf.
+     */
+    SSL_CTX_set_verify(SSL_context, (SSL_VERIFY_PEER | SSL_VERIFY_CLIENT_ONCE),
+                       verify_cb);
 
-		/* Set flag to remember CA store is successfully loaded */
-		ssl_loaded_verify_locations = true;
+    /* Set flag to remember CA store is successfully loaded */
+    ssl_loaded_verify_locations = true;
 
-		/*
-		 * Tell OpenSSL to send the list of root certs we trust to clients in
-		 * CertificateRequests.  This lets a client with a keystore select the
-		 * appropriate client certificate to send to us.
-		 */
-		SSL_CTX_set_client_CA_list(SSL_context, root_cert_list);
-	}
+    /*
+     * Tell OpenSSL to send the list of root certs we trust to clients in
+     * CertificateRequests.  This lets a client with a keystore select the
+     * appropriate client certificate to send to us.
+     */
+    SSL_CTX_set_client_CA_list(SSL_context, root_cert_list);
+  }
 }
 
 /*
  *	Attempt to negotiate SSL connection.
  */
-int
-be_tls_open_server(Port *port)
-{
-	int			r;
-	int			err;
-	int			waitfor;
+int be_tls_open_server(Port *port) {
+  int r;
+  int err;
+  int waitfor;
 
-	Assert(!port->ssl);
-	Assert(!port->peer);
+  Assert(!port->ssl);
+  Assert(!port->peer);
 
-	if (!(port->ssl = SSL_new(SSL_context)))
-	{
-		ereport(COMMERROR,
-				(errcode(ERRCODE_PROTOCOL_VIOLATION),
-				 errmsg("could not initialize SSL connection: %s",
-						SSLerrmessage())));
-		return -1;
-	}
-	if (!my_SSL_set_fd(port, port->sock))
-	{
-		ereport(COMMERROR,
-				(errcode(ERRCODE_PROTOCOL_VIOLATION),
-				 errmsg("could not set SSL socket: %s",
-						SSLerrmessage())));
-		return -1;
-	}
-	port->ssl_in_use = true;
+  if (!(port->ssl = SSL_new(SSL_context))) {
+    ereport(COMMERROR, (errcode(ERRCODE_PROTOCOL_VIOLATION),
+                        errmsg("could not initialize SSL connection: %s",
+                               SSLerrmessage())));
+    return -1;
+  }
+  if (!my_SSL_set_fd(port, port->sock)) {
+    ereport(COMMERROR,
+            (errcode(ERRCODE_PROTOCOL_VIOLATION),
+             errmsg("could not set SSL socket: %s", SSLerrmessage())));
+    return -1;
+  }
+  port->ssl_in_use = true;
 
 aloop:
-	r = SSL_accept(port->ssl);
-	if (r <= 0)
-	{
-		err = SSL_get_error(port->ssl, r);
-		switch (err)
-		{
-			case SSL_ERROR_WANT_READ:
-			case SSL_ERROR_WANT_WRITE:
-				/* not allowed during connection establishment */
-				Assert(!port->noblock);
+  r = SSL_accept(port->ssl);
+  if (r <= 0) {
+    err = SSL_get_error(port->ssl, r);
+    switch (err) {
+      case SSL_ERROR_WANT_READ:
+      case SSL_ERROR_WANT_WRITE:
+        /* not allowed during connection establishment */
+        Assert(!port->noblock);
 
-				/*
-				 * No need to care about timeouts/interrupts here. At this
-				 * point authentication_timeout still employs
-				 * StartupPacketTimeoutHandler() which directly exits.
-				 */
-				if (err == SSL_ERROR_WANT_READ)
-					waitfor = WL_SOCKET_READABLE;
-				else
-					waitfor = WL_SOCKET_WRITEABLE;
+        /*
+         * No need to care about timeouts/interrupts here. At this
+         * point authentication_timeout still employs
+         * StartupPacketTimeoutHandler() which directly exits.
+         */
+        if (err == SSL_ERROR_WANT_READ)
+          waitfor = WL_SOCKET_READABLE;
+        else
+          waitfor = WL_SOCKET_WRITEABLE;
 
-				WaitLatchOrSocket(MyLatch, waitfor, port->sock, 0);
-				goto aloop;
-			case SSL_ERROR_SYSCALL:
-				if (r < 0)
-					ereport(COMMERROR,
-							(errcode_for_socket_access(),
-							 errmsg("could not accept SSL connection: %m")));
-				else
-					ereport(COMMERROR,
-							(errcode(ERRCODE_PROTOCOL_VIOLATION),
-					errmsg("could not accept SSL connection: EOF detected")));
-				break;
-			case SSL_ERROR_SSL:
-				ereport(COMMERROR,
-						(errcode(ERRCODE_PROTOCOL_VIOLATION),
-						 errmsg("could not accept SSL connection: %s",
-								SSLerrmessage())));
-				break;
-			case SSL_ERROR_ZERO_RETURN:
-				ereport(COMMERROR,
-						(errcode(ERRCODE_PROTOCOL_VIOLATION),
-				   errmsg("could not accept SSL connection: EOF detected")));
-				break;
-			default:
-				ereport(COMMERROR,
-						(errcode(ERRCODE_PROTOCOL_VIOLATION),
-						 errmsg("unrecognized SSL error code: %d",
-								err)));
-				break;
-		}
-		return -1;
-	}
+        WaitLatchOrSocket(MyLatch, waitfor, port->sock, 0);
+        goto aloop;
+      case SSL_ERROR_SYSCALL:
+        if (r < 0)
+          ereport(COMMERROR, (errcode_for_socket_access(),
+                              errmsg("could not accept SSL connection: %m")));
+        else
+          ereport(COMMERROR,
+                  (errcode(ERRCODE_PROTOCOL_VIOLATION),
+                   errmsg("could not accept SSL connection: EOF detected")));
+        break;
+      case SSL_ERROR_SSL:
+        ereport(COMMERROR, (errcode(ERRCODE_PROTOCOL_VIOLATION),
+                            errmsg("could not accept SSL connection: %s",
+                                   SSLerrmessage())));
+        break;
+      case SSL_ERROR_ZERO_RETURN:
+        ereport(COMMERROR,
+                (errcode(ERRCODE_PROTOCOL_VIOLATION),
+                 errmsg("could not accept SSL connection: EOF detected")));
+        break;
+      default:
+        ereport(COMMERROR, (errcode(ERRCODE_PROTOCOL_VIOLATION),
+                            errmsg("unrecognized SSL error code: %d", err)));
+        break;
+    }
+    return -1;
+  }
 
-	port->count = 0;
+  port->count = 0;
 
-	/* Get client certificate, if available. */
-	port->peer = SSL_get_peer_certificate(port->ssl);
+  /* Get client certificate, if available. */
+  port->peer = SSL_get_peer_certificate(port->ssl);
 
-	/* and extract the Common Name from it. */
-	port->peer_cn = NULL;
-	port->peer_cert_valid = false;
-	if (port->peer != NULL)
-	{
-		int			len;
+  /* and extract the Common Name from it. */
+  port->peer_cn = NULL;
+  port->peer_cert_valid = false;
+  if (port->peer != NULL) {
+    int len;
 
-		len = X509_NAME_get_text_by_NID(X509_get_subject_name(port->peer),
-										NID_commonName, NULL, 0);
-		if (len != -1)
-		{
-			char	   *peer_cn;
+    len = X509_NAME_get_text_by_NID(X509_get_subject_name(port->peer),
+                                    NID_commonName, NULL, 0);
+    if (len != -1) {
+      char *peer_cn;
 
-			peer_cn = MemoryContextAlloc(TopMemoryContext, len + 1);
-			r = X509_NAME_get_text_by_NID(X509_get_subject_name(port->peer),
-										  NID_commonName, peer_cn, len + 1);
-			peer_cn[len] = '\0';
-			if (r != len)
-			{
-				/* shouldn't happen */
-				pfree(peer_cn);
-				return -1;
-			}
+      peer_cn = MemoryContextAlloc(TopMemoryContext, len + 1);
+      r = X509_NAME_get_text_by_NID(X509_get_subject_name(port->peer),
+                                    NID_commonName, peer_cn, len + 1);
+      peer_cn[len] = '\0';
+      if (r != len) {
+        /* shouldn't happen */
+        pfree(peer_cn);
+        return -1;
+      }
 
-			/*
-			 * Reject embedded NULLs in certificate common name to prevent
-			 * attacks like CVE-2009-4034.
-			 */
-			if (len != strlen(peer_cn))
-			{
-				ereport(COMMERROR,
-						(errcode(ERRCODE_PROTOCOL_VIOLATION),
-						 errmsg("SSL certificate's common name contains embedded null")));
-				pfree(peer_cn);
-				return -1;
-			}
+      /*
+       * Reject embedded NULLs in certificate common name to prevent
+       * attacks like CVE-2009-4034.
+       */
+      if (len != strlen(peer_cn)) {
+        ereport(
+            COMMERROR,
+            (errcode(ERRCODE_PROTOCOL_VIOLATION),
+             errmsg("SSL certificate's common name contains embedded null")));
+        pfree(peer_cn);
+        return -1;
+      }
 
-			port->peer_cn = peer_cn;
-		}
-		port->peer_cert_valid = true;
-	}
+      port->peer_cn = peer_cn;
+    }
+    port->peer_cert_valid = true;
+  }
 
-	ereport(DEBUG2,
-			(errmsg("SSL connection from \"%s\"",
-					port->peer_cn ? port->peer_cn : "(anonymous)")));
+  ereport(DEBUG2, (errmsg("SSL connection from \"%s\"",
+                          port->peer_cn ? port->peer_cn : "(anonymous)")));
 
-	/* set up debugging/info callback */
-	SSL_CTX_set_info_callback(SSL_context, info_cb);
+  /* set up debugging/info callback */
+  SSL_CTX_set_info_callback(SSL_context, info_cb);
 
-	return 0;
+  return 0;
 }
 
 /*
  *	Close SSL connection.
  */
-void
-be_tls_close(Port *port)
-{
-	if (port->ssl)
-	{
-		SSL_shutdown(port->ssl);
-		SSL_free(port->ssl);
-		port->ssl = NULL;
-		port->ssl_in_use = false;
-	}
+void be_tls_close(Port *port) {
+  if (port->ssl) {
+    SSL_shutdown(port->ssl);
+    SSL_free(port->ssl);
+    port->ssl = NULL;
+    port->ssl_in_use = false;
+  }
 
-	if (port->peer)
-	{
-		X509_free(port->peer);
-		port->peer = NULL;
-	}
+  if (port->peer) {
+    X509_free(port->peer);
+    port->peer = NULL;
+  }
 
-	if (port->peer_cn)
-	{
-		pfree(port->peer_cn);
-		port->peer_cn = NULL;
-	}
+  if (port->peer_cn) {
+    pfree(port->peer_cn);
+    port->peer_cn = NULL;
+  }
 }
 
 /*
  *	Read data from a secure connection.
  */
-ssize_t
-be_tls_read(Port *port, void *ptr, size_t len, int *waitfor)
-{
-	ssize_t		n;
-	int			err;
+ssize_t be_tls_read(Port *port, void *ptr, size_t len, int *waitfor) {
+  ssize_t n;
+  int err;
 
-	errno = 0;
-	n = SSL_read(port->ssl, ptr, len);
-	err = SSL_get_error(port->ssl, n);
-	switch (err)
-	{
-		case SSL_ERROR_NONE:
-			port->count += n;
-			break;
-		case SSL_ERROR_WANT_READ:
-			*waitfor = WL_SOCKET_READABLE;
-			errno = EWOULDBLOCK;
-			n = -1;
-			break;
-		case SSL_ERROR_WANT_WRITE:
-			*waitfor = WL_SOCKET_WRITEABLE;
-			errno = EWOULDBLOCK;
-			n = -1;
-			break;
-		case SSL_ERROR_SYSCALL:
-			/* leave it to caller to ereport the value of errno */
-			if (n != -1)
-			{
-				errno = ECONNRESET;
-				n = -1;
-			}
-			break;
-		case SSL_ERROR_SSL:
-			ereport(COMMERROR,
-					(errcode(ERRCODE_PROTOCOL_VIOLATION),
-					 errmsg("SSL error: %s", SSLerrmessage())));
-			/* fall through */
-		case SSL_ERROR_ZERO_RETURN:
-			errno = ECONNRESET;
-			n = -1;
-			break;
-		default:
-			ereport(COMMERROR,
-					(errcode(ERRCODE_PROTOCOL_VIOLATION),
-					 errmsg("unrecognized SSL error code: %d",
-							err)));
-			errno = ECONNRESET;
-			n = -1;
-			break;
-	}
+  errno = 0;
+  n = SSL_read(port->ssl, ptr, len);
+  err = SSL_get_error(port->ssl, n);
+  switch (err) {
+    case SSL_ERROR_NONE:
+      port->count += n;
+      break;
+    case SSL_ERROR_WANT_READ:
+      *waitfor = WL_SOCKET_READABLE;
+      errno = EWOULDBLOCK;
+      n = -1;
+      break;
+    case SSL_ERROR_WANT_WRITE:
+      *waitfor = WL_SOCKET_WRITEABLE;
+      errno = EWOULDBLOCK;
+      n = -1;
+      break;
+    case SSL_ERROR_SYSCALL:
+      /* leave it to caller to ereport the value of errno */
+      if (n != -1) {
+        errno = ECONNRESET;
+        n = -1;
+      }
+      break;
+    case SSL_ERROR_SSL:
+      ereport(COMMERROR, (errcode(ERRCODE_PROTOCOL_VIOLATION),
+                          errmsg("SSL error: %s", SSLerrmessage())));
+    /* fall through */
+    case SSL_ERROR_ZERO_RETURN:
+      errno = ECONNRESET;
+      n = -1;
+      break;
+    default:
+      ereport(COMMERROR, (errcode(ERRCODE_PROTOCOL_VIOLATION),
+                          errmsg("unrecognized SSL error code: %d", err)));
+      errno = ECONNRESET;
+      n = -1;
+      break;
+  }
 
-	return n;
+  return n;
 }
 
 /*
  *	Write data to a secure connection.
  */
-ssize_t
-be_tls_write(Port *port, void *ptr, size_t len, int *waitfor)
-{
-	ssize_t		n;
-	int			err;
+ssize_t be_tls_write(Port *port, void *ptr, size_t len, int *waitfor) {
+  ssize_t n;
+  int err;
 
-	/*
-	 * If SSL renegotiations are enabled and we're getting close to the
-	 * limit, start one now; but avoid it if there's one already in
-	 * progress.  Request the renegotiation 1kB before the limit has
-	 * actually expired.
-	 */
-	if (ssl_renegotiation_limit && !in_ssl_renegotiation &&
-		port->count > (ssl_renegotiation_limit - 1) * 1024L)
-	{
-		in_ssl_renegotiation = true;
+  /*
+   * If SSL renegotiations are enabled and we're getting close to the
+   * limit, start one now; but avoid it if there's one already in
+   * progress.  Request the renegotiation 1kB before the limit has
+   * actually expired.
+   */
+  if (ssl_renegotiation_limit && !in_ssl_renegotiation &&
+      port->count > (ssl_renegotiation_limit - 1) * 1024L) {
+    in_ssl_renegotiation = true;
 
-		/*
-		 * The way we determine that a renegotiation has completed is by
-		 * observing OpenSSL's internal renegotiation counter.  Make sure
-		 * we start out at zero, and assume that the renegotiation is
-		 * complete when the counter advances.
-		 *
-		 * OpenSSL provides SSL_renegotiation_pending(), but this doesn't
-		 * seem to work in testing.
-		 */
-		SSL_clear_num_renegotiations(port->ssl);
+    /*
+     * The way we determine that a renegotiation has completed is by
+     * observing OpenSSL's internal renegotiation counter.  Make sure
+     * we start out at zero, and assume that the renegotiation is
+     * complete when the counter advances.
+     *
+     * OpenSSL provides SSL_renegotiation_pending(), but this doesn't
+     * seem to work in testing.
+     */
+    SSL_clear_num_renegotiations(port->ssl);
 
-		/* without this, renegotiation fails when a client cert is used */
-		SSL_set_session_id_context(port->ssl, (void *) &SSL_context,
-								   sizeof(SSL_context));
+    /* without this, renegotiation fails when a client cert is used */
+    SSL_set_session_id_context(port->ssl, (void *)&SSL_context,
+                               sizeof(SSL_context));
 
-		if (SSL_renegotiate(port->ssl) <= 0)
-			ereport(COMMERROR,
-					(errcode(ERRCODE_PROTOCOL_VIOLATION),
-					 errmsg("SSL failure during renegotiation start")));
-	}
+    if (SSL_renegotiate(port->ssl) <= 0)
+      ereport(COMMERROR, (errcode(ERRCODE_PROTOCOL_VIOLATION),
+                          errmsg("SSL failure during renegotiation start")));
+  }
 
-	errno = 0;
-	n = SSL_write(port->ssl, ptr, len);
-	err = SSL_get_error(port->ssl, n);
-	switch (err)
-	{
-		case SSL_ERROR_NONE:
-			port->count += n;
-			break;
-		case SSL_ERROR_WANT_READ:
-			*waitfor = WL_SOCKET_READABLE;
-			errno = EWOULDBLOCK;
-			n = -1;
-			break;
-		case SSL_ERROR_WANT_WRITE:
-			*waitfor = WL_SOCKET_WRITEABLE;
-			errno = EWOULDBLOCK;
-			n = -1;
-			break;
-		case SSL_ERROR_SYSCALL:
-			/* leave it to caller to ereport the value of errno */
-			if (n != -1)
-			{
-				errno = ECONNRESET;
-				n = -1;
-			}
-			break;
-		case SSL_ERROR_SSL:
-			ereport(COMMERROR,
-					(errcode(ERRCODE_PROTOCOL_VIOLATION),
-					 errmsg("SSL error: %s", SSLerrmessage())));
-			/* fall through */
-		case SSL_ERROR_ZERO_RETURN:
-			errno = ECONNRESET;
-			n = -1;
-			break;
-		default:
-			ereport(COMMERROR,
-					(errcode(ERRCODE_PROTOCOL_VIOLATION),
-					 errmsg("unrecognized SSL error code: %d",
-							err)));
-			errno = ECONNRESET;
-			n = -1;
-			break;
-	}
+  errno = 0;
+  n = SSL_write(port->ssl, ptr, len);
+  err = SSL_get_error(port->ssl, n);
+  switch (err) {
+    case SSL_ERROR_NONE:
+      port->count += n;
+      break;
+    case SSL_ERROR_WANT_READ:
+      *waitfor = WL_SOCKET_READABLE;
+      errno = EWOULDBLOCK;
+      n = -1;
+      break;
+    case SSL_ERROR_WANT_WRITE:
+      *waitfor = WL_SOCKET_WRITEABLE;
+      errno = EWOULDBLOCK;
+      n = -1;
+      break;
+    case SSL_ERROR_SYSCALL:
+      /* leave it to caller to ereport the value of errno */
+      if (n != -1) {
+        errno = ECONNRESET;
+        n = -1;
+      }
+      break;
+    case SSL_ERROR_SSL:
+      ereport(COMMERROR, (errcode(ERRCODE_PROTOCOL_VIOLATION),
+                          errmsg("SSL error: %s", SSLerrmessage())));
+    /* fall through */
+    case SSL_ERROR_ZERO_RETURN:
+      errno = ECONNRESET;
+      n = -1;
+      break;
+    default:
+      ereport(COMMERROR, (errcode(ERRCODE_PROTOCOL_VIOLATION),
+                          errmsg("unrecognized SSL error code: %d", err)));
+      errno = ECONNRESET;
+      n = -1;
+      break;
+  }
 
-	if (n >= 0)
-	{
-		/* is renegotiation complete? */
-		if (in_ssl_renegotiation &&
-			SSL_num_renegotiations(port->ssl) >= 1)
-		{
-			in_ssl_renegotiation = false;
-			port->count = 0;
-		}
+  if (n >= 0) {
+    /* is renegotiation complete? */
+    if (in_ssl_renegotiation && SSL_num_renegotiations(port->ssl) >= 1) {
+      in_ssl_renegotiation = false;
+      port->count = 0;
+    }
 
-		/*
-		 * if renegotiation is still ongoing, and we've gone beyond the
-		 * limit, kill the connection now -- continuing to use it can be
-		 * considered a security problem.
-		 */
-		if (in_ssl_renegotiation &&
-			port->count > ssl_renegotiation_limit * 1024L)
-			ereport(FATAL,
-					(errcode(ERRCODE_PROTOCOL_VIOLATION),
-					 errmsg("SSL failed to renegotiate connection before limit expired")));
-	}
+    /*
+     * if renegotiation is still ongoing, and we've gone beyond the
+     * limit, kill the connection now -- continuing to use it can be
+     * considered a security problem.
+     */
+    if (in_ssl_renegotiation && port->count > ssl_renegotiation_limit * 1024L)
+      ereport(
+          FATAL,
+          (errcode(ERRCODE_PROTOCOL_VIOLATION),
+           errmsg(
+               "SSL failed to renegotiate connection before limit expired")));
+  }
 
-	return n;
+  return n;
 }
 
 /* ------------------------------------------------------------ */
@@ -693,82 +636,67 @@ be_tls_write(Port *port, void *ptr, size_t len, int *waitfor)
 static bool my_bio_initialized = false;
 static BIO_METHOD my_bio_methods;
 
-static int
-my_sock_read(BIO *h, char *buf, int size)
-{
-	int			res = 0;
+static int my_sock_read(BIO *h, char *buf, int size) {
+  int res = 0;
 
-	if (buf != NULL)
-	{
-		res = secure_raw_read(((Port *)h->ptr), buf, size);
-		BIO_clear_retry_flags(h);
-		if (res <= 0)
-		{
-			/* If we were interrupted, tell caller to retry */
-			if (errno == EINTR || errno == EWOULDBLOCK || errno == EAGAIN)
-			{
-				BIO_set_retry_read(h);
-			}
-		}
-	}
+  if (buf != NULL) {
+    res = secure_raw_read(((Port *)h->ptr), buf, size);
+    BIO_clear_retry_flags(h);
+    if (res <= 0) {
+      /* If we were interrupted, tell caller to retry */
+      if (errno == EINTR || errno == EWOULDBLOCK || errno == EAGAIN) {
+        BIO_set_retry_read(h);
+      }
+    }
+  }
 
-	return res;
+  return res;
 }
 
-static int
-my_sock_write(BIO *h, const char *buf, int size)
-{
-	int			res = 0;
+static int my_sock_write(BIO *h, const char *buf, int size) {
+  int res = 0;
 
-	res = secure_raw_write(((Port *) h->ptr), buf, size);
-	BIO_clear_retry_flags(h);
-	if (res <= 0)
-	{
-		/* If we were interrupted, tell caller to retry */
-		if (errno == EINTR || errno == EWOULDBLOCK || errno == EAGAIN)
-		{
-			BIO_set_retry_write(h);
-		}
-	}
+  res = secure_raw_write(((Port *)h->ptr), buf, size);
+  BIO_clear_retry_flags(h);
+  if (res <= 0) {
+    /* If we were interrupted, tell caller to retry */
+    if (errno == EINTR || errno == EWOULDBLOCK || errno == EAGAIN) {
+      BIO_set_retry_write(h);
+    }
+  }
 
-	return res;
+  return res;
 }
 
-static BIO_METHOD *
-my_BIO_s_socket(void)
-{
-	if (!my_bio_initialized)
-	{
-		memcpy(&my_bio_methods, BIO_s_socket(), sizeof(BIO_METHOD));
-		my_bio_methods.bread = my_sock_read;
-		my_bio_methods.bwrite = my_sock_write;
-		my_bio_initialized = true;
-	}
-	return &my_bio_methods;
+static BIO_METHOD *my_BIO_s_socket(void) {
+  if (!my_bio_initialized) {
+    memcpy(&my_bio_methods, BIO_s_socket(), sizeof(BIO_METHOD));
+    my_bio_methods.bread = my_sock_read;
+    my_bio_methods.bwrite = my_sock_write;
+    my_bio_initialized = true;
+  }
+  return &my_bio_methods;
 }
 
 /* This should exactly match openssl's SSL_set_fd except for using my BIO */
-static int
-my_SSL_set_fd(Port *port, int fd)
-{
-	int			ret = 0;
-	BIO		   *bio = NULL;
+static int my_SSL_set_fd(Port *port, int fd) {
+  int ret = 0;
+  BIO *bio = NULL;
 
-	bio = BIO_new(my_BIO_s_socket());
+  bio = BIO_new(my_BIO_s_socket());
 
-	if (bio == NULL)
-	{
-		SSLerr(SSL_F_SSL_SET_FD, ERR_R_BUF_LIB);
-		goto err;
-	}
-	/* Use 'ptr' to store pointer to PGconn */
-	bio->ptr = port;
+  if (bio == NULL) {
+    SSLerr(SSL_F_SSL_SET_FD, ERR_R_BUF_LIB);
+    goto err;
+  }
+  /* Use 'ptr' to store pointer to PGconn */
+  bio->ptr = port;
 
-	BIO_set_fd(bio, fd, BIO_NOCLOSE);
-	SSL_set_bio(port->ssl, bio, bio);
-	ret = 1;
+  BIO_set_fd(bio, fd, BIO_NOCLOSE);
+  SSL_set_bio(port->ssl, bio, bio);
+  ret = 1;
 err:
-	return ret;
+  return ret;
 }
 
 /*
@@ -778,56 +706,47 @@ err:
  *	to verify that the DBA-generated DH parameters file contains
  *	what we expect it to contain.
  */
-static DH  *
-load_dh_file(int keylength)
-{
-	FILE	   *fp;
-	char		fnbuf[MAXPGPATH];
-	DH		   *dh = NULL;
-	int			codes;
+static DH *load_dh_file(int keylength) {
+  FILE *fp;
+  char fnbuf[MAXPGPATH];
+  DH *dh = NULL;
+  int codes;
 
-	/* attempt to open file.  It's not an error if it doesn't exist. */
-	snprintf(fnbuf, sizeof(fnbuf), "dh%d.pem", keylength);
-	if ((fp = fopen(fnbuf, "r")) == NULL)
-		return NULL;
+  /* attempt to open file.  It's not an error if it doesn't exist. */
+  snprintf(fnbuf, sizeof(fnbuf), "dh%d.pem", keylength);
+  if ((fp = fopen(fnbuf, "r")) == NULL) return NULL;
 
-/*	flock(fileno(fp), LOCK_SH); */
-	dh = PEM_read_DHparams(fp, NULL, NULL, NULL);
-/*	flock(fileno(fp), LOCK_UN); */
-	fclose(fp);
+  /*	flock(fileno(fp), LOCK_SH); */
+  dh = PEM_read_DHparams(fp, NULL, NULL, NULL);
+  /*	flock(fileno(fp), LOCK_UN); */
+  fclose(fp);
 
-	/* is the prime the correct size? */
-	if (dh != NULL && 8 * DH_size(dh) < keylength)
-	{
-		elog(LOG, "DH errors (%s): %d bits expected, %d bits found",
-			 fnbuf, keylength, 8 * DH_size(dh));
-		dh = NULL;
-	}
+  /* is the prime the correct size? */
+  if (dh != NULL && 8 * DH_size(dh) < keylength) {
+    elog(LOG, "DH errors (%s): %d bits expected, %d bits found", fnbuf,
+         keylength, 8 * DH_size(dh));
+    dh = NULL;
+  }
 
-	/* make sure the DH parameters are usable */
-	if (dh != NULL)
-	{
-		if (DH_check(dh, &codes) == 0)
-		{
-			elog(LOG, "DH_check error (%s): %s", fnbuf, SSLerrmessage());
-			return NULL;
-		}
-		if (codes & DH_CHECK_P_NOT_PRIME)
-		{
-			elog(LOG, "DH error (%s): p is not prime", fnbuf);
-			return NULL;
-		}
-		if ((codes & DH_NOT_SUITABLE_GENERATOR) &&
-			(codes & DH_CHECK_P_NOT_SAFE_PRIME))
-		{
-			elog(LOG,
-				 "DH error (%s): neither suitable generator or safe prime",
-				 fnbuf);
-			return NULL;
-		}
-	}
+  /* make sure the DH parameters are usable */
+  if (dh != NULL) {
+    if (DH_check(dh, &codes) == 0) {
+      elog(LOG, "DH_check error (%s): %s", fnbuf, SSLerrmessage());
+      return NULL;
+    }
+    if (codes & DH_CHECK_P_NOT_PRIME) {
+      elog(LOG, "DH error (%s): p is not prime", fnbuf);
+      return NULL;
+    }
+    if ((codes & DH_NOT_SUITABLE_GENERATOR) &&
+        (codes & DH_CHECK_P_NOT_SAFE_PRIME)) {
+      elog(LOG, "DH error (%s): neither suitable generator or safe prime",
+           fnbuf);
+      return NULL;
+    }
+  }
 
-	return dh;
+  return dh;
 }
 
 /*
@@ -836,23 +755,18 @@ load_dh_file(int keylength)
  *	To prevent problems if the DH parameters files don't even
  *	exist, we can load DH parameters hardcoded into this file.
  */
-static DH  *
-load_dh_buffer(const char *buffer, size_t len)
-{
-	BIO		   *bio;
-	DH		   *dh = NULL;
+static DH *load_dh_buffer(const char *buffer, size_t len) {
+  BIO *bio;
+  DH *dh = NULL;
 
-	bio = BIO_new_mem_buf((char *) buffer, len);
-	if (bio == NULL)
-		return NULL;
-	dh = PEM_read_bio_DHparams(bio, NULL, NULL, NULL);
-	if (dh == NULL)
-		ereport(DEBUG2,
-				(errmsg_internal("DH load buffer: %s",
-								 SSLerrmessage())));
-	BIO_free(bio);
+  bio = BIO_new_mem_buf((char *)buffer, len);
+  if (bio == NULL) return NULL;
+  dh = PEM_read_bio_DHparams(bio, NULL, NULL, NULL);
+  if (dh == NULL)
+    ereport(DEBUG2, (errmsg_internal("DH load buffer: %s", SSLerrmessage())));
+  BIO_free(bio);
 
-	return dh;
+  return dh;
 }
 
 /*
@@ -868,66 +782,55 @@ load_dh_buffer(const char *buffer, size_t len)
  *	the OpenSSL library can efficiently generate random keys from
  *	the information provided.
  */
-static DH  *
-tmp_dh_cb(SSL *s, int is_export, int keylength)
-{
-	DH		   *r = NULL;
-	static DH  *dh = NULL;
-	static DH  *dh512 = NULL;
-	static DH  *dh1024 = NULL;
-	static DH  *dh2048 = NULL;
-	static DH  *dh4096 = NULL;
+static DH *tmp_dh_cb(SSL *s, int is_export, int keylength) {
+  DH *r = NULL;
+  static DH *dh = NULL;
+  static DH *dh512 = NULL;
+  static DH *dh1024 = NULL;
+  static DH *dh2048 = NULL;
+  static DH *dh4096 = NULL;
 
-	switch (keylength)
-	{
-		case 512:
-			if (dh512 == NULL)
-				dh512 = load_dh_file(keylength);
-			if (dh512 == NULL)
-				dh512 = load_dh_buffer(file_dh512, sizeof file_dh512);
-			r = dh512;
-			break;
+  switch (keylength) {
+    case 512:
+      if (dh512 == NULL) dh512 = load_dh_file(keylength);
+      if (dh512 == NULL) dh512 = load_dh_buffer(file_dh512, sizeof file_dh512);
+      r = dh512;
+      break;
 
-		case 1024:
-			if (dh1024 == NULL)
-				dh1024 = load_dh_file(keylength);
-			if (dh1024 == NULL)
-				dh1024 = load_dh_buffer(file_dh1024, sizeof file_dh1024);
-			r = dh1024;
-			break;
+    case 1024:
+      if (dh1024 == NULL) dh1024 = load_dh_file(keylength);
+      if (dh1024 == NULL)
+        dh1024 = load_dh_buffer(file_dh1024, sizeof file_dh1024);
+      r = dh1024;
+      break;
 
-		case 2048:
-			if (dh2048 == NULL)
-				dh2048 = load_dh_file(keylength);
-			if (dh2048 == NULL)
-				dh2048 = load_dh_buffer(file_dh2048, sizeof file_dh2048);
-			r = dh2048;
-			break;
+    case 2048:
+      if (dh2048 == NULL) dh2048 = load_dh_file(keylength);
+      if (dh2048 == NULL)
+        dh2048 = load_dh_buffer(file_dh2048, sizeof file_dh2048);
+      r = dh2048;
+      break;
 
-		case 4096:
-			if (dh4096 == NULL)
-				dh4096 = load_dh_file(keylength);
-			if (dh4096 == NULL)
-				dh4096 = load_dh_buffer(file_dh4096, sizeof file_dh4096);
-			r = dh4096;
-			break;
+    case 4096:
+      if (dh4096 == NULL) dh4096 = load_dh_file(keylength);
+      if (dh4096 == NULL)
+        dh4096 = load_dh_buffer(file_dh4096, sizeof file_dh4096);
+      r = dh4096;
+      break;
 
-		default:
-			if (dh == NULL)
-				dh = load_dh_file(keylength);
-			r = dh;
-	}
+    default:
+      if (dh == NULL) dh = load_dh_file(keylength);
+      r = dh;
+  }
 
-	/* this may take a long time, but it may be necessary... */
-	if (r == NULL || 8 * DH_size(r) < keylength)
-	{
-		ereport(DEBUG2,
-				(errmsg_internal("DH: generating parameters (%d bits)",
-								 keylength)));
-		r = DH_generate_parameters(keylength, DH_GENERATOR_2, NULL, NULL);
-	}
+  /* this may take a long time, but it may be necessary... */
+  if (r == NULL || 8 * DH_size(r) < keylength) {
+    ereport(DEBUG2, (errmsg_internal("DH: generating parameters (%d bits)",
+                                     keylength)));
+    r = DH_generate_parameters(keylength, DH_GENERATOR_2, NULL, NULL);
+  }
 
-	return r;
+  return r;
 }
 
 /*
@@ -941,76 +844,56 @@ tmp_dh_cb(SSL *s, int is_export, int keylength)
  *	criteria (e.g., accepting self-signed or expired certs), but
  *	for now we accept the default checks.
  */
-static int
-verify_cb(int ok, X509_STORE_CTX *ctx)
-{
-	return ok;
-}
+static int verify_cb(int ok, X509_STORE_CTX *ctx) { return ok; }
 
 /*
  *	This callback is used to copy SSL information messages
  *	into the PostgreSQL log.
  */
-static void
-info_cb(const SSL *ssl, int type, int args)
-{
-	switch (type)
-	{
-		case SSL_CB_HANDSHAKE_START:
-			ereport(DEBUG4,
-					(errmsg_internal("SSL: handshake start")));
-			break;
-		case SSL_CB_HANDSHAKE_DONE:
-			ereport(DEBUG4,
-					(errmsg_internal("SSL: handshake done")));
-			break;
-		case SSL_CB_ACCEPT_LOOP:
-			ereport(DEBUG4,
-					(errmsg_internal("SSL: accept loop")));
-			break;
-		case SSL_CB_ACCEPT_EXIT:
-			ereport(DEBUG4,
-					(errmsg_internal("SSL: accept exit (%d)", args)));
-			break;
-		case SSL_CB_CONNECT_LOOP:
-			ereport(DEBUG4,
-					(errmsg_internal("SSL: connect loop")));
-			break;
-		case SSL_CB_CONNECT_EXIT:
-			ereport(DEBUG4,
-					(errmsg_internal("SSL: connect exit (%d)", args)));
-			break;
-		case SSL_CB_READ_ALERT:
-			ereport(DEBUG4,
-					(errmsg_internal("SSL: read alert (0x%04x)", args)));
-			break;
-		case SSL_CB_WRITE_ALERT:
-			ereport(DEBUG4,
-					(errmsg_internal("SSL: write alert (0x%04x)", args)));
-			break;
-	}
+static void info_cb(const SSL *ssl, int type, int args) {
+  switch (type) {
+    case SSL_CB_HANDSHAKE_START:
+      ereport(DEBUG4, (errmsg_internal("SSL: handshake start")));
+      break;
+    case SSL_CB_HANDSHAKE_DONE:
+      ereport(DEBUG4, (errmsg_internal("SSL: handshake done")));
+      break;
+    case SSL_CB_ACCEPT_LOOP:
+      ereport(DEBUG4, (errmsg_internal("SSL: accept loop")));
+      break;
+    case SSL_CB_ACCEPT_EXIT:
+      ereport(DEBUG4, (errmsg_internal("SSL: accept exit (%d)", args)));
+      break;
+    case SSL_CB_CONNECT_LOOP:
+      ereport(DEBUG4, (errmsg_internal("SSL: connect loop")));
+      break;
+    case SSL_CB_CONNECT_EXIT:
+      ereport(DEBUG4, (errmsg_internal("SSL: connect exit (%d)", args)));
+      break;
+    case SSL_CB_READ_ALERT:
+      ereport(DEBUG4, (errmsg_internal("SSL: read alert (0x%04x)", args)));
+      break;
+    case SSL_CB_WRITE_ALERT:
+      ereport(DEBUG4, (errmsg_internal("SSL: write alert (0x%04x)", args)));
+      break;
+  }
 }
 
-static void
-initialize_ecdh(void)
-{
+static void initialize_ecdh(void) {
 #if (OPENSSL_VERSION_NUMBER >= 0x0090800fL) && !defined(OPENSSL_NO_ECDH)
-	EC_KEY	   *ecdh;
-	int			nid;
+  EC_KEY *ecdh;
+  int nid;
 
-	nid = OBJ_sn2nid(SSLECDHCurve);
-	if (!nid)
-		ereport(FATAL,
-				(errmsg("ECDH: unrecognized curve name: %s", SSLECDHCurve)));
+  nid = OBJ_sn2nid(SSLECDHCurve);
+  if (!nid)
+    ereport(FATAL, (errmsg("ECDH: unrecognized curve name: %s", SSLECDHCurve)));
 
-	ecdh = EC_KEY_new_by_curve_name(nid);
-	if (!ecdh)
-		ereport(FATAL,
-				(errmsg("ECDH: could not create key")));
+  ecdh = EC_KEY_new_by_curve_name(nid);
+  if (!ecdh) ereport(FATAL, (errmsg("ECDH: could not create key")));
 
-	SSL_CTX_set_options(SSL_context, SSL_OP_SINGLE_ECDH_USE);
-	SSL_CTX_set_tmp_ecdh(SSL_context, ecdh);
-	EC_KEY_free(ecdh);
+  SSL_CTX_set_options(SSL_context, SSL_OP_SINGLE_ECDH_USE);
+  SSL_CTX_set_tmp_ecdh(SSL_context, ecdh);
+  EC_KEY_free(ecdh);
 #endif
 }
 
@@ -1021,121 +904,98 @@ initialize_ecdh(void)
  * return NULL if it doesn't recognize the error code.  We don't
  * want to return NULL ever.
  */
-static const char *
-SSLerrmessage(void)
-{
-	unsigned long errcode;
-	const char *errreason;
-	static char errbuf[32];
+static const char *SSLerrmessage(void) {
+  unsigned long errcode;
+  const char *errreason;
+  static char errbuf[32];
 
-	errcode = ERR_get_error();
-	if (errcode == 0)
-		return _("no SSL error reported");
-	errreason = ERR_reason_error_string(errcode);
-	if (errreason != NULL)
-		return errreason;
-	snprintf(errbuf, sizeof(errbuf), _("SSL error code %lu"), errcode);
-	return errbuf;
+  errcode = ERR_get_error();
+  if (errcode == 0) return _("no SSL error reported");
+  errreason = ERR_reason_error_string(errcode);
+  if (errreason != NULL) return errreason;
+  snprintf(errbuf, sizeof(errbuf), _("SSL error code %lu"), errcode);
+  return errbuf;
 }
 
 /*
  * Return information about the SSL connection
  */
-int
-be_tls_get_cipher_bits(Port *port)
-{
-	int bits;
+int be_tls_get_cipher_bits(Port *port) {
+  int bits;
 
-	if (port->ssl)
-	{
-		SSL_get_cipher_bits(port->ssl, &bits);
-		return bits;
-	}
-	else
-		return 0;
+  if (port->ssl) {
+    SSL_get_cipher_bits(port->ssl, &bits);
+    return bits;
+  } else
+    return 0;
 }
 
-bool
-be_tls_get_compression(Port *port)
-{
-	if (port->ssl)
-		return (SSL_get_current_compression(port->ssl) != NULL);
-	else
-		return false;
+bool be_tls_get_compression(Port *port) {
+  if (port->ssl)
+    return (SSL_get_current_compression(port->ssl) != NULL);
+  else
+    return false;
 }
 
-void
-be_tls_get_version(Port *port, char *ptr, size_t len)
-{
-	if (port->ssl)
-		strlcpy(ptr, SSL_get_version(port->ssl), len);
-	else
-		ptr[0] = '\0';
+void be_tls_get_version(Port *port, char *ptr, size_t len) {
+  if (port->ssl)
+    strlcpy(ptr, SSL_get_version(port->ssl), len);
+  else
+    ptr[0] = '\0';
 }
 
-void
-be_tls_get_cipher(Port *port, char *ptr, size_t len)
-{
-	if (port->ssl)
-		strlcpy(ptr, SSL_get_cipher(port->ssl), len);
-	else
-		ptr[0] = '\0';
+void be_tls_get_cipher(Port *port, char *ptr, size_t len) {
+  if (port->ssl)
+    strlcpy(ptr, SSL_get_cipher(port->ssl), len);
+  else
+    ptr[0] = '\0';
 }
 
-void
-be_tls_get_peerdn_name(Port *port, char *ptr, size_t len)
-{
-	if (port->peer)
-		strlcpy(ptr, X509_NAME_to_cstring(X509_get_subject_name(port->peer)), len);
-	else
-		ptr[0] = '\0';
+void be_tls_get_peerdn_name(Port *port, char *ptr, size_t len) {
+  if (port->peer)
+    strlcpy(ptr, X509_NAME_to_cstring(X509_get_subject_name(port->peer)), len);
+  else
+    ptr[0] = '\0';
 }
 
 /*
  * Convert an X509 subject name to a cstring.
  *
  */
-static char *
-X509_NAME_to_cstring(X509_NAME *name)
-{
-	BIO		   *membuf = BIO_new(BIO_s_mem());
-	int			i,
-				nid,
-				count = X509_NAME_entry_count(name);
-	X509_NAME_ENTRY *e;
-	ASN1_STRING *v;
-	const char *field_name;
-	size_t		size;
-	char		nullterm;
-	char	   *sp;
-	char	   *dp;
-	char	   *result;
+static char *X509_NAME_to_cstring(X509_NAME *name) {
+  BIO *membuf = BIO_new(BIO_s_mem());
+  int i, nid, count = X509_NAME_entry_count(name);
+  X509_NAME_ENTRY *e;
+  ASN1_STRING *v;
+  const char *field_name;
+  size_t size;
+  char nullterm;
+  char *sp;
+  char *dp;
+  char *result;
 
-	(void) BIO_set_close(membuf, BIO_CLOSE);
-	for (i = 0; i < count; i++)
-	{
-		e = X509_NAME_get_entry(name, i);
-		nid = OBJ_obj2nid(X509_NAME_ENTRY_get_object(e));
-		v = X509_NAME_ENTRY_get_data(e);
-		field_name = OBJ_nid2sn(nid);
-		if (!field_name)
-			field_name = OBJ_nid2ln(nid);
-		BIO_printf(membuf, "/%s=", field_name);
-		ASN1_STRING_print_ex(membuf, v,
-							 ((ASN1_STRFLGS_RFC2253 & ~ASN1_STRFLGS_ESC_MSB)
-							  | ASN1_STRFLGS_UTF8_CONVERT));
-	}
+  (void)BIO_set_close(membuf, BIO_CLOSE);
+  for (i = 0; i < count; i++) {
+    e = X509_NAME_get_entry(name, i);
+    nid = OBJ_obj2nid(X509_NAME_ENTRY_get_object(e));
+    v = X509_NAME_ENTRY_get_data(e);
+    field_name = OBJ_nid2sn(nid);
+    if (!field_name) field_name = OBJ_nid2ln(nid);
+    BIO_printf(membuf, "/%s=", field_name);
+    ASN1_STRING_print_ex(membuf, v,
+                         ((ASN1_STRFLGS_RFC2253 & ~ASN1_STRFLGS_ESC_MSB) |
+                          ASN1_STRFLGS_UTF8_CONVERT));
+  }
 
-	/* ensure null termination of the BIO's content */
-	nullterm = '\0';
-	BIO_write(membuf, &nullterm, 1);
-	size = BIO_get_mem_data(membuf, &sp);
-	dp = pg_any_to_server(sp, size - 1, PG_UTF8);
+  /* ensure null termination of the BIO's content */
+  nullterm = '\0';
+  BIO_write(membuf, &nullterm, 1);
+  size = BIO_get_mem_data(membuf, &sp);
+  dp = pg_any_to_server(sp, size - 1, PG_UTF8);
 
-	result = pstrdup(dp);
-	if (dp != sp)
-		pfree(dp);
-	BIO_free(membuf);
+  result = pstrdup(dp);
+  if (dp != sp) pfree(dp);
+  BIO_free(membuf);
 
-	return result;
+  return result;
 }

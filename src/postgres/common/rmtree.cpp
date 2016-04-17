@@ -20,7 +20,6 @@
 #include <unistd.h>
 #include <sys/stat.h>
 
-
 /*
  *	rmtree
  *
@@ -32,100 +31,84 @@
  *	(The details of the problem are reported already, so caller
  *	doesn't really have to say anything more, but most do.)
  */
-bool
-rmtree(const char *path, bool rmtopdir)
-{
-	bool		result = true;
-	char		pathbuf[MAXPGPATH];
-	char	  **filenames;
-	char	  **filename;
-	struct stat statbuf;
+bool rmtree(const char *path, bool rmtopdir) {
+  bool result = true;
+  char pathbuf[MAXPGPATH];
+  char **filenames;
+  char **filename;
+  struct stat statbuf;
 
-	/*
-	 * we copy all the names out of the directory before we start modifying
-	 * it.
-	 */
-	filenames = pgfnames(path);
+  /*
+   * we copy all the names out of the directory before we start modifying
+   * it.
+   */
+  filenames = pgfnames(path);
 
-	if (filenames == NULL)
-		return false;
+  if (filenames == NULL) return false;
 
-	/* now we have the names we can start removing things */
-	for (filename = filenames; *filename; filename++)
-	{
-		snprintf(pathbuf, MAXPGPATH, "%s/%s", path, *filename);
+  /* now we have the names we can start removing things */
+  for (filename = filenames; *filename; filename++) {
+    snprintf(pathbuf, MAXPGPATH, "%s/%s", path, *filename);
 
-		/*
-		 * It's ok if the file is not there anymore; we were just about to
-		 * delete it anyway.
-		 *
-		 * This is not an academic possibility. One scenario where this
-		 * happens is when bgwriter has a pending unlink request for a file in
-		 * a database that's being dropped. In dropdb(), we call
-		 * ForgetDatabaseFsyncRequests() to flush out any such pending unlink
-		 * requests, but because that's asynchronous, it's not guaranteed that
-		 * the bgwriter receives the message in time.
-		 */
-		if (lstat(pathbuf, &statbuf) != 0)
-		{
-			if (errno != ENOENT)
-			{
+    /*
+     * It's ok if the file is not there anymore; we were just about to
+     * delete it anyway.
+     *
+     * This is not an academic possibility. One scenario where this
+     * happens is when bgwriter has a pending unlink request for a file in
+     * a database that's being dropped. In dropdb(), we call
+     * ForgetDatabaseFsyncRequests() to flush out any such pending unlink
+     * requests, but because that's asynchronous, it's not guaranteed that
+     * the bgwriter receives the message in time.
+     */
+    if (lstat(pathbuf, &statbuf) != 0) {
+      if (errno != ENOENT) {
 #ifndef FRONTEND
-				elog(WARNING, "could not stat file or directory \"%s\": %m",
-					 pathbuf);
+        elog(WARNING, "could not stat file or directory \"%s\": %m", pathbuf);
 #else
-				fprintf(stderr, _("could not stat file or directory \"%s\": %s\n"),
-						pathbuf, strerror(errno));
+        fprintf(stderr, _("could not stat file or directory \"%s\": %s\n"),
+                pathbuf, strerror(errno));
 #endif
-				result = false;
-			}
-			continue;
-		}
+        result = false;
+      }
+      continue;
+    }
 
-		if (S_ISDIR(statbuf.st_mode))
-		{
-			/* call ourselves recursively for a directory */
-			if (!rmtree(pathbuf, true))
-			{
-				/* we already reported the error */
-				result = false;
-			}
-		}
-		else
-		{
-			if (unlink(pathbuf) != 0)
-			{
-				if (errno != ENOENT)
-				{
+    if (S_ISDIR(statbuf.st_mode)) {
+      /* call ourselves recursively for a directory */
+      if (!rmtree(pathbuf, true)) {
+        /* we already reported the error */
+        result = false;
+      }
+    } else {
+      if (unlink(pathbuf) != 0) {
+        if (errno != ENOENT) {
 #ifndef FRONTEND
-					elog(WARNING, "could not remove file or directory \"%s\": %m",
-						 pathbuf);
+          elog(WARNING, "could not remove file or directory \"%s\": %m",
+               pathbuf);
 #else
-					fprintf(stderr, _("could not remove file or directory \"%s\": %s\n"),
-							pathbuf, strerror(errno));
+          fprintf(stderr, _("could not remove file or directory \"%s\": %s\n"),
+                  pathbuf, strerror(errno));
 #endif
-					result = false;
-				}
-			}
-		}
-	}
+          result = false;
+        }
+      }
+    }
+  }
 
-	if (rmtopdir)
-	{
-		if (rmdir(path) != 0)
-		{
+  if (rmtopdir) {
+    if (rmdir(path) != 0) {
 #ifndef FRONTEND
-			elog(WARNING, "could not remove file or directory \"%s\": %m",
-				 path);
+      elog(WARNING, "could not remove file or directory \"%s\": %m", path);
 #else
-			fprintf(stderr, _("could not remove file or directory \"%s\": %s\n"),
-					path, strerror(errno));
+      fprintf(stderr, _("could not remove file or directory \"%s\": %s\n"),
+              path, strerror(errno));
 #endif
-			result = false;
-		}
-	}
+      result = false;
+    }
+  }
 
-	pgfnames_cleanup(filenames);
+  pgfnames_cleanup(filenames);
 
-	return result;
+  return result;
 }

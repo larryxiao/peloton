@@ -164,8 +164,7 @@ Value Value::CastAs(ValueType type) const {
       return CastAsDecimal();
     default:
       std::string message =
-          "Type not a recognized type for casting : " +
-          std::to_string(type);
+          "Type not a recognized type for casting : " + std::to_string(type);
       throw Exception(message);
   }
 }
