@@ -25,11 +25,11 @@ void print_packet(Packet* pkt) {
 
   LOG_INFO("BufLen: %zu", pkt->buf.size());
 
-  printf("{");
-  for (auto ele : pkt->buf) {
-    printf("%d,", ele);
-  }
-  printf("}\n");
+  //  LOG_INFO("{");
+  //  for (auto ele : pkt->buf) {
+  //    LOG_INFO("%d,", ele);
+  //  }
+  //  LOG_INFO("}\n");
 }
 
 /*
