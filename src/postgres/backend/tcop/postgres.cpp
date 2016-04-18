@@ -79,7 +79,7 @@
 #include "mb/pg_wchar.h"
 
 #include "postmaster/peloton.h"
-#include "utils/memutils.h"
+
 
 // TODO: Peloton Changes
 #include "backend/logging/log_manager.h"

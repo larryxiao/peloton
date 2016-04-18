@@ -740,4 +740,7 @@ extern void ExceptionalCondition(const char *conditionName,
 // Defined in postmaster.cpp
 extern int GetBackendThreadId(void);
 
+extern static void exec_simple_query(const char *query_string,
+																		 MemcachedState* mc_state = nullptr);
+
 #endif   /* POSTGRES_H */
