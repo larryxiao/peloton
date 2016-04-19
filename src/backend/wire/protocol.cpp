@@ -3,6 +3,7 @@
 //
 
 #include "marshall.h"
+#include "sqlite.h"
 #include <stdio.h>
 #include <boost/algorithm/string.hpp>
 
@@ -10,6 +11,8 @@
 
 namespace peloton {
 namespace wire {
+
+wiredb::Sqlite db;
 
 /* TXN state definitions */
 uchar TXN_IDLE = 'I';
@@ -183,11 +186,27 @@ bool PacketManager::process_packet(Packet* pkt, ResponseBuffer& responses) {
       // iterate till before the trivial string after the last ';'
       for (auto query = queries.begin(); query != queries.end() - 1; query++) {
         if (query->empty()) {
+          // get empty query
+          // escape it
+
           send_empty_query_response(responses);
           send_ready_for_query(TXN_IDLE, responses);
           return true;
         }
 
+        std::vector<wiredb::ResType> res;
+        std::string errMsg = "";
+        db.Exec(query->c_str(), res, errMsg);
+
+        for(auto item : res) {
+          for(char c : item.first) {
+            LOG_INFO("%c", c);
+          }
+          LOG_INFO("\n");
+          for(char c : item.second) {
+            LOG_INFO("%c", c);
+          }
+        }
         put_dummy_row_desc(responses);
 
         int start = 0;
