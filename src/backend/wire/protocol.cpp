@@ -32,6 +32,14 @@ void print_packet(Packet* pkt) {
   //  LOG_INFO("}\n");
 }
 
+void print_uchar_vector(std::vector<uchar>& vec){
+  LOG_INFO("{");
+  for (auto ele : vec) {
+    LOG_INFO("%d (%c)", ele, ele);
+  }
+  LOG_INFO("}\n");
+}
+
 /*
  * close_client - Close the socket of the underlying client
  */
@@ -81,12 +89,12 @@ bool PacketManager::process_startup_packet(Packet* pkt,
   packet_putint(response, 0, 4);
   responses.push_back(std::move(response));
 
-  if (client.dbname.empty() || client.user.empty()) {
-    std::vector<std::pair<uchar, std::string>> error_status = {
-        {'S', "FATAL"}, {'M', "Invalid user or database name"}};
-    send_error_response(error_status, responses);
-    return false;
-  }
+  //  if (client.dbname.empty() || client.user.empty()) {
+  //    std::vector<std::pair<uchar, std::string>> error_status = {
+  //        {'S', "FATAL"}, {'M', "Invalid user or database name"}};
+  //    send_error_response(error_status, responses);
+  //    return false;
+  //  }
 
   send_ready_for_query(TXN_IDLE, responses);
   return true;
@@ -196,12 +204,101 @@ bool PacketManager::process_packet(Packet* pkt, ResponseBuffer& responses) {
       break;
     }
 
+    case 'P': {
+      std::string prep_stmt  = get_string_token(pkt);
+      LOG_INFO("Prep stmt: %s", prep_stmt.c_str());
+      std::string query = get_string_token(pkt);
+      LOG_INFO("Query: %s", query.c_str());
+      int num_params = packet_getint(pkt, 2);
+      LOG_INFO("NumParams: %d", num_params);
+
+      // TODO: Finish processing for each paramater
+      std::unique_ptr<Packet> response(new Packet());
+
+      // Send Parse complete response
+      response->msg_type = '1';
+      responses.push_back(std::move(response));
+      break;
+    }
+
+    case 'B': {
+      std::string portal_name = get_string_token(pkt);
+      LOG_INFO("Portal name: %s", portal_name.c_str());
+      std::string prep_stmt_name = get_string_token(pkt);
+      LOG_INFO("Prep stmt name: %s", prep_stmt_name.c_str());
+
+      int param_code_count = packet_getint(pkt, 2);
+      // skip paramter codes for now
+      for(int i=0; i < param_code_count; i++) {
+        // keep skipping 2 bytes
+        packet_getint(pkt, 2);
+      }
+
+      int param_count = packet_getint(pkt, 2);
+      std::vector<std::vector<uchar>> prep_parameters;
+
+      for (int i=0; i < param_count; i++) {
+        int param_len = packet_getint(pkt, 4);
+        prep_parameters.push_back(packet_getbytes(pkt, param_len));
+        LOG_INFO("Bind param size: %d", param_len);
+        print_uchar_vector(prep_parameters[i]);
+      }
+
+      //send bind complete
+      std::unique_ptr<Packet> response(new Packet());
+      response->msg_type = '2';
+      responses.push_back(std::move(response));
+      break;
+    }
+
+    case 'D': {
+      auto mode = packet_getbytes(pkt, 1);
+      // mode is a single byte
+      switch(mode[0]) {
+        case 'S':
+          LOG_INFO("PREPARED STATEMENT RECEIVED");
+          break;
+
+        case 'P':
+          LOG_INFO("PORTAL STATEMENT RECEIVED");
+          break;
+      }
+
+      // TODO: figure out a way for row fetching
+      put_dummy_row_desc(responses);
+      break;
+    }
+
+    case 'E': {
+      std::string portal_name = get_string_token(pkt);
+
+      // TODO: maintain state across B,D and E
+      // send dummy data rows
+      for (int i=0 ;i < 5; i++) {
+        int start = 0;
+
+        for (int i = 0; i < 5; i++) {
+          put_dummy_data_row(5, start, responses);
+          start += 5;
+        }
+      }
+
+      complete_command(5, responses);
+      break;
+    }
+
+    case 'S': {
+      // TODO: add txn awareness
+      send_ready_for_query('I', responses);
+      break;
+    }
+
     case 'X':
       LOG_INFO("Closing client");
       return false;
 
     default:
-      LOG_INFO("Packet not supported yet");
+      LOG_INFO("Packet type not supported yet: %d (%c)", pkt->msg_type, pkt->msg_type);
   }
   return true;
 }
