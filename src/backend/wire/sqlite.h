@@ -27,6 +27,9 @@ public:
     } else {
       fprintf(stderr, "Opened database successfully\n");
     }
+
+    // TODO: remove test
+    test();
   }
 
   virtual ~Sqlite() {
@@ -36,11 +39,12 @@ public:
 
   virtual int Exec(const char *query, std::vector<ResType> &res, std::string &errMsg) {
     LOG_INFO("receive %s", query);
-    char *zErrMsg = 0;
+    char *zErrMsg;
     auto rc = sqlite3_exec(db, query, callback, (void *)&res, &zErrMsg);
     if( rc != SQLITE_OK ){
-      errMsg = std::string(zErrMsg);
       LOG_INFO("error for %s %s", query, zErrMsg);
+      if (zErrMsg != NULL)
+        errMsg = std::string(zErrMsg);
       sqlite3_free(zErrMsg);
       return 1;
     }else {
@@ -48,7 +52,31 @@ public:
     }
   }
 
+
+
 private:
+  void test() {
+    std::vector<ResType> res;
+    std::string err;
+    Exec("CREATE TABLE A (id INT PRIMARY KEY, data TEXT);", res, err);
+    res.clear();
+    Exec("INSERT INTO A VALUES (1, 'abc'); ", res, err);
+    res.clear();
+    Exec("SELECT * FROM A;", res, err);
+
+    for(auto item : res) {
+      for(char c : item.first) {
+        LOG_INFO("%c", c);
+      }
+      LOG_INFO("\n");
+      for(char c : item.second) {
+        LOG_INFO("%c", c);
+      }
+    }
+
+    res.clear();
+    Exec("DROP TABLE A", res, err);
+  }
   static inline void copyFromTo(const char *src, std::vector<char> &dst) {
     if (src == nullptr) {
       return;
