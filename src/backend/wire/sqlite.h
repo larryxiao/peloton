@@ -173,25 +173,34 @@ private:
     std::vector<FieldInfoType> info;
     std::string err;
     int rows;
+
+
+    // create table
     PortalExec("CREATE TABLE A (id INT PRIMARY KEY, data TEXT);", res, info, rows, err);
     res.clear();
+
+    // test simple insert
     PortalExec("INSERT INTO A VALUES (1, 'abc'); ", res, info, rows, err);
     std::vector<std::pair<int, std::string>> parameters;
     parameters.push_back(std::make_pair(WIRE_INTEGER, std::string("12")));
     parameters.push_back(std::make_pair(WIRE_TEXT, std::string("abc")));
+
+
+    // test bind
     void *s;
     InitBindPrepStmt("insert into A (id, data) values ( ?, ? )", parameters, &s, err);
     ExecPrepStmt(s, res, info, rows, err);
     res.clear();
-    // PortalExec("SELECT * FROM A;", res, err);
 
-    //PortalDesc("A", info, err);
-
+    // select all
     sqlite3_stmt *sql_stmt;
     sqlite3_prepare_v2(db, "select * from A;", -1, &sql_stmt, NULL);
     res.clear();
     info.clear();
     ExecPrepStmt(sql_stmt, res, info, rows, err);
+
+    // res.size() should be 4
+    // info.size() should be 2
     LOG_INFO("col %ld, info %ld", res.size(), info.size());
 
     for(auto item : res) {
