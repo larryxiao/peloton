@@ -54,7 +54,7 @@ public:
       return 0;
     }
   }
-
+/*
 
   int PortalDesc(const char *table_name, std::vector<FieldInfoType> &field_info, std::string &errMsg) {
 
@@ -73,7 +73,7 @@ public:
       return 0;
     }
   }
-
+*/
   int InitBindPrepStmt(const char *query, std::vector<std::pair<int, std::string>> parameters UNUSED, void ** stmt, std::string &errMsg) {
     sqlite3_stmt *sql_stmt = nullptr;
     int rc = sqlite3_prepare_v2(db, query, -1, &sql_stmt, NULL);
@@ -113,7 +113,7 @@ public:
     return 0;
   }
 
-  int ExecPrepStmt(void *stmt, std::vector<ResType> &res, std::string &errMsg) {
+  int ExecPrepStmt(void *stmt, std::vector<ResType> &res, std::vector<FieldInfoType> &info, std::string &errMsg) {
     auto sql_stmt = (sqlite3_stmt *)stmt;
     auto ret = sqlite3_step(sql_stmt);
     auto col_num = sqlite3_column_count(sql_stmt);
@@ -126,15 +126,18 @@ public:
           case SQLITE_INTEGER: {
             int v = sqlite3_column_int(sql_stmt, i);
             value = std::to_string(v);
+            info.push_back(std::make_tuple(name, 23, 4));
             break;
           }
           case SQLITE_FLOAT: {
             float v = (float)sqlite3_column_double(sql_stmt, i);
+            info.push_back(std::make_tuple(name, 700, 4));
             value = std::to_string(v);
             break;
           }
           case SQLITE_TEXT: {
             const char *v = (char *)sqlite3_column_text(sql_stmt, i);
+            info.push_back(std::make_tuple(name, 25, 255));
             value = std::string(v);
             break;
           }
@@ -167,7 +170,14 @@ private:
     res.clear();
     PortalExec("INSERT INTO A VALUES (1, 'abc'); ", res, err);
     res.clear();
-    PortalExec("SELECT * FROM A;", res, err);
+    // PortalExec("SELECT * FROM A;", res, err);
+    std::vector<FieldInfoType> info;
+    //PortalDesc("A", info, err);
+    sqlite3_stmt *sql_stmt;
+    sqlite3_prepare_v2(db, "select * from A;", -1, &sql_stmt, NULL);
+    res.clear();
+    ExecPrepStmt(sql_stmt, res, info, err);
+    //InitBindPrepStmt("select * from ")
 
     for(auto item : res) {
       for(char c : item.first) {
@@ -213,6 +223,7 @@ private:
   static int getSize(const std::string& type UNUSED) {
     return 0;
   }
+  /*
   static int descCallback(void *res, int argc, char **argv, char **azColName){
     auto output = (std::vector<FieldInfoType> *)res;
     std::string name, type;
@@ -239,6 +250,7 @@ private:
 
     return 0;
   }
+   */
 
 private:
   sqlite3 *db;

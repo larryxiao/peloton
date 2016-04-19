@@ -12,7 +12,8 @@
 namespace peloton {
 namespace wiredb {
 typedef std::pair<std::vector<char>, std::vector<char>> ResType;
-typedef std::tuple<std::string, std::string, int> FieldInfoType;
+// fieldinfotype: field name, oid (data type), size
+typedef std::tuple<std::string, int, int> FieldInfoType;
 
 #define WIRE_INTEGER 1
 #define WIRE_TEXT 2
