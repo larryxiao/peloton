@@ -103,11 +103,14 @@ bool PacketManager::process_startup_packet(Packet* pkt,
 }
 
 void PacketManager::put_row_desc(std::vector<wiredb::FieldInfoType> &rowdesc, ResponseBuffer &responses) {
+  if (!rowdesc.size())
+    return;
+
   std::unique_ptr<Packet> pkt(new Packet());
   pkt->msg_type = 'T';
   packet_putint(pkt, rowdesc.size(), 2);
 
-  for(auto &col : rowdesc) {
+  for(auto col : rowdesc) {
     packet_putstring(pkt, std::get<0>(col));
     packet_putint(pkt, 0, 4);
     packet_putint(pkt, 0, 2);
@@ -121,6 +124,9 @@ void PacketManager::put_row_desc(std::vector<wiredb::FieldInfoType> &rowdesc, Re
 }
 
 void PacketManager::send_data_rows(std::vector<wiredb::ResType> &results, int colcount, ResponseBuffer &responses) {
+  if (!results.size() || !colcount)
+    return;
+
   size_t numrows = results.size() / colcount;
 
   // 1 packet per row
@@ -129,8 +135,8 @@ void PacketManager::send_data_rows(std::vector<wiredb::ResType> &results, int co
     pkt->msg_type = 'D';
     packet_putint(pkt, colcount, 2);
     for (int j = 0; j < colcount; j++) {
-      packet_putint(pkt, results[i].second.size(), 4);
-      packet_putbytes(pkt, results[i].second);
+      packet_putint(pkt, results[j].second.size(), 4);
+      packet_putbytes(pkt, results[j].second);
     }
     responses.push_back(std::move(pkt));
   }
@@ -235,7 +241,7 @@ bool PacketManager::process_packet(Packet* pkt, ResponseBuffer& responses) {
         }
 
         std::vector<std::string> query_tokens;
-        boost::split(query_tokens, query, boost::is_any_of("\t"), boost::token_compress_on);
+        boost::split(query_tokens, *query, boost::is_any_of(" "), boost::token_compress_on);
         std::string query_type = query_tokens[0];
 
         std::vector<wiredb::ResType> results;

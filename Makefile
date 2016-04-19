@@ -14,7 +14,7 @@ AM_CXXFLAGS = $(DEBUG_CXXFLAGS) -std=c++11 -fPIC -fpermissive \
 	-fno-strict-aliasing
 SHELL = /bin/bash
 LIBTOOL = $(SHELL) build/libtool
-AM_LDFLAGS = -static -pthread
+AM_LDFLAGS = -static -pthread -lsqlite3
 LDFLAGS = -L/usr/lib -L/usr/lib
 
 CXXCOMPILE = $(CXX) $(DEFS) $(AM_CXXFLAGS)  \
