@@ -13,7 +13,7 @@ namespace peloton {
 namespace wire {
 
 void check_overflow(Packet *pkt, size_t size) {
-  if (pkt->ptr + size >= pkt->len) {
+  if (pkt->ptr + size - 1 >= pkt->len) {
     // overflow case, throw error
     LOG_WARN("Parsing error: pointer overflow for int");
   }

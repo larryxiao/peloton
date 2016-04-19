@@ -164,6 +164,7 @@ void PacketManager::send_empty_query_response(ResponseBuffer& responses) {
  *  Returns false if the seesion needs to be closed.
  */
 bool PacketManager::process_packet(Packet* pkt, ResponseBuffer& responses) {
+  uchar txn_state = TXN_IDLE;
   switch (pkt->msg_type) {
     case 'Q': {
       std::string q_str = packet_getstring(pkt, pkt->len);
@@ -175,7 +176,7 @@ bool PacketManager::process_packet(Packet* pkt, ResponseBuffer& responses) {
       // just a ';' sent
       if (queries.size() == 1) {
         send_empty_query_response(responses);
-        send_ready_for_query(TXN_IDLE, responses);
+        send_ready_for_query(txn_state, responses);
         return true;
       }
 
@@ -208,6 +209,16 @@ bool PacketManager::process_packet(Packet* pkt, ResponseBuffer& responses) {
       std::string prep_stmt  = get_string_token(pkt);
       LOG_INFO("Prep stmt: %s", prep_stmt.c_str());
       std::string query = get_string_token(pkt);
+
+      // check if we received BEGIN SQL stmt
+      if(!query.compare("BEGIN")) {
+        txn_state = TXN_BLOCK;
+      }
+
+      if(!query.compare("COMMIT")) {
+        txn_state = TXN_IDLE;
+      }
+
       LOG_INFO("Query: %s", query.c_str());
       int num_params = packet_getint(pkt, 2);
       LOG_INFO("NumParams: %d", num_params);
@@ -289,7 +300,7 @@ bool PacketManager::process_packet(Packet* pkt, ResponseBuffer& responses) {
 
     case 'S': {
       // TODO: add txn awareness
-      send_ready_for_query('I', responses);
+      send_ready_for_query(txn_state, responses);
       break;
     }
 
