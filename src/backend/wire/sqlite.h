@@ -40,11 +40,11 @@ public:
   }
 
 
-  virtual int PortalExec(const char *query, std::vector<ResType> &res, std::vector<FieldInfoType> &info, std::string &errMsg) {
+  virtual int PortalExec(const char *query, std::vector<ResType> &res, std::vector<FieldInfoType> &info, int &rows_change, std::string &errMsg) {
     LOG_INFO("receive %s", query);
     sqlite3_stmt *sql_stmt;
     sqlite3_prepare_v2(db, query, -1, &sql_stmt, NULL);
-    return ExecPrepStmt(sql_stmt, res, info, errMsg);
+    return ExecPrepStmt(sql_stmt, res, info, rows_change, errMsg);
   }
 /*
 
@@ -112,13 +112,12 @@ public:
   }
 
 
-  int ExecPrepStmt(void *stmt, std::vector<ResType> &res, std::vector<FieldInfoType> &info, std::string &errMsg) {
+  int ExecPrepStmt(void *stmt, std::vector<ResType> &res, std::vector<FieldInfoType> &info, int &rows_change, std::string &errMsg) {
     auto sql_stmt = (sqlite3_stmt *)stmt;
     auto ret = sqlite3_step(sql_stmt);
     auto col_num = sqlite3_column_count(sql_stmt);
     int first = true;
     while (ret == SQLITE_ROW) {
-
       for (int i = 0; i < col_num; i++) {
         int t = sqlite3_column_type(sql_stmt, i);
         const char *name = sqlite3_column_name(sql_stmt, i);
@@ -161,7 +160,7 @@ public:
       errMsg = std::string(sqlite3_errmsg(db));
       return 1;
     }
-
+    rows_change = sqlite3_changes(db);
     sqlite3_finalize(sql_stmt);
     return 0;
   }
@@ -173,24 +172,27 @@ private:
     std::vector<ResType> res;
     std::vector<FieldInfoType> info;
     std::string err;
-    PortalExec("CREATE TABLE A (id INT PRIMARY KEY, data TEXT);", res, info,err);
+    int rows;
+    PortalExec("CREATE TABLE A (id INT PRIMARY KEY, data TEXT);", res, info, rows, err);
     res.clear();
-    //PortalExec("INSERT INTO A VALUES (1, 'abc'); ", res, info, err);
+    PortalExec("INSERT INTO A VALUES (1, 'abc'); ", res, info, rows, err);
     std::vector<std::pair<int, std::string>> parameters;
     parameters.push_back(std::make_pair(WIRE_INTEGER, std::string("12")));
     parameters.push_back(std::make_pair(WIRE_TEXT, std::string("abc")));
     void *s;
     InitBindPrepStmt("insert into A (id, data) values ( ?, ? )", parameters, &s, err);
-    ExecPrepStmt(s, res, info, err);
+    ExecPrepStmt(s, res, info, rows, err);
     res.clear();
     // PortalExec("SELECT * FROM A;", res, err);
 
     //PortalDesc("A", info, err);
+
     sqlite3_stmt *sql_stmt;
     sqlite3_prepare_v2(db, "select * from A;", -1, &sql_stmt, NULL);
     res.clear();
-    ExecPrepStmt(sql_stmt, res, info, err);
-    //InitBindPrepStmt("select * from ")
+    info.clear();
+    ExecPrepStmt(sql_stmt, res, info, rows, err);
+    LOG_INFO("col %ld, info %ld", res.size(), info.size());
 
     for(auto item : res) {
       for(char c : item.first) {
@@ -203,7 +205,7 @@ private:
     }
 
     res.clear();
-    PortalExec("DROP TABLE A", res, info, err);
+    PortalExec("DROP TABLE A", res, info, rows, err);
   }
   static inline void copyFromTo(const char *src, std::vector<char> &dst) {
     if (src == nullptr) {
