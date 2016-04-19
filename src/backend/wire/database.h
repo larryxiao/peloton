@@ -14,6 +14,10 @@ namespace wiredb {
 typedef std::pair<std::vector<char>, std::vector<char>> ResType;
 typedef std::tuple<std::string, std::string, int> FieldInfoType;
 
+#define WIRE_INTEGER 1
+#define WIRE_TEXT 2
+#define WIRE_FLOAT 3
+
 class DataBase {
 public:
   DataBase() { }

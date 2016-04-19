@@ -15,6 +15,9 @@ namespace wiredb {
 
 #define UNUSED __attribute__((unused))
 class Sqlite : public DataBase {
+
+
+
 public:
   Sqlite() {
     // sqlite3_open(filename, sqlite3 **db)
@@ -79,7 +82,32 @@ public:
       return 1;
     }
 
-
+    for (int i = 0; i < (int)parameters.size(); i++) {
+      auto &item = parameters[i];
+      switch (item.first) {
+        case WIRE_INTEGER:
+          rc = sqlite3_bind_int(sql_stmt, i, std::stoi(item.second));
+          if (rc != SQLITE_OK) {
+            errMsg = std::string(sqlite3_errmsg(db));
+            return 1;
+          }
+          break;
+        case WIRE_FLOAT:
+          rc = sqlite3_bind_double(sql_stmt, i, std::stod(item.second));
+          if (rc != SQLITE_OK) {
+            errMsg = std::string(sqlite3_errmsg(db));
+            return 1;
+          }
+          break;
+        case WIRE_TEXT:
+          rc = sqlite3_bind_text(sql_stmt, i, item.second.c_str(), (int)item.second.size(), 0);
+          if (rc != SQLITE_OK) {
+            errMsg = std::string(sqlite3_errmsg(db));
+            return 1;
+          }
+          break;
+      }
+    }
 
     *(sqlite3_stmt **)stmt = sql_stmt;
     return 0;
