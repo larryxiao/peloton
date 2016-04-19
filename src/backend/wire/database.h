@@ -12,7 +12,7 @@
 namespace peloton {
 namespace wiredb {
 typedef std::pair<std::vector<char>, std::vector<char>> ResType;
-
+typedef std::tuple<std::string, std::string, int> FieldInfoType;
 
 class DataBase {
 public:
@@ -20,7 +20,7 @@ public:
 
   virtual ~DataBase() { }
 
-  virtual int Exec(const char *query, std::vector<ResType> &res, std::string &errMsg) = 0;
+  virtual int PortalExec(const char *query, std::vector<ResType> &res, std::string &errMsg) = 0;
 };
 
 }

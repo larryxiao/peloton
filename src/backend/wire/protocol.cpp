@@ -187,7 +187,7 @@ bool PacketManager::process_packet(Packet* pkt, ResponseBuffer& responses) {
 
         std::vector<wiredb::ResType> res;
         std::string errMsg = "";
-        db.Exec(query->c_str(), res, errMsg);
+        db.PortalExec(query->c_str(), res, errMsg);
 
         for(auto item : res) {
           for(char c : item.first) {
