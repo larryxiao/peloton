@@ -135,8 +135,8 @@ void PacketManager::send_data_rows(std::vector<wiredb::ResType> &results, int co
     pkt->msg_type = 'D';
     packet_putint(pkt, colcount, 2);
     for (int j = 0; j < colcount; j++) {
-      packet_putint(pkt, results[j].second.size(), 4);
-      packet_putbytes(pkt, results[j].second);
+      packet_putint(pkt, results[i*colcount + j].second.size(), 4);
+      packet_putbytes(pkt, results[i*colcount + j].second);
     }
     responses.push_back(std::move(pkt));
   }

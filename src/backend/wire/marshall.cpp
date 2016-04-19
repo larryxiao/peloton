@@ -125,7 +125,7 @@ void packet_putstring(std::unique_ptr<Packet> &pkt, std::string &str) {
 
 void packet_putbytes(std::unique_ptr<Packet> &pkt, const std::vector<uchar>& data) {
   pkt->buf.insert(std::end(pkt->buf), std::begin(data), std::end(data));
-  pkt->len += data.size() + 1;
+  pkt->len += data.size();
 }
 
 void packet_putint(std::unique_ptr<Packet> &pkt, int n, int base) {

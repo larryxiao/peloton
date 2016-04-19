@@ -221,7 +221,7 @@ private:
       return;
     }
 
-    for(unsigned int i = 0; i < strlen(src) + 1; i++){
+    for(unsigned int i = 0; i < strlen(src); i++){
       dst.push_back((unsigned char)src[i]);
     }
   }
