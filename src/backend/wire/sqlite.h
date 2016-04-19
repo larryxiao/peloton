@@ -216,13 +216,13 @@ private:
     res.clear();
     PortalExec("DROP TABLE A", res, info, rows, err);
   }
-  static inline void copyFromTo(const char *src, std::vector<char> &dst) {
+  static inline void copyFromTo(const char *src, std::vector<unsigned char> &dst) {
     if (src == nullptr) {
       return;
     }
 
     for(unsigned int i = 0; i < strlen(src) + 1; i++){
-      dst.push_back(src[i]);
+      dst.push_back((unsigned char)src[i]);
     }
   }
 
