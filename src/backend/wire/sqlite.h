@@ -154,6 +154,7 @@ public:
       return 1;
     }
 
+    sqlite3_finalize(sql_stmt);
     return 0;
   }
 
