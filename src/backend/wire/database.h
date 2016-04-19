@@ -7,6 +7,7 @@
 
 #include <vector>
 #include <string>
+#include <tuple>
 #include "backend/logging/logger.h"
 
 namespace peloton {

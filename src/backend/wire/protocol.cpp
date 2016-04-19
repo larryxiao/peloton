@@ -130,7 +130,7 @@ void PacketManager::send_data_rows(std::vector<wiredb::ResType> &results, int co
     packet_putint(pkt, colcount, 2);
     for (int j = 0; j < colcount; j++) {
       packet_putint(pkt, results[i].second.size(), 4);
-      packet_putbytes(pkt, reinterpret_cast<std::vector<uchar>>(results[i].second));
+      packet_putbytes(pkt, results[i].second);
     }
     responses.push_back(std::move(pkt));
   }
@@ -241,8 +241,9 @@ bool PacketManager::process_packet(Packet* pkt, ResponseBuffer& responses) {
         std::vector<wiredb::ResType> results;
         std::vector<wiredb::FieldInfoType> rowdesc;
         std::string errMsg;
+        int rows_affected;
 
-        int isfailed =  db.PortalExec(query->c_str(), results, rowdesc, errMsg);
+        int isfailed =  db.PortalExec(query->c_str(), results, rowdesc, rows_affected, errMsg);
 
         if(isfailed) {
           send_error_response({{'M', errMsg}}, responses);
@@ -253,7 +254,7 @@ bool PacketManager::process_packet(Packet* pkt, ResponseBuffer& responses) {
 
         send_data_rows(results, rowdesc.size(), responses);
 
-        complete_command(query_type, 5, responses);
+        complete_command(query_type, rows_affected, responses);
       }
 
       // send_error_response({{'M', "Syntax error"}}, responses);
