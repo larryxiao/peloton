@@ -3,6 +3,7 @@
 //
 
 #include "marshall.h"
+#include "sqlite.h"
 #include <stdio.h>
 #include <boost/algorithm/string.hpp>
 
@@ -10,6 +11,8 @@
 
 namespace peloton {
 namespace wire {
+
+wiredb::Sqlite db;
 
 /* TXN state definitions */
 uchar TXN_IDLE = 'I';
@@ -164,6 +167,7 @@ void PacketManager::send_empty_query_response(ResponseBuffer& responses) {
  *  Returns false if the seesion needs to be closed.
  */
 bool PacketManager::process_packet(Packet* pkt, ResponseBuffer& responses) {
+  uchar txn_state = TXN_IDLE;
   switch (pkt->msg_type) {
     case 'Q': {
       std::string q_str = packet_getstring(pkt, pkt->len);
@@ -175,18 +179,34 @@ bool PacketManager::process_packet(Packet* pkt, ResponseBuffer& responses) {
       // just a ';' sent
       if (queries.size() == 1) {
         send_empty_query_response(responses);
-        send_ready_for_query(TXN_IDLE, responses);
+        send_ready_for_query(txn_state, responses);
         return true;
       }
 
       // iterate till before the trivial string after the last ';'
       for (auto query = queries.begin(); query != queries.end() - 1; query++) {
         if (query->empty()) {
+          // get empty query
+          // escape it
+
           send_empty_query_response(responses);
           send_ready_for_query(TXN_IDLE, responses);
           return true;
         }
 
+        std::vector<wiredb::ResType> res;
+        std::string errMsg = "";
+        db.Exec(query->c_str(), res, errMsg);
+
+        for(auto item : res) {
+          for(char c : item.first) {
+            LOG_INFO("%c", c);
+          }
+          LOG_INFO("\n");
+          for(char c : item.second) {
+            LOG_INFO("%c", c);
+          }
+        }
         put_dummy_row_desc(responses);
 
         int start = 0;
@@ -208,6 +228,16 @@ bool PacketManager::process_packet(Packet* pkt, ResponseBuffer& responses) {
       std::string prep_stmt  = get_string_token(pkt);
       LOG_INFO("Prep stmt: %s", prep_stmt.c_str());
       std::string query = get_string_token(pkt);
+
+      // check if we received BEGIN SQL stmt
+      if(!query.compare("BEGIN")) {
+        txn_state = TXN_BLOCK;
+      }
+
+      if(!query.compare("COMMIT")) {
+        txn_state = TXN_IDLE;
+      }
+
       LOG_INFO("Query: %s", query.c_str());
       int num_params = packet_getint(pkt, 2);
       LOG_INFO("NumParams: %d", num_params);
@@ -289,7 +319,7 @@ bool PacketManager::process_packet(Packet* pkt, ResponseBuffer& responses) {
 
     case 'S': {
       // TODO: add txn awareness
-      send_ready_for_query('I', responses);
+      send_ready_for_query(txn_state, responses);
       break;
     }
 

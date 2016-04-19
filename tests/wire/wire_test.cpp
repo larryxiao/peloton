@@ -51,34 +51,34 @@ TEST_F(WireTests, StartupTest) {
   EXPECT_EQ(1, responses[1]->len);
 }
 
-TEST_F(WireTests, StartupErrorTest) {
-  std::unique_ptr<wire::PacketManager> pktmgr(BuildPacketManager());
-  std::vector<std::unique_ptr<wire::Packet>> responses;
-
-  // valid packet
-  wire::Packet startup_pkt;
-  startup_pkt.len = 79;
-  startup_pkt.buf = {0,   3,   0,   0,   117, 115, 101, 0,   112, 111, 115, 116,
-                     103, 114, 101, 115, 0,   100, 97,  116, 97,  98,  97,  115,
-                     101, 0,   112, 111, 115, 116, 103, 114, 101, 115, 0,   97,
-                     112, 112, 108, 105, 99,  97,  116, 105, 111, 110, 95,  110,
-                     97,  109, 101, 0,   112, 115, 113, 108, 0,   99,  108, 105,
-                     101, 110, 116, 95,  101, 110, 99,  111, 100, 105, 110, 103,
-                     0,   85,  84,  70,  56,  0,   0};
-
-  bool status = pktmgr->process_startup_packet(&startup_pkt, responses);
-
-  EXPECT_EQ(false, status);
-
-  EXPECT_EQ(2, responses.size());
-
-  // auth-ok packet
-  EXPECT_EQ('R', responses[0]->msg_type);
-  EXPECT_EQ(4, responses[0]->len);
-
-  // ready-for-query packet
-  EXPECT_EQ('E', responses[1]->msg_type);
-}
+//TEST_F(WireTests, StartupErrorTest) {
+//  std::unique_ptr<wire::PacketManager> pktmgr(BuildPacketManager());
+//  std::vector<std::unique_ptr<wire::Packet>> responses;
+//
+//  // valid packet
+//  wire::Packet startup_pkt;
+//  startup_pkt.len = 79;
+//  startup_pkt.buf = {0,   3,   0,   0,   117, 115, 101, 0,   112, 111, 115, 116,
+//                     103, 114, 101, 115, 0,   100, 97,  116, 97,  98,  97,  115,
+//                     101, 0,   112, 111, 115, 116, 103, 114, 101, 115, 0,   97,
+//                     112, 112, 108, 105, 99,  97,  116, 105, 111, 110, 95,  110,
+//                     97,  109, 101, 0,   112, 115, 113, 108, 0,   99,  108, 105,
+//                     101, 110, 116, 95,  101, 110, 99,  111, 100, 105, 110, 103,
+//                     0,   85,  84,  70,  56,  0,   0};
+//
+//  bool status = pktmgr->process_startup_packet(&startup_pkt, responses);
+//
+//  EXPECT_EQ(false, status);
+//
+//  EXPECT_EQ(2, responses.size());
+//
+//  // auth-ok packet
+//  EXPECT_EQ('R', responses[0]->msg_type);
+//  EXPECT_EQ(4, responses[0]->len);
+//
+//  // ready-for-query packet
+//  EXPECT_EQ('E', responses[1]->msg_type);
+//}
 
 TEST_F(WireTests, SimpleQueryTest) {
   std::unique_ptr<wire::PacketManager> pktmgr(BuildPacketManager());
