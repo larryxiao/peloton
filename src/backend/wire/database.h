@@ -25,7 +25,7 @@ public:
 
   virtual ~DataBase() { }
 
-  virtual int PortalExec(const char *query, std::vector<ResType> &res, std::string &errMsg) = 0;
+  virtual int PortalExec(const char *query, std::vector<ResType> &res, std::vector<FieldInfoType> &info, std::string &errMsg) = 0;
 };
 
 }

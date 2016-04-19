@@ -40,19 +40,11 @@ public:
   }
 
 
-  virtual int PortalExec(const char *query, std::vector<ResType> &res, std::string &errMsg) {
+  virtual int PortalExec(const char *query, std::vector<ResType> &res, std::vector<FieldInfoType> &info, std::string &errMsg) {
     LOG_INFO("receive %s", query);
-    char *zErrMsg = 0;
-    auto rc = sqlite3_exec(db, query, execCallback, (void *)&res, &zErrMsg);
-    if( rc != SQLITE_OK ){
-      LOG_INFO("error for %s %s", query, zErrMsg);
-      if (zErrMsg != NULL)
-        errMsg = std::string(zErrMsg);
-        sqlite3_free(zErrMsg);
-      return 1;
-    }else {
-      return 0;
-    }
+    sqlite3_stmt *sql_stmt;
+    sqlite3_prepare_v2(db, query, -1, &sql_stmt, NULL);
+    return ExecPrepStmt(sql_stmt, res, info, errMsg);
   }
 /*
 
@@ -113,6 +105,7 @@ public:
     return 0;
   }
 
+
   int ExecPrepStmt(void *stmt, std::vector<ResType> &res, std::vector<FieldInfoType> &info, std::string &errMsg) {
     auto sql_stmt = (sqlite3_stmt *)stmt;
     auto ret = sqlite3_step(sql_stmt);
@@ -164,14 +157,16 @@ public:
 
 private:
   void test() {
+
     std::vector<ResType> res;
+    std::vector<FieldInfoType> info;
     std::string err;
-    PortalExec("CREATE TABLE A (id INT PRIMARY KEY, data TEXT);", res, err);
+    PortalExec("CREATE TABLE A (id INT PRIMARY KEY, data TEXT);", res, info,err);
     res.clear();
-    PortalExec("INSERT INTO A VALUES (1, 'abc'); ", res, err);
+    PortalExec("INSERT INTO A VALUES (1, 'abc'); ", res, info, err);
     res.clear();
     // PortalExec("SELECT * FROM A;", res, err);
-    std::vector<FieldInfoType> info;
+
     //PortalDesc("A", info, err);
     sqlite3_stmt *sql_stmt;
     sqlite3_prepare_v2(db, "select * from A;", -1, &sql_stmt, NULL);
@@ -190,7 +185,7 @@ private:
     }
 
     res.clear();
-    PortalExec("DROP TABLE A", res, err);
+    PortalExec("DROP TABLE A", res, info, err);
   }
   static inline void copyFromTo(const char *src, std::vector<char> &dst) {
     if (src == nullptr) {

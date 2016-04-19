@@ -194,19 +194,6 @@ bool PacketManager::process_packet(Packet* pkt, ResponseBuffer& responses) {
           return true;
         }
 
-        std::vector<wiredb::ResType> res;
-        std::string errMsg = "";
-        db.PortalExec(query->c_str(), res, errMsg);
-
-        for(auto item : res) {
-          for(char c : item.first) {
-            LOG_INFO("%c", c);
-          }
-          LOG_INFO("\n");
-          for(char c : item.second) {
-            LOG_INFO("%c", c);
-          }
-        }
         put_dummy_row_desc(responses);
 
         int start = 0;
