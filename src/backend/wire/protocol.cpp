@@ -3,7 +3,6 @@
 //
 
 #include "marshall.h"
-#include "sqlite.h"
 #include <stdio.h>
 #include <boost/algorithm/string.hpp>
 
@@ -103,6 +102,40 @@ bool PacketManager::process_startup_packet(Packet* pkt,
   return true;
 }
 
+void PacketManager::put_row_desc(std::vector<wiredb::FieldInfoType> &rowdesc, ResponseBuffer &responses) {
+  std::unique_ptr<Packet> pkt(new Packet());
+  pkt->msg_type = 'T';
+  packet_putint(pkt, rowdesc.size(), 2);
+
+  for(auto &col : rowdesc) {
+    packet_putstring(pkt, std::get<0>(col));
+    packet_putint(pkt, 0, 4);
+    packet_putint(pkt, 0, 2);
+    packet_putint(pkt, std::get<1>(col), 4);
+    packet_putint(pkt, std::get<2>(col), 2);
+    packet_putint(pkt, -1, 4);
+    // format code for text
+    packet_putint(pkt, 0, 2);
+  }
+  responses.push_back(std::move(pkt));
+}
+
+void PacketManager::send_data_rows(std::vector<wiredb::ResType> &results, int colcount, ResponseBuffer &responses) {
+  size_t numrows = results.size() / colcount;
+
+  // 1 packet per row
+  for(size_t i = 0; i < numrows; i++) {
+    std::unique_ptr<Packet> pkt(new Packet());
+    pkt->msg_type = 'D';
+    packet_putint(pkt, colcount, 2);
+    for (int j = 0; j < colcount; j++) {
+      packet_putint(pkt, results[i].second.size(), 4);
+      packet_putbytes(pkt, reinterpret_cast<std::vector<uchar>>(results[i].second));
+    }
+    responses.push_back(std::move(pkt));
+  }
+}
+
 /*
  * put_dummy_row_desc - Prepare a dummy row description packet
  */
@@ -144,10 +177,18 @@ void PacketManager::put_dummy_data_row(int colcount, int start,
   responses.push_back(std::move(pkt));
 }
 
-void PacketManager::complete_command(int rows, ResponseBuffer& responses) {
+void PacketManager::complete_command(std::string &query_type, int rows, ResponseBuffer& responses) {
   std::unique_ptr<Packet> pkt(new Packet());
   pkt->msg_type = 'C';
-  std::string tag = "SELECT " + std::to_string(rows);
+  std::string tag;
+  if(!query_type.compare("BEGIN"))
+    tag = "BEGIN";
+  else if(!query_type.compare("COMMIT"))
+    tag = "COMMIT";
+  else if(!query_type.compare("INSERT"))
+    tag = "INSERT 0 " + std::to_string(rows);
+  else
+    tag = query_type + " " + std::to_string(rows);
   packet_putstring(pkt, tag);
 
   responses.push_back(std::move(pkt));
@@ -168,6 +209,8 @@ void PacketManager::send_empty_query_response(ResponseBuffer& responses) {
  */
 bool PacketManager::process_packet(Packet* pkt, ResponseBuffer& responses) {
   uchar txn_state = TXN_IDLE;
+  std::string query, query_type;
+
   switch (pkt->msg_type) {
     case 'Q': {
       std::string q_str = packet_getstring(pkt, pkt->len);
@@ -186,24 +229,31 @@ bool PacketManager::process_packet(Packet* pkt, ResponseBuffer& responses) {
       // iterate till before the trivial string after the last ';'
       for (auto query = queries.begin(); query != queries.end() - 1; query++) {
         if (query->empty()) {
-          // get empty query
-          // escape it
-
           send_empty_query_response(responses);
           send_ready_for_query(TXN_IDLE, responses);
           return true;
         }
 
-        put_dummy_row_desc(responses);
+        std::vector<std::string> query_tokens;
+        boost::split(query_tokens, query, boost::is_any_of("\t"), boost::token_compress_on);
+        std::string query_type = query_tokens[0];
 
-        int start = 0;
+        std::vector<wiredb::ResType> results;
+        std::vector<wiredb::FieldInfoType> rowdesc;
+        std::string errMsg;
 
-        for (int i = 0; i < 5; i++) {
-          put_dummy_data_row(5, start, responses);
-          start += 5;
+        int isfailed =  db.PortalExec(query->c_str(), results, rowdesc, errMsg);
+
+        if(isfailed) {
+          send_error_response({{'M', errMsg}}, responses);
+          return true;
         }
 
-        complete_command(5, responses);
+        put_row_desc(rowdesc, responses);
+
+        send_data_rows(results, rowdesc.size(), responses);
+
+        complete_command(query_type, 5, responses);
       }
 
       // send_error_response({{'M', "Syntax error"}}, responses);
@@ -214,7 +264,11 @@ bool PacketManager::process_packet(Packet* pkt, ResponseBuffer& responses) {
     case 'P': {
       std::string prep_stmt  = get_string_token(pkt);
       LOG_INFO("Prep stmt: %s", prep_stmt.c_str());
-      std::string query = get_string_token(pkt);
+      query = get_string_token(pkt);
+
+      std::vector<std::string> query_tokens;
+      boost::split(query_tokens, query, boost::is_any_of("\t"), boost::token_compress_on);
+      query_type = query_tokens[0];
 
       // check if we received BEGIN SQL stmt
       if(!query.compare("BEGIN")) {
@@ -300,7 +354,7 @@ bool PacketManager::process_packet(Packet* pkt, ResponseBuffer& responses) {
         }
       }
 
-      complete_command(5, responses);
+      // complete_command(query_type, 5, responses);
       break;
     }
 

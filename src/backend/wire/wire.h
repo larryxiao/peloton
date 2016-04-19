@@ -6,6 +6,7 @@
 #define WIRE_H
 
 #include "socket_base.h"
+#include "sqlite.h"
 #include <vector>
 #include <string>
 #include <iostream>
@@ -61,9 +62,13 @@ class PacketManager {
 
   void put_dummy_row_desc(ResponseBuffer& responses);
 
+  void put_row_desc(std::vector<wiredb::FieldInfoType>& rowdesc, ResponseBuffer& responses);
+
+  void send_data_rows(std::vector<wiredb::ResType>& results, int colcount, ResponseBuffer& responses);
+
   void put_dummy_data_row(int colcount, int start, ResponseBuffer& responses);
 
-  void complete_command(int rows, ResponseBuffer& responses);
+  void complete_command(std::string& query_type, int rows, ResponseBuffer& responses);
 
   void send_empty_query_response(ResponseBuffer& responses);
 

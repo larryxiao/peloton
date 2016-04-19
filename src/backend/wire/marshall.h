@@ -28,6 +28,8 @@ extern void packet_putint(std::unique_ptr<Packet> &pkt, int n, int base);
 extern void packet_putcbytes(std::unique_ptr<Packet> &pkt, const uchar *b,
                              int len);
 
+extern void packet_putbytes(std::unique_ptr<Packet> &pkt, const std::vector<uchar>& data);
+
 /*
  * Unmarshallers
  */

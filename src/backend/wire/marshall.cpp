@@ -123,6 +123,11 @@ void packet_putstring(std::unique_ptr<Packet> &pkt, std::string &str) {
   pkt->len += str.size() + 1;
 }
 
+void packet_putbytes(std::unique_ptr<Packet> &pkt, std::vector<uchar>& data) {
+  pkt->buf.insert(std::end(pkt->buf), std::begin(data), std::end(data));
+  pkt->len += data.size() + 1;
+}
+
 void packet_putint(std::unique_ptr<Packet> &pkt, int n, int base) {
   switch (base) {
     case 2:
