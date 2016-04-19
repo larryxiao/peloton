@@ -35,10 +35,12 @@ public:
 
 
   virtual int Exec(const char *query, std::vector<ResType> &res, std::string &errMsg) {
+    LOG_INFO("receive %s", query);
     char *zErrMsg = 0;
     auto rc = sqlite3_exec(db, query, callback, (void *)&res, &zErrMsg);
     if( rc != SQLITE_OK ){
       errMsg = std::string(zErrMsg);
+      LOG_INFO("error for %s %s", query, zErrMsg);
       sqlite3_free(zErrMsg);
       return 1;
     }else {
@@ -61,6 +63,13 @@ private:
     auto output = (std::vector<ResType> *)res;
     for(int i = 0; i < argc; i++){
       output->push_back(ResType());
+      if (argv[i] == NULL) {
+        LOG_INFO("value is null");
+      }else if(azColName[i] == NULL) {
+        LOG_INFO("name is null");
+      }else {
+        LOG_INFO("res %s %s", azColName[i], argv[i]);
+      }
       copyFromTo(azColName[i], output->at(i).first);
       copyFromTo(argv[i], output->at(i).second);
     }
