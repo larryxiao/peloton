@@ -29,7 +29,7 @@ public class PelotonTest {
   private final String UPDATE_BY_INDEXSCAN = "UPDATE A SET data=? WHERE id=?";
   private final String UPDATE_BY_SCANSCAN = "UPDATE A SET data=?";
   private final String DELETE_BY_INDEXSCAN = "DELETE FROM A WHERE id = ?";
-  private final String SELECT_FOR_UPDATE = "SELECT * FROM A WHERE id = ? FOR UPDATE";
+  private final String SELECT_FOR_UPDATE = "SELECT * FROM A WHERE id = ?";
   private final String UNION = "SELECT * FROM A WHERE id = ? UNION SELECT * FROM B WHERE id = ?";
 
   private final Connection conn;
@@ -63,7 +63,7 @@ public class PelotonTest {
    * @throws SQLException
    */
   public void Init() throws SQLException {
-    conn.setAutoCommit(true);
+    // conn.setAutoCommit(true);
     Statement stmt = conn.createStatement();
     stmt.execute(DROP);
     stmt.execute(DDL);
@@ -107,20 +107,28 @@ public class PelotonTest {
    * @throws SQLException
    */
   public void Insert(int n) throws SQLException {
-    conn.setAutoCommit(false);
+    System.out.println("N:"+n);
+    // conn.setAutoCommit(true);
     PreparedStatement stmt = conn.prepareStatement(INSERT);
     PreparedStatement stmtA = conn.prepareStatement(INSERT_A);
     PreparedStatement stmtB = conn.prepareStatement(INSERT_B);
     org.postgresql.PGStatement pgstmt = (org.postgresql.PGStatement) stmt;
     pgstmt.setPrepareThreshold(1);
     for (int i = 0; i < n; i++) {
+      System.out.println("Loop id:"+ 0);
       String data1 = "Ming says hello world and id = " + i;
       String data2 = "Joy says hello world and id = " + i;
       stmt.setInt(1, i);
       stmt.setInt(3, i);
       stmt.setString(2, data1);
       stmt.setString(4, data2);
-      int ret = stmt.executeUpdate();
+      try {
+        int ret = stmt.executeUpdate();
+      } catch (Exception e) {
+        e.printStackTrace();
+      }
+      
+      System.out.println("Execute update finished:"+ i);
       /*
       String data = TABLE.A.name() + " says hello world and id = " + i;
       stmtA.setInt(1, i);
@@ -134,8 +142,8 @@ public class PelotonTest {
       System.out.println("B Used server side prepare " + pgstmt.isUseServerPrepare() + ", Inserted: " + ret);
       */
     }
-    conn.commit();
-    conn.setAutoCommit(true);
+    // conn.commit();
+    // conn.setAutoCommit(true);
     return;
   }
 
@@ -257,9 +265,9 @@ public class PelotonTest {
   static public void main(String[] args) throws Exception {
     PelotonTest pt = new PelotonTest();
     pt.Init();
-    //pt.Insert(3, TABLE.A);
+    pt.Insert(3, TABLE.A);
     pt.Insert(20);
-    //pt.ReadModifyWrite(3);
+    pt.ReadModifyWrite(3);
     //pt.BitmapScan(2, 5);
     //pt.SeqScan();
     //pt.DeleteByIndexScan(3);
