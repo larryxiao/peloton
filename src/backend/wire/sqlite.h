@@ -66,37 +66,43 @@ public:
     }
   }
 */
-  int InitBindPrepStmt(const char *query, std::vector<std::pair<int, std::string>> parameters UNUSED, void ** stmt, std::string &errMsg) {
+  int InitBindPrepStmt(const char *query, std::vector<std::pair<int, std::string>> &parameters UNUSED, void ** stmt, std::string &errMsg) {
     sqlite3_stmt *sql_stmt = nullptr;
-    int rc = sqlite3_prepare_v2(db, query, -1, &sql_stmt, NULL);
+    int rc = sqlite3_prepare(db, query, (int)strlen(query), &sql_stmt, NULL);
     if (rc != SQLITE_OK) {
       errMsg = std::string(sqlite3_errmsg(db));
       return 1;
     }
-
     for (int i = 0; i < (int)parameters.size(); i++) {
+
       auto &item = parameters[i];
       switch (item.first) {
         case WIRE_INTEGER:
-          rc = sqlite3_bind_int(sql_stmt, i, std::stoi(item.second));
+          rc = sqlite3_bind_int(sql_stmt, i + 1, std::stoi(item.second));
           if (rc != SQLITE_OK) {
+            LOG_INFO("bind err %s", sqlite3_errmsg(db));
             errMsg = std::string(sqlite3_errmsg(db));
             return 1;
           }
           break;
         case WIRE_FLOAT:
-          rc = sqlite3_bind_double(sql_stmt, i, std::stod(item.second));
+          rc = sqlite3_bind_double(sql_stmt, i + 1, std::stod(item.second));
           if (rc != SQLITE_OK) {
+            LOG_INFO("bind err %s", sqlite3_errmsg(db));
             errMsg = std::string(sqlite3_errmsg(db));
             return 1;
           }
           break;
         case WIRE_TEXT:
-          rc = sqlite3_bind_text(sql_stmt, i, item.second.c_str(), (int)item.second.size(), 0);
+          rc = sqlite3_bind_text(sql_stmt, i + 1, item.second.c_str(), (int)item.second.size(), 0);
           if (rc != SQLITE_OK) {
+            LOG_INFO("bind err %s", sqlite3_errmsg(db));
             errMsg = std::string(sqlite3_errmsg(db));
             return 1;
           }
+          break;
+        default:
+          LOG_INFO("unknow bind type");
           break;
       }
     }
@@ -110,7 +116,9 @@ public:
     auto sql_stmt = (sqlite3_stmt *)stmt;
     auto ret = sqlite3_step(sql_stmt);
     auto col_num = sqlite3_column_count(sql_stmt);
+    int first = true;
     while (ret == SQLITE_ROW) {
+
       for (int i = 0; i < col_num; i++) {
         int t = sqlite3_column_type(sql_stmt, i);
         const char *name = sqlite3_column_name(sql_stmt, i);
@@ -119,18 +127,21 @@ public:
           case SQLITE_INTEGER: {
             int v = sqlite3_column_int(sql_stmt, i);
             value = std::to_string(v);
-            info.push_back(std::make_tuple(name, 23, 4));
+            if(first)
+              info.push_back(std::make_tuple(name, 23, 4));
             break;
           }
           case SQLITE_FLOAT: {
             float v = (float)sqlite3_column_double(sql_stmt, i);
-            info.push_back(std::make_tuple(name, 700, 4));
+            if(first)
+              info.push_back(std::make_tuple(name, 700, 4));
             value = std::to_string(v);
             break;
           }
           case SQLITE_TEXT: {
             const char *v = (char *)sqlite3_column_text(sql_stmt, i);
-            info.push_back(std::make_tuple(name, 25, 255));
+            if(first)
+              info.push_back(std::make_tuple(name, 25, 255));
             value = std::string(v);
             break;
           }
@@ -141,6 +152,7 @@ public:
         copyFromTo(name, res.back().first);
         copyFromTo(value.c_str(), res.back().second);
       }
+      first = false;
       ret = sqlite3_step(sql_stmt);
     }
 
@@ -163,7 +175,13 @@ private:
     std::string err;
     PortalExec("CREATE TABLE A (id INT PRIMARY KEY, data TEXT);", res, info,err);
     res.clear();
-    PortalExec("INSERT INTO A VALUES (1, 'abc'); ", res, info, err);
+    //PortalExec("INSERT INTO A VALUES (1, 'abc'); ", res, info, err);
+    std::vector<std::pair<int, std::string>> parameters;
+    parameters.push_back(std::make_pair(WIRE_INTEGER, std::string("12")));
+    parameters.push_back(std::make_pair(WIRE_TEXT, std::string("abc")));
+    void *s;
+    InitBindPrepStmt("insert into A (id, data) values ( ?, ? )", parameters, &s, err);
+    ExecPrepStmt(s, res, info, err);
     res.clear();
     // PortalExec("SELECT * FROM A;", res, err);
 
@@ -192,7 +210,7 @@ private:
       return;
     }
 
-    for(unsigned int i = 0; i < strlen(src); i++){
+    for(unsigned int i = 0; i < strlen(src) + 1; i++){
       dst.push_back(src[i]);
     }
   }
