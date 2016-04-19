@@ -12,11 +12,15 @@ Only server side of the protocol is covered.
 
 Packets supported
 -----------------
--> From PSQL
+-> From PSQL to Server
 	* StartupMessage (F)
 	* Query (Q)
+	* Sync (S)
+	* Bind (P)
+	* Execute (E)
+	* Describe (D)
 
--> At Server
+-> At Server, send to Client
 	* AuthenticationOk (R)
 	* ErrorResponse (E)
 	* ReadyForQuery (Z)
