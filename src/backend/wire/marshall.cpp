@@ -115,7 +115,7 @@ void packet_putbyte(std::unique_ptr<Packet> &pkt, const uchar c) {
   pkt->len++;
 }
 
-void packet_putstring(std::unique_ptr<Packet> &pkt, std::string &str) {
+void packet_putstring(std::unique_ptr<Packet> &pkt, const std::string &str) {
   pkt->buf.insert(std::end(pkt->buf), std::begin(str), std::end(str));
   // add null character
   pkt->buf.push_back(0);

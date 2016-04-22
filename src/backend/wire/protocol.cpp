@@ -14,6 +14,21 @@ namespace wire {
 
 wiredb::Sqlite db;
 
+
+std::unordered_map<std::string, std::string> parameter_status_map ({
+  {"application_name", "psql"},
+  {"client_encoding", "UTF8"},
+  {"DateStyle", "ISO, MDY"},
+  {"integer_datetimes", "on"},
+  {"IntervalStyle", "postgres"},
+  {"is_superuser", "on"},
+  {"server_encoding", "UTF8"},
+  {"server_version", "9.5devel"},
+  {"session_authorization", "postgres"},
+  {"standard_conforming_strings", "on"},
+  {"TimeZone", "US/Eastern"},
+});
+
 /* TXN state definitions */
 uchar TXN_IDLE = 'I';
 uchar TXN_BLOCK = 'T';
@@ -55,6 +70,14 @@ void print_uchar_vector(std::vector<uchar>& vec){
  */
 void PacketManager::close_client() { client.sock->close_socket(); }
 
+
+void PacketManager::make_hardcoded_parameter_status(ResponseBuffer &responses, const std::pair<std::string, std::string>& kv) {
+  std::unique_ptr<Packet> response(new Packet());
+  response->msg_type = 'S';
+  packet_putstring(response, kv.first);
+  packet_putstring(response, kv.second);
+  responses.push_back(std::move(response));
+}
 /*
  * process_startup_packet - Processes the startup packet
  * 	(after the size field of the header).
@@ -99,12 +122,9 @@ bool PacketManager::process_startup_packet(Packet* pkt,
   packet_putint(response, 0, 4);
   responses.push_back(std::move(response));
 
-  //  if (client.dbname.empty() || client.user.empty()) {
-  //    std::vector<std::pair<uchar, std::string>> error_status = {
-  //        {'S', "FATAL"}, {'M', "Invalid user or database name"}};
-  //    send_error_response(error_status, responses);
-  //    return false;
-  //  }
+  for(auto it = parameter_status_map.begin(); it != parameter_status_map.end(); it++) {
+    make_hardcoded_parameter_status(responses, *it);
+  }
 
   send_ready_for_query(TXN_IDLE, responses);
   return true;
@@ -369,26 +389,30 @@ bool PacketManager::process_packet(Packet* pkt, ResponseBuffer& responses) {
       std::vector<wiredb::ResType> results;
       std::vector<wiredb::FieldInfoType> rowdesc;
       std::string errMsg;
-      int rows_affected, isFailed;
+      int rows_affected = 0, isFailed;
       std::string portal_name = get_string_token(pkt);
-      switch (exec_mode) {
-        case 'S':
-          isFailed = db.ExecPrepStmt(stmt, results, rowdesc, rows_affected, errMsg);
-          break;
 
-        case 'P':
-        default:
-          isFailed = db.PortalExec(query.c_str(), results, rowdesc, rows_affected, errMsg);
+      // covers weird JDBC edge case of sending double BEGIN statements. Don't execute them
+      if(query.compare("BEGIN") || txn_state == TXN_BLOCK){
+        switch (exec_mode) {
+          case 'S':
+            isFailed = db.ExecPrepStmt(stmt, results, rowdesc, rows_affected, errMsg);
+            break;
+
+          case 'P':
+          default:
+            isFailed = db.PortalExec(query.c_str(), results, rowdesc, rows_affected, errMsg);
+        }
+
+        if (isFailed) {
+          send_error_response({{'M', errMsg}}, responses);
+          send_ready_for_query(txn_state, responses);
+        }
+
+        put_row_desc(rowdesc, responses);
+
+        send_data_rows(results, rowdesc.size(), responses);
       }
-
-      if (isFailed) {
-        send_error_response({{'M', errMsg}}, responses);
-        send_ready_for_query(txn_state, responses);
-      }
-
-      put_row_desc(rowdesc, responses);
-
-      send_data_rows(results, rowdesc.size(), responses);
 
       complete_command(query_type, rows_affected, responses);
 

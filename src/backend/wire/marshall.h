@@ -21,7 +21,7 @@ typedef unsigned char uchar;
  */
 extern void packet_putbyte(std::unique_ptr<Packet> &pkt, const uchar c);
 
-extern void packet_putstring(std::unique_ptr<Packet> &pkt, std::string &str);
+extern void packet_putstring(std::unique_ptr<Packet> &pkt, const std::string &str);
 
 extern void packet_putint(std::unique_ptr<Packet> &pkt, int n, int base);
 

@@ -25,6 +25,8 @@ typedef std::vector<std::unique_ptr<Packet>> ResponseBuffer;
 
 extern uchar TXN_IDLE, TXN_BLOCK, TXN_FAIL;
 
+extern std::unordered_map<std::string, std::string> parameter_status_map;
+
 struct Client {
   SocketManager<PktBuf>* sock;
   std::string dbname;
@@ -71,6 +73,8 @@ class PacketManager {
   void complete_command(std::string& query_type, int rows, ResponseBuffer& responses);
 
   void send_empty_query_response(ResponseBuffer& responses);
+
+  void make_hardcoded_parameter_status(ResponseBuffer& responses, const std::pair<std::string, std::string>& kv);
 
   void close_client();
 
