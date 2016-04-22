@@ -76,6 +76,8 @@ class PacketManager {
 
   void make_hardcoded_parameter_status(ResponseBuffer& responses, const std::pair<std::string, std::string>& kv);
 
+  bool hardcoded_execute_filter();
+
   void close_client();
 
  public:

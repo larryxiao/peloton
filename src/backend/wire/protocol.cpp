@@ -214,15 +214,15 @@ void PacketManager::put_dummy_data_row(int colcount, int start,
 void PacketManager::complete_command(std::string &query_type, int rows, ResponseBuffer& responses) {
   std::unique_ptr<Packet> pkt(new Packet());
   pkt->msg_type = 'C';
-  std::string tag;
+  std::string tag = query_type;
   if(!query_type.compare("BEGIN"))
-    tag = "BEGIN";
+    txn_state = TXN_BLOCK;
   else if(!query_type.compare("COMMIT"))
-    tag = "COMMIT";
+    txn_state = TXN_IDLE;
   else if(!query_type.compare("INSERT"))
-    tag = "INSERT 0 " + std::to_string(rows);
+    tag += " 0 " + std::to_string(rows);
   else
-    tag = query_type + " " + std::to_string(rows);
+    tag += " " + std::to_string(rows);
   packet_putstring(pkt, tag);
 
   responses.push_back(std::move(pkt));
@@ -237,6 +237,16 @@ void PacketManager::send_empty_query_response(ResponseBuffer& responses) {
   responses.push_back(std::move(response));
 }
 
+bool PacketManager::hardcoded_execute_filter() {
+  // Skip SET
+  if(!query_type.compare("SET"))
+    return false;
+  if (!query_type.compare("BEGIN") && txn_state == TXN_BLOCK)
+    return false;
+  if (!query_type.compare("COMMIT") && txn_state == TXN_IDLE)
+    return false;
+  return true;
+}
 /*
  * process_packet - Main switch block; process incoming packets,
  *  Returns false if the seesion needs to be closed.
@@ -301,10 +311,6 @@ bool PacketManager::process_packet(Packet* pkt, ResponseBuffer& responses) {
       query = get_string_token(pkt);
       LOG_INFO("Query: %s", query.c_str());
 
-      std::vector<std::string> query_tokens;
-      boost::split(query_tokens, query, boost::is_any_of(" "), boost::token_compress_on);
-      query_type = query_tokens[0];
-
       int num_params = packet_getint(pkt, 2);
       LOG_INFO("NumParams: %d", num_params);
 
@@ -330,6 +336,10 @@ bool PacketManager::process_packet(Packet* pkt, ResponseBuffer& responses) {
           query = PrepStmtTable[prep_stmt_name];
         }
       }
+
+      std::vector<std::string> query_tokens;
+      boost::split(query_tokens, query, boost::is_any_of(" "), boost::token_compress_on);
+      query_type = query_tokens[0];
 
       int param_code_count = packet_getint(pkt, 2);
       // skip paramter codes for now
@@ -393,7 +403,7 @@ bool PacketManager::process_packet(Packet* pkt, ResponseBuffer& responses) {
       std::string portal_name = get_string_token(pkt);
 
       // covers weird JDBC edge case of sending double BEGIN statements. Don't execute them
-      if(query.compare("BEGIN") || txn_state == TXN_BLOCK){
+      if(hardcoded_execute_filter()){
         switch (exec_mode) {
           case 'S':
             isFailed = db.ExecPrepStmt(stmt, results, rowdesc, rows_affected, errMsg);
@@ -420,10 +430,6 @@ bool PacketManager::process_packet(Packet* pkt, ResponseBuffer& responses) {
     }
 
     case 'S': {
-      if(!query_type.compare(("BEGIN")))
-        txn_state = TXN_BLOCK;
-      if(!query.compare("COMMIT"))
-        txn_state = TXN_IDLE;
       send_ready_for_query(txn_state, responses);
       break;
     }
