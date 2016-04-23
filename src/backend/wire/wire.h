@@ -85,7 +85,7 @@ class PacketManager {
 
   bool process_startup_packet(Packet* pkt, ResponseBuffer& responses);
 
-  bool process_packet(Packet* pkt, ResponseBuffer& responses);
+  bool process_packet(Packet* pkt, ResponseBuffer& responses, void **stmt);
 
   void manage_packets();
 };

@@ -36,7 +36,6 @@ uchar TXN_FAIL = 'E';
 
 std::string query, query_type;
 std::vector<std::pair<int, std::string>> bind_parameters;
-void *stmt;
 char exec_mode = 'P';
 uchar txn_state = TXN_IDLE;
 std::unordered_map<std::string, std::string> PrepStmtTable;
@@ -221,6 +220,8 @@ void PacketManager::complete_command(std::string &query_type, int rows, Response
     txn_state = TXN_IDLE;
   else if(!query_type.compare("INSERT"))
     tag += " 0 " + std::to_string(rows);
+  else if(!query_type.compare("ROLLBACK"))
+    txn_state = TXN_IDLE;
   else
     tag += " " + std::to_string(rows);
   packet_putstring(pkt, tag);
@@ -241,9 +242,11 @@ bool PacketManager::hardcoded_execute_filter() {
   // Skip SET
   if(!query_type.compare("SET"))
     return false;
-  if (!query_type.compare("BEGIN") && txn_state == TXN_BLOCK)
+  if (!query_type.compare("BEGIN"))
     return false;
-  if (!query_type.compare("COMMIT") && txn_state == TXN_IDLE)
+  if (!query_type.compare("COMMIT"))
+    return false;
+  if (!query_type.compare("ROLLBACK"))
     return false;
   return true;
 }
@@ -251,7 +254,7 @@ bool PacketManager::hardcoded_execute_filter() {
  * process_packet - Main switch block; process incoming packets,
  *  Returns false if the seesion needs to be closed.
  */
-bool PacketManager::process_packet(Packet* pkt, ResponseBuffer& responses) {
+bool PacketManager::process_packet(Packet* pkt, ResponseBuffer& responses, void **stmt) {
 
   switch (pkt->msg_type) {
     case 'Q': {
@@ -371,27 +374,8 @@ bool PacketManager::process_packet(Packet* pkt, ResponseBuffer& responses) {
 
       exec_mode = mode[0];
       // mode is a single byte
-      switch(exec_mode) {
-        case 'S': {
-          LOG_INFO("PREPARED STATEMENT RECEIVED");
-          std::string errMsg;
-          int isFailed = db.InitBindPrepStmt(query.c_str(), bind_parameters, &stmt, errMsg);
-          if (isFailed) {
-            send_error_response({{'M', errMsg}}, responses);
-            send_ready_for_query(txn_state, responses);
-            return true;
-          }
-          break;
-        }
 
-        case 'P':
-          LOG_INFO("PORTAL STATEMENT RECEIVED");
-          break;
-
-        default:
-          LOG_ERROR("invalid describe switch case: %d (%c)", exec_mode, exec_mode);
-      }
-
+      LOG_INFO("CASE D reached. DO nothing");
       break;
     }
 
@@ -404,15 +388,14 @@ bool PacketManager::process_packet(Packet* pkt, ResponseBuffer& responses) {
 
       // covers weird JDBC edge case of sending double BEGIN statements. Don't execute them
       if(hardcoded_execute_filter()){
-        switch (exec_mode) {
-          case 'S':
-            isFailed = db.ExecPrepStmt(stmt, results, rowdesc, rows_affected, errMsg);
-            break;
-
-          case 'P':
-          default:
-            isFailed = db.PortalExec(query.c_str(), results, rowdesc, rows_affected, errMsg);
+        isFailed = db.InitBindPrepStmt(query.c_str(), bind_parameters, stmt, errMsg);
+        if (isFailed) {
+          send_error_response({{'M', errMsg}}, responses);
+          send_ready_for_query(txn_state, responses);
+          return true;
         }
+
+        isFailed = db.ExecPrepStmt(*stmt, results, rowdesc, rows_affected, errMsg);
 
         if (isFailed) {
           send_error_response({{'M', errMsg}}, responses);
@@ -484,6 +467,7 @@ void PacketManager::manage_packets() {
   Packet pkt;
   ResponseBuffer responses;
   bool status;
+  void *stmt;
 
   // fetch the startup packet
   if (!read_packet(&pkt, false, &client)) {
@@ -502,7 +486,7 @@ void PacketManager::manage_packets() {
   pkt.reset();
   while (read_packet(&pkt, true, &client)) {
     print_packet(&pkt);
-    status = process_packet(&pkt, responses);
+    status = process_packet(&pkt, responses, &stmt);
     if (!write_packets(responses, &client) || !status) {
       // close client on write failure or status failure
       close_client();

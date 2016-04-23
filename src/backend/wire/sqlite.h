@@ -22,7 +22,7 @@ public:
   Sqlite() {
     // sqlite3_open(filename, sqlite3 **db)
     // filename is null for in memory db
-    auto rc = sqlite3_open(nullptr, &db);
+    auto rc = sqlite3_open("ycsb.db", &db);
     if (rc) {
       fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
       LOG_ERROR("Can't open database %s", sqlite3_errmsg(db));
@@ -67,6 +67,7 @@ public:
   }
 */
   int InitBindPrepStmt(const char *query, std::vector<std::pair<int, std::string>> &parameters UNUSED, void ** stmt, std::string &errMsg) {
+    LOG_INFO("PARAMS SIZE:%zu", parameters.size());
     sqlite3_stmt *sql_stmt = nullptr;
     int rc = sqlite3_prepare(db, query, (int)strlen(query), &sql_stmt, NULL);
     if (rc != SQLITE_OK) {
@@ -78,6 +79,7 @@ public:
       auto &item = parameters[i];
       switch (item.first) {
         case WIRE_INTEGER:
+          LOG_INFO("BIND INT:%d", std::stoi(item.second));
           rc = sqlite3_bind_int(sql_stmt, i + 1, std::stoi(item.second));
           if (rc != SQLITE_OK) {
             LOG_INFO("bind err %s", sqlite3_errmsg(db));
@@ -94,6 +96,7 @@ public:
           }
           break;
         case WIRE_TEXT:
+          LOG_INFO("BIND TEXT:%s", item.second.c_str());
           rc = sqlite3_bind_text(sql_stmt, i + 1, item.second.c_str(), (int)item.second.size(), 0);
           if (rc != SQLITE_OK) {
             LOG_INFO("bind err %s", sqlite3_errmsg(db));
