@@ -11,8 +11,13 @@
 #include <string>
 #include <iostream>
 #include <unordered_map>
+#include <boost/assign/list_of.hpp>
 
+/* TXN state definitions */
 #define BUFFER_INIT_SIZE 100
+#define TXN_IDLE 'I'
+#define TXN_BLOCK 'T'
+#define TXN_FAIL 'E'
 
 namespace peloton {
 namespace wire {
@@ -22,10 +27,6 @@ struct Packet;
 typedef std::vector<uchar> PktBuf;
 
 typedef std::vector<std::unique_ptr<Packet>> ResponseBuffer;
-
-extern uchar TXN_IDLE, TXN_BLOCK, TXN_FAIL;
-
-extern std::unordered_map<std::string, std::string> parameter_status_map;
 
 struct Client {
   SocketManager<PktBuf>* sock;
@@ -56,6 +57,16 @@ struct Packet {
 class PacketManager {
   Client client;
 
+  std::string query, query_type;
+  std::vector<std::pair<int, std::string>> bind_parameters;
+  uchar txn_state;
+  std::unordered_map<std::string, std::string> PrepStmtTable;
+  void *stmt;
+
+  wiredb::Sqlite db;
+
+  static const std::unordered_map<std::string, std::string> parameter_status_map;
+
   void send_error_response(
       std::vector<std::pair<uchar, std::string>> error_status,
       ResponseBuffer& responses);
@@ -81,11 +92,12 @@ class PacketManager {
   void close_client();
 
  public:
-  inline PacketManager(SocketManager<PktBuf>* sock) : client(sock) {}
+
+  inline PacketManager(SocketManager<PktBuf>* sock) : client(sock), txn_state(TXN_IDLE) {}
 
   bool process_startup_packet(Packet* pkt, ResponseBuffer& responses);
 
-  bool process_packet(Packet* pkt, ResponseBuffer& responses, void **stmt);
+  bool process_packet(Packet* pkt, ResponseBuffer& responses);
 
   void manage_packets();
 };

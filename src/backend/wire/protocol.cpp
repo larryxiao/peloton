@@ -12,42 +12,23 @@
 namespace peloton {
 namespace wire {
 
-wiredb::Sqlite db;
 
+const std::unordered_map<std::string, std::string> PacketManager::parameter_status_map =
+  boost::assign::map_list_of ("application_name","psql")("client_encoding", "UTF8")
+  ("DateStyle", "ISO, MDY")("integer_datetimes", "on")
+  ("IntervalStyle", "postgres")("is_superuser", "on")
+  ("server_encoding", "UTF8")("server_version", "9.5devel")
+  ("session_authorization", "postgres")("standard_conforming_strings", "on")
+  ("TimeZone", "US/Eastern");
 
-std::unordered_map<std::string, std::string> parameter_status_map ({
-  {"application_name", "psql"},
-  {"client_encoding", "UTF8"},
-  {"DateStyle", "ISO, MDY"},
-  {"integer_datetimes", "on"},
-  {"IntervalStyle", "postgres"},
-  {"is_superuser", "on"},
-  {"server_encoding", "UTF8"},
-  {"server_version", "9.5devel"},
-  {"session_authorization", "postgres"},
-  {"standard_conforming_strings", "on"},
-  {"TimeZone", "US/Eastern"},
-});
-
-/* TXN state definitions */
-uchar TXN_IDLE = 'I';
-uchar TXN_BLOCK = 'T';
-uchar TXN_FAIL = 'E';
-
-std::string query, query_type;
-std::vector<std::pair<int, std::string>> bind_parameters;
-char exec_mode = 'P';
-uchar txn_state = TXN_IDLE;
-std::unordered_map<std::string, std::string> PrepStmtTable;
-
-void print_packet(Packet* pkt) {
-  if (pkt->msg_type) {
-    LOG_INFO("MsgType: %d", pkt->msg_type);
-  }
-
-  LOG_INFO("Len: %zu", pkt->len);
-
-  LOG_INFO("BufLen: %zu", pkt->buf.size());
+void print_packet(Packet* pkt UNUSED) {
+  //  if (pkt->msg_type) {
+  //    LOG_INFO("MsgType: %d", pkt->msg_type);
+  //  }
+  //
+  //  LOG_INFO("Len: %zu", pkt->len);
+  //
+  //  LOG_INFO("BufLen: %zu", pkt->buf.size());
 
   //  LOG_INFO("{");
   //  for (auto ele : pkt->buf) {
@@ -242,11 +223,14 @@ bool PacketManager::hardcoded_execute_filter() {
   // Skip SET
   if(!query_type.compare("SET"))
     return false;
-  if (!query_type.compare("BEGIN"))
+  // skip duplicate BEGIN
+  if (!query_type.compare("BEGIN") && txn_state == TXN_BLOCK)
     return false;
-  if (!query_type.compare("COMMIT"))
+  // skip duplicate Commits
+  if (!query_type.compare("COMMIT") && txn_state == TXN_IDLE)
     return false;
-  if (!query_type.compare("ROLLBACK"))
+  // skip duplicate Rollbacks
+  if (!query_type.compare("ROLLBACK") && txn_state == TXN_IDLE)
     return false;
   return true;
 }
@@ -254,7 +238,7 @@ bool PacketManager::hardcoded_execute_filter() {
  * process_packet - Main switch block; process incoming packets,
  *  Returns false if the seesion needs to be closed.
  */
-bool PacketManager::process_packet(Packet* pkt, ResponseBuffer& responses, void **stmt) {
+bool PacketManager::process_packet(Packet* pkt, ResponseBuffer& responses) {
 
   switch (pkt->msg_type) {
     case 'Q': {
@@ -372,9 +356,6 @@ bool PacketManager::process_packet(Packet* pkt, ResponseBuffer& responses, void 
     case 'D': {
       auto mode = packet_getbytes(pkt, 1);
 
-      exec_mode = mode[0];
-      // mode is a single byte
-
       LOG_INFO("CASE D reached. DO nothing");
       break;
     }
@@ -388,14 +369,14 @@ bool PacketManager::process_packet(Packet* pkt, ResponseBuffer& responses, void 
 
       // covers weird JDBC edge case of sending double BEGIN statements. Don't execute them
       if(hardcoded_execute_filter()){
-        isFailed = db.InitBindPrepStmt(query.c_str(), bind_parameters, stmt, errMsg);
+        isFailed = db.InitBindPrepStmt(query.c_str(), bind_parameters, &stmt, errMsg);
         if (isFailed) {
           send_error_response({{'M', errMsg}}, responses);
           send_ready_for_query(txn_state, responses);
           return true;
         }
 
-        isFailed = db.ExecPrepStmt(*stmt, results, rowdesc, rows_affected, errMsg);
+        isFailed = db.ExecPrepStmt(stmt, results, rowdesc, rows_affected, errMsg);
 
         if (isFailed) {
           send_error_response({{'M', errMsg}}, responses);
@@ -467,7 +448,6 @@ void PacketManager::manage_packets() {
   Packet pkt;
   ResponseBuffer responses;
   bool status;
-  void *stmt;
 
   // fetch the startup packet
   if (!read_packet(&pkt, false, &client)) {
@@ -486,7 +466,7 @@ void PacketManager::manage_packets() {
   pkt.reset();
   while (read_packet(&pkt, true, &client)) {
     print_packet(&pkt);
-    status = process_packet(&pkt, responses, &stmt);
+    status = process_packet(&pkt, responses);
     if (!write_packets(responses, &client) || !status) {
       // close client on write failure or status failure
       close_client();
