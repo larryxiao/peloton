@@ -114,6 +114,7 @@ void handle_connections(Server *server) {
 
     std::unique_ptr<int> clientfd(new int(connfd));
 
+    std::cout << "LAUNCHING NEW THREAD" << std::endl;
     std::thread client_thread(client_handler<P, B>, std::move(clientfd));
     client_thread.detach();
   }

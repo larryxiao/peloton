@@ -12,6 +12,7 @@
 #include <iostream>
 #include <unordered_map>
 #include <boost/assign/list_of.hpp>
+#include "backend/common/assert.h"
 
 /* TXN state definitions */
 #define BUFFER_INIT_SIZE 100
@@ -61,7 +62,6 @@ class PacketManager {
   std::vector<std::pair<int, std::string>> bind_parameters;
   uchar txn_state;
   std::unordered_map<std::string, std::string> PrepStmtTable;
-  void *stmt;
 
   wiredb::Sqlite db;
 

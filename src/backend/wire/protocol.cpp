@@ -364,6 +364,7 @@ bool PacketManager::process_packet(Packet* pkt, ResponseBuffer& responses) {
       std::vector<wiredb::ResType> results;
       std::vector<wiredb::FieldInfoType> rowdesc;
       std::string errMsg;
+      void *stmt = nullptr;
       int rows_affected = 0, isFailed;
       std::string portal_name = get_string_token(pkt);
 
@@ -376,6 +377,8 @@ bool PacketManager::process_packet(Packet* pkt, ResponseBuffer& responses) {
           return true;
         }
 
+        ASSERT(stmt != nullptr);
+        LOG_INFO("Executing query: %s", query.c_str());
         isFailed = db.ExecPrepStmt(stmt, results, rowdesc, rows_affected, errMsg);
 
         if (isFailed) {

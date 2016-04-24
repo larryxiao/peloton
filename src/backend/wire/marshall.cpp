@@ -207,8 +207,10 @@ bool write_packets(std::vector<std::unique_ptr<Packet>> &packets,
                    Client *client) {
   for (size_t i = 0; i < packets.size(); i++) {
     auto pkt = packets[i].get();
-    if (!client->sock->buffer_write_bytes(pkt->buf, pkt->len, pkt->msg_type))
+    if (!client->sock->buffer_write_bytes(pkt->buf, pkt->len, pkt->msg_type)) {
+      packets.clear();
       return false;
+    }
   }
 
   // clear packets

@@ -32,7 +32,7 @@ public:
     }
 
     // TODO: remove test
-    test();
+    // test();
   }
 
   virtual ~Sqlite() {
@@ -69,7 +69,7 @@ public:
   int InitBindPrepStmt(const char *query, std::vector<std::pair<int, std::string>> &parameters UNUSED, void ** stmt, std::string &errMsg) {
     LOG_INFO("PARAMS SIZE:%zu", parameters.size());
     sqlite3_stmt *sql_stmt = nullptr;
-    int rc = sqlite3_prepare(db, query, (int)strlen(query), &sql_stmt, NULL);
+    int rc = sqlite3_prepare_v2(db, query, -1, &sql_stmt, NULL);
     if (rc != SQLITE_OK) {
       errMsg = std::string(sqlite3_errmsg(db));
       return 1;
@@ -105,7 +105,7 @@ public:
           }
           break;
         default:
-          LOG_INFO("unknow bind type");
+          LOG_INFO("unknown bind type");
           break;
       }
     }
@@ -116,6 +116,7 @@ public:
 
 
   int ExecPrepStmt(void *stmt, std::vector<ResType> &res, std::vector<FieldInfoType> &info, int &rows_change, std::string &errMsg) {
+    LOG_INFO("Executing statement......................");
     auto sql_stmt = (sqlite3_stmt *)stmt;
     auto ret = sqlite3_step(sql_stmt);
     auto col_num = sqlite3_column_count(sql_stmt);
@@ -158,13 +159,15 @@ public:
       ret = sqlite3_step(sql_stmt);
     }
 
+    sqlite3_finalize(sql_stmt);
+    sqlite3_db_release_memory(db);
+    // sql_stmt = nullptr;
     if (ret != SQLITE_DONE) {
       LOG_INFO("ret num %d, err is %s", ret, sqlite3_errmsg(db));
       errMsg = std::string(sqlite3_errmsg(db));
       return 1;
     }
     rows_change = sqlite3_changes(db);
-    sqlite3_finalize(sql_stmt);
     return 0;
   }
 
@@ -223,10 +226,11 @@ private:
     if (src == nullptr) {
       return;
     }
-
+    LOG_INFO("ENTER: strlen: %zu", strlen(src));
     for(unsigned int i = 0; i < strlen(src); i++){
       dst.push_back((unsigned char)src[i]);
     }
+    LOG_INFO("EXIT: strlen: %zu", strlen(src));
   }
 
   static int execCallback(void *res, int argc, char **argv, char **azColName){
