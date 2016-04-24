@@ -115,12 +115,17 @@ void packet_putbyte(std::unique_ptr<Packet> &pkt, const uchar c) {
   pkt->len++;
 }
 
-void packet_putstring(std::unique_ptr<Packet> &pkt, std::string &str) {
+void packet_putstring(std::unique_ptr<Packet> &pkt, const std::string &str) {
   pkt->buf.insert(std::end(pkt->buf), std::begin(str), std::end(str));
   // add null character
   pkt->buf.push_back(0);
   // add 1 for null character
   pkt->len += str.size() + 1;
+}
+
+void packet_putbytes(std::unique_ptr<Packet> &pkt, const std::vector<uchar>& data) {
+  pkt->buf.insert(std::end(pkt->buf), std::begin(data), std::end(data));
+  pkt->len += data.size();
 }
 
 void packet_putint(std::unique_ptr<Packet> &pkt, int n, int base) {
@@ -202,8 +207,10 @@ bool write_packets(std::vector<std::unique_ptr<Packet>> &packets,
                    Client *client) {
   for (size_t i = 0; i < packets.size(); i++) {
     auto pkt = packets[i].get();
-    if (!client->sock->buffer_write_bytes(pkt->buf, pkt->len, pkt->msg_type))
+    if (!client->sock->buffer_write_bytes(pkt->buf, pkt->len, pkt->msg_type)) {
+      packets.clear();
       return false;
+    }
   }
 
   // clear packets

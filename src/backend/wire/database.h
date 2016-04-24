@@ -7,12 +7,18 @@
 
 #include <vector>
 #include <string>
+#include <tuple>
 #include "backend/logging/logger.h"
 
 namespace peloton {
 namespace wiredb {
-typedef std::pair<std::vector<char>, std::vector<char>> ResType;
+typedef std::pair<std::vector<unsigned char>, std::vector<unsigned char>> ResType;
+// fieldinfotype: field name, oid (data type), size
+typedef std::tuple<std::string, int, int> FieldInfoType;
 
+#define WIRE_INTEGER 1
+#define WIRE_TEXT 2
+#define WIRE_FLOAT 3
 
 class DataBase {
 public:
@@ -20,7 +26,7 @@ public:
 
   virtual ~DataBase() { }
 
-  virtual int Exec(const char *query, std::vector<ResType> &res, std::string &errMsg) = 0;
+  virtual int PortalExec(const char *query, std::vector<ResType> &res, std::vector<FieldInfoType> &info, int &rows_change, std::string &errMsg) = 0;
 };
 
 }
